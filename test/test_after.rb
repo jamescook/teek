@@ -4,7 +4,7 @@ require 'minitest/autorun'
 require_relative 'tk_test_helper'
 
 class TestAfter < Minitest::Test
-  include TinyKTestHelper
+  include TeekTestHelper
 
   def test_after_fires
     assert_tk_app("after should fire callback", method(:app_after_fires))

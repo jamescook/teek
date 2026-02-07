@@ -2,7 +2,7 @@
 
 # Shared SimpleCov configuration for all test contexts:
 # - Main test process
-# - TinyK::TestWorker subprocess
+# - Teek::TestWorker subprocess
 # - Collation (Rakefile)
 # - Subprocess preamble (tk_test_helper.rb)
 
@@ -19,7 +19,7 @@ module SimpleCovConfig
   end
 
   def self.apply_groups(simplecov_context)
-    simplecov_context.add_group 'Core', 'lib/tinyk.rb'
+    simplecov_context.add_group 'Core', 'lib/teek.rb'
   end
 
   # Generate add_filter code lines from FILTERS array (for subprocess preamble)

@@ -9,9 +9,9 @@
 # Uses pipe-based IPC (no threads) to avoid Tk threading issues.
 #
 # Usage:
-#   TinyK::TestWorker.start
-#   result = TinyK::TestWorker.run_test("label = TkLabel.new(root); ...")
-#   TinyK::TestWorker.stop
+#   Teek::TestWorker.start
+#   result = Teek::TestWorker.run_test("label = TkLabel.new(root); ...")
+#   Teek::TestWorker.stop
 
 require 'stringio'
 require 'fileutils'
@@ -19,9 +19,9 @@ require 'tmpdir'
 require 'json'
 require 'open3'
 
-module TinyK; end
-class TinyK::TestWorker
-  SOCKET_DIR = File.join(Dir.tmpdir, 'tinyk_test_worker')
+module Teek; end
+class Teek::TestWorker
+  SOCKET_DIR = File.join(Dir.tmpdir, 'teek_test_worker')
   PID_FILE = File.join(SOCKET_DIR, 'worker.pid')
   READY_FILE = File.join(SOCKET_DIR, 'ready')
 
@@ -111,7 +111,7 @@ class TinyK::TestWorker
       deadline = Time.now + timeout
 
       until File.exist?(READY_FILE)
-        raise "TinyK::TestWorker failed to start within #{timeout}s" if Time.now > deadline
+        raise "Teek::TestWorker failed to start within #{timeout}s" if Time.now > deadline
         sleep 0.05
       end
     end
@@ -125,8 +125,8 @@ class TinyK::TestWorker
   # Server-side: runs in subprocess
   class Server
     def initialize
-      require 'tinyk'
-      @app = TinyK::App.new
+      require 'teek'
+      @app = Teek::App.new
       @test_count = 0
     end
 
@@ -219,11 +219,11 @@ class TinyK::TestWorker
         }
         b.local_variable_set(:wait_until, wait_until)
 
-        # TODO: Not yet working in TinyK — needs tkextlib/tkimg ported
+        # TODO: Not yet working in Teek — needs tkextlib/tkimg ported
         # Helper to capture screenshots for debugging test failures
         # Usage: capture_screenshot("my_test") or capture_screenshot("step1", window: some_widget)
         screenshot_dir = File.expand_path('../../screenshots/test', __FILE__)
-        test_root = @app # TODO: screenshot helper needs rework for TinyK
+        test_root = @app # TODO: screenshot helper needs rework for Teek
         test_count = @test_count
         capture_screenshot = ->(name, window: nil) {
           begin
@@ -369,6 +369,6 @@ if ARGV[0] == 'server'
     end
   end
 
-  FileUtils.mkdir_p(TinyK::TestWorker::SOCKET_DIR)
-  TinyK::TestWorker::Server.new.run
+  FileUtils.mkdir_p(Teek::TestWorker::SOCKET_DIR)
+  Teek::TestWorker::Server.new.run
 end

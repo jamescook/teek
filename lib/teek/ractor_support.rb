@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Ractor and background work support for TinyK applications.
+# Ractor and background work support for Teek applications.
 #
 # This module provides a unified API across Ruby versions:
 # - Ruby 4.x: Uses Ractor::Port, Ractor.shareable_proc for true parallelism
@@ -15,7 +15,7 @@ if Ractor.respond_to?(:shareable_proc)
   require_relative 'background_ractor4x'
 end
 
-module TinyK
+module Teek
 
   # Unified background work API.
   #
@@ -24,12 +24,12 @@ module TinyK
   # Mode :thread uses traditional threading (GVL limited but always works).
   #
   # Configuration (module-level):
-  #   TinyK::BackgroundWork.poll_ms = 16          # UI poll interval (default 16ms)
-  #   TinyK::BackgroundWork.drop_intermediate = true  # Drop intermediate progress values
-  #   TinyK::BackgroundWork.abort_on_error = false    # Raise vs warn on ractor errors
+  #   Teek::BackgroundWork.poll_ms = 16          # UI poll interval (default 16ms)
+  #   Teek::BackgroundWork.drop_intermediate = true  # Drop intermediate progress values
+  #   Teek::BackgroundWork.abort_on_error = false    # Raise vs warn on ractor errors
   #
   # Example:
-  #   task = TinyK::BackgroundWork.new(app, data, mode: :thread) do |t, d|
+  #   task = Teek::BackgroundWork.new(app, data, mode: :thread) do |t, d|
   #     d.each { |item| t.yield(process(item)) }
   #   end.on_progress { |r| update_ui(r) }
   #
@@ -61,11 +61,11 @@ module TinyK
     end
 
     # Register built-in modes
-    register_background_mode :thread, TinyK::BackgroundThread::BackgroundWork
+    register_background_mode :thread, Teek::BackgroundThread::BackgroundWork
 
     # Ractor mode only available on Ruby 4.x+
     if RACTOR_SUPPORTED
-      register_background_mode :ractor, TinyK::BackgroundRactor4x::BackgroundWork
+      register_background_mode :ractor, Teek::BackgroundRactor4x::BackgroundWork
     end
 
     attr_accessor :name
@@ -143,7 +143,7 @@ module TinyK
   # Simple streaming API (no pause support, simpler interface)
   #
   # Example:
-  #   TinyK::RactorStream.new(app, files) do |yielder, data|
+  #   Teek::RactorStream.new(app, files) do |yielder, data|
   #     data.each { |f| yielder.yield(process(f)) }
   #   end.on_progress { |r| update_ui(r) }
   #     .on_done { puts "Done!" }
@@ -158,13 +158,13 @@ module TinyK
           yielder = StreamYielder.new(task)
           shareable_block.call(yielder, d)
         end
-        @impl = TinyK::BackgroundRactor4x::BackgroundWork.new(app, data, &wrapped_block)
+        @impl = Teek::BackgroundRactor4x::BackgroundWork.new(app, data, &wrapped_block)
       else
         wrapped_block = proc do |task, d|
           yielder = StreamYielder.new(task)
           block.call(yielder, d)
         end
-        @impl = TinyK::BackgroundThread::BackgroundWork.new(app, data, &wrapped_block)
+        @impl = Teek::BackgroundThread::BackgroundWork.new(app, data, &wrapped_block)
       end
     end
 

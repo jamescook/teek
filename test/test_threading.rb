@@ -12,7 +12,7 @@ require 'minitest/autorun'
 require_relative 'tk_test_helper'
 
 class TestThreading < Minitest::Test
-  include TinyKTestHelper
+  include TeekTestHelper
 
   # Timer fires correctly (exercises after callback)
   def test_after_fires

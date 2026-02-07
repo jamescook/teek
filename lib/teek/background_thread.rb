@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
-# Thread-based background work for TinyK applications.
+# Thread-based background work for Teek applications.
 # Always available, works on all Ruby versions.
 # Uses GVL so not true parallelism, but keeps UI responsive.
 
-module TinyK
+module Teek
   module BackgroundThread
 
     # High-level API for background work with messaging support.
     #
     # Example:
-    #   task = TinyK::BackgroundThread::BackgroundWork.new(app, data) do |t|
+    #   task = Teek::BackgroundThread::BackgroundWork.new(app, data) do |t|
     #     data.each do |item|
     #       break if t.check_message == :stop
     #       t.yield(process(item))
@@ -135,7 +135,7 @@ module TinyK
         @poll_proc = proc do
           next if @done
 
-          drop_intermediate = TinyK::BackgroundWork.drop_intermediate
+          drop_intermediate = Teek::BackgroundWork.drop_intermediate
           # Drain queue. If drop_intermediate, only use LATEST progress value.
           # This prevents UI choking when worker yields faster than UI polls.
           last_progress = nil
@@ -180,7 +180,7 @@ module TinyK
           @callbacks[:progress]&.call(last_progress) if drop_intermediate && last_progress && !@done
 
           unless @done || @paused
-            @app.after(TinyK::BackgroundWork.poll_ms, &@poll_proc)
+            @app.after(Teek::BackgroundWork.poll_ms, &@poll_proc)
           end
         end
 
@@ -189,14 +189,14 @@ module TinyK
 
       def warn_choke_start(dropped)
         @choke_warned = true
-        warn "[TinyK::BackgroundWork] UI choking: worker yielding faster than UI can poll. " \
+        warn "[Teek::BackgroundWork] UI choking: worker yielding faster than UI can poll. " \
              "#{dropped} progress values dropped this cycle. " \
              "Consider yielding less frequently or increasing Tk.background_work_poll_ms."
       end
 
       def warn_if_choked
         return unless @dropped_count > 0
-        warn "[TinyK::BackgroundWork] Total #{@dropped_count} progress values dropped during task. " \
+        warn "[Teek::BackgroundWork] Total #{@dropped_count} progress values dropped during task. " \
              "Only latest values were shown to UI."
       end
 

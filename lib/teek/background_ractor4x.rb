@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Ruby 4.x Ractor-based background work for TinyK applications.
+# Ruby 4.x Ractor-based background work for Teek applications.
 # Uses Ractor::Port for streaming and Ractor.shareable_proc for blocks.
 # Uses thread-inside-ractor pattern for non-blocking message handling.
 #
@@ -37,7 +37,7 @@
 #
 # This 4.x implementation is simpler because Ruby 4.x Ractors just work.
 
-module TinyK
+module Teek
   module BackgroundRactor4x
     # Poll interval when paused (slower to save CPU)
     PAUSED_POLL_MS = 500
@@ -213,7 +213,7 @@ module TinyK
         poll = proc do
           next if @done
 
-          drop_intermediate = TinyK::BackgroundWork.drop_intermediate
+          drop_intermediate = Teek::BackgroundWork.drop_intermediate
           # Drain queue. If drop_intermediate, only use LATEST progress value.
           # This prevents UI choking when worker yields faster than UI polls.
           last_progress = nil
@@ -241,7 +241,7 @@ module TinyK
               when :message
                 @callbacks[:message]&.call(value)
               when :error
-                if TinyK::BackgroundWork.abort_on_error
+                if Teek::BackgroundWork.abort_on_error
                   raise RuntimeError, "[Ractor] Background work error: #{value}"
                 else
                   warn "[Ractor] Background work error: #{value}"
@@ -264,7 +264,7 @@ module TinyK
 
           unless @done
             # Use slower polling when paused to save CPU
-            interval = @paused ? PAUSED_POLL_MS : TinyK::BackgroundWork.poll_ms
+            interval = @paused ? PAUSED_POLL_MS : Teek::BackgroundWork.poll_ms
             @app.after(interval, &poll)
           end
         end
@@ -274,14 +274,14 @@ module TinyK
 
       def warn_choke_start(dropped)
         @choke_warned = true
-        warn "[TinyK::BackgroundWork] UI choking: worker yielding faster than UI can poll. " \
+        warn "[Teek::BackgroundWork] UI choking: worker yielding faster than UI can poll. " \
              "#{dropped} progress values dropped this cycle. " \
              "Consider yielding less frequently or increasing Tk.background_work_poll_ms."
       end
 
       def warn_if_choked
         return unless @dropped_count > 0
-        warn "[TinyK::BackgroundWork] Total #{@dropped_count} progress values dropped during task. " \
+        warn "[Teek::BackgroundWork] Total #{@dropped_count} progress values dropped during task. " \
              "Only latest values were shown to UI."
       end
 

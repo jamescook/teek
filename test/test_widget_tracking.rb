@@ -4,7 +4,7 @@ require 'minitest/autorun'
 require_relative 'tk_test_helper'
 
 class TestWidgetTracking < Minitest::Test
-  include TinyKTestHelper
+  include TeekTestHelper
 
   def test_tracks_created_widgets
     assert_tk_app("should track created widgets", method(:app_tracks_created))
@@ -43,7 +43,7 @@ class TestWidgetTracking < Minitest::Test
 
   def app_tracking_disabled
     # Create a second app with tracking off
-    app2 = TinyK::App.new(track_widgets: false)
+    app2 = Teek::App.new(track_widgets: false)
     app2.tcl_eval("button .b -text hello")
     raise "expected empty widgets" unless app2.widgets.empty?
   end

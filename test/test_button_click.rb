@@ -4,7 +4,7 @@ require 'minitest/autorun'
 require_relative 'tk_test_helper'
 
 class TestButtonClick < Minitest::Test
-  include TinyKTestHelper
+  include TeekTestHelper
 
   def test_button_click_prints_hello_world
     assert_tk_app("button click should print Hello world", method(:app_button_click))

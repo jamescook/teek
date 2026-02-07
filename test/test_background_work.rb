@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Tests for TinyK::BackgroundWork and TinyK::RactorStream
+# Tests for Teek::BackgroundWork and Teek::RactorStream
 #
 # Note: Ractor mode requires Ruby 4.x+ (Ractor.shareable_proc).
 # On Ruby 3.x, only thread mode is available.
@@ -10,7 +10,7 @@ require 'minitest/autorun'
 require_relative 'tk_test_helper'
 
 class TestBackgroundWork < Minitest::Test
-  include TinyKTestHelper
+  include TeekTestHelper
 
   # Thread mode basic test
   def test_background_work_thread_basic
@@ -18,12 +18,12 @@ class TestBackgroundWork < Minitest::Test
   end
 
   def app_background_work_thread_basic
-    TinyK::BackgroundWork.drop_intermediate = false
+    Teek::BackgroundWork.drop_intermediate = false
 
     results = []
     done = false
 
-    TinyK::BackgroundWork.new(app, [1, 2, 3], mode: :thread) do |t, data|
+    Teek::BackgroundWork.new(app, [1, 2, 3], mode: :thread) do |t, data|
       data.each { |n| t.yield(n * 10) }
     end.on_progress do |result|
       results << result
@@ -37,7 +37,7 @@ class TestBackgroundWork < Minitest::Test
       sleep 0.01
     end
 
-    TinyK::BackgroundWork.drop_intermediate = true  # Reset
+    Teek::BackgroundWork.drop_intermediate = true  # Reset
 
     raise "Thread task did not complete" unless done
     raise "Expected [10, 20, 30], got #{results.inspect}" unless results == [10, 20, 30]
@@ -52,7 +52,7 @@ class TestBackgroundWork < Minitest::Test
     counter = 0
     done = false
 
-    task = TinyK::BackgroundWork.new(app, 50, mode: :thread) do |t, count|
+    task = Teek::BackgroundWork.new(app, 50, mode: :thread) do |t, count|
       count.times do |i|
         t.check_pause
         t.yield(i)
@@ -105,12 +105,12 @@ class TestBackgroundWork < Minitest::Test
   end
 
   def app_background_work_ractor_basic
-    TinyK::BackgroundWork.drop_intermediate = false
+    Teek::BackgroundWork.drop_intermediate = false
 
     results = []
     done = false
 
-    TinyK::BackgroundWork.new(app, [1, 2, 3], mode: :ractor) do |t, data|
+    Teek::BackgroundWork.new(app, [1, 2, 3], mode: :ractor) do |t, data|
       data.each { |n| t.yield(n * 10) }
     end.on_progress do |result|
       results << result
@@ -124,7 +124,7 @@ class TestBackgroundWork < Minitest::Test
       sleep 0.01
     end
 
-    TinyK::BackgroundWork.drop_intermediate = true  # Reset
+    Teek::BackgroundWork.drop_intermediate = true  # Reset
 
     raise "Ractor task did not complete" unless done
     raise "Expected [10, 20, 30], got #{results.inspect}" unless results == [10, 20, 30]
@@ -140,7 +140,7 @@ class TestBackgroundWork < Minitest::Test
     final_progress_before_done = nil
     done = false
 
-    TinyK::BackgroundWork.new(app, { total: 5 }, mode: :thread) do |t, data|
+    Teek::BackgroundWork.new(app, { total: 5 }, mode: :thread) do |t, data|
       data[:total].times do |i|
         t.yield((i + 1).to_f / data[:total])
       end
@@ -168,12 +168,12 @@ class TestBackgroundWork < Minitest::Test
   end
 
   def app_ractor_stream_basic
-    TinyK::BackgroundWork.drop_intermediate = false
+    Teek::BackgroundWork.drop_intermediate = false
 
     results = []
     done = false
 
-    TinyK::RactorStream.new(app, [1, 2, 3]) do |yielder, data|
+    Teek::RactorStream.new(app, [1, 2, 3]) do |yielder, data|
       data.each { |n| yielder.yield(n * 10) }
     end.on_progress do |result|
       results << result
@@ -187,7 +187,7 @@ class TestBackgroundWork < Minitest::Test
       sleep 0.01
     end
 
-    TinyK::BackgroundWork.drop_intermediate = true  # Reset
+    Teek::BackgroundWork.drop_intermediate = true  # Reset
 
     raise "Stream did not complete (done=#{done})" unless done
     raise "Expected [10, 20, 30], got #{results.inspect}" unless results == [10, 20, 30]
@@ -206,7 +206,7 @@ class TestBackgroundWork < Minitest::Test
     captured = StringIO.new
     $stderr = captured
 
-    TinyK::RactorStream.new(app, :unused) do |yielder, _data|
+    Teek::RactorStream.new(app, :unused) do |yielder, _data|
       raise "Intentional test error"
     end.on_done do
       done = true

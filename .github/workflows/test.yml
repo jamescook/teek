@@ -61,7 +61,7 @@ jobs:
           TCL_VERSION=9.0
         builder: ${{ steps.buildx.outputs.name }}
         load: true
-        tags: tinyk-ci-test-9:latest
+        tags: teek-ci-test-9:latest
         cache-from: type=gha,scope=tcl9
         cache-to: type=gha,mode=max,scope=tcl9
 
@@ -72,7 +72,7 @@ jobs:
           -e TCL_VERSION=9.0 \
           -e COVERAGE=1 \
           -e TESTOPTS=-v \
-          tinyk-ci-test-9:latest
+          teek-ci-test-9:latest
 
     - name: Upload coverage report
       if: always()
@@ -125,7 +125,7 @@ jobs:
           TCL_VERSION=8.6
         builder: ${{ steps.buildx.outputs.name }}
         load: true
-        tags: tinyk-ci-test-8:latest
+        tags: teek-ci-test-8:latest
         cache-from: type=gha,scope=tcl8
         cache-to: type=gha,mode=max,scope=tcl8
 
@@ -134,4 +134,4 @@ jobs:
         docker run --rm \
           -e TCL_VERSION=8.6 \
           -e TESTOPTS=-v \
-          tinyk-ci-test-8:latest
+          teek-ci-test-8:latest

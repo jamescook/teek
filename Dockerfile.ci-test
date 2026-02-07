@@ -7,13 +7,13 @@
 #
 # Usage:
 #   Tcl/Tk 9.0 (default):
-#     docker build -f Dockerfile.ci-test -t tinyk-ci-test-9 .
+#     docker build -f Dockerfile.ci-test -t teek-ci-test-9 .
 #
 #   Tcl/Tk 8.6:
-#     docker build -f Dockerfile.ci-test --build-arg TCL_VERSION=8.6 -t tinyk-ci-test-8 .
+#     docker build -f Dockerfile.ci-test --build-arg TCL_VERSION=8.6 -t teek-ci-test-8 .
 #
 #   Run tests:
-#     docker run --rm tinyk-ci-test-9
+#     docker run --rm teek-ci-test-9
 #
 #   Or use rake tasks:
 #     rake docker:test                    # Test with Tcl 9.0

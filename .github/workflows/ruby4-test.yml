@@ -30,11 +30,11 @@ jobs:
           TCL_VERSION=9.0
         builder: ${{ steps.buildx.outputs.name }}
         load: true
-        tags: tinyk-ci-test-ruby4:latest
+        tags: teek-ci-test-ruby4:latest
 
     - name: Run tests
       run: |
         docker run --rm --init \
           -e TCL_VERSION=9.0 \
           -e TESTOPTS=-v \
-          tinyk-ci-test-ruby4:latest
+          teek-ci-test-ruby4:latest

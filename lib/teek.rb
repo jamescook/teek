@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require 'tcltklib'
-require_relative 'tinyk/ractor_support'
+require_relative 'teek/ractor_support'
 
-module TinyK
+module Teek
   VERSION = "0.1.0"
 
   WIDGET_COMMANDS = %w[
@@ -83,7 +83,7 @@ module TinyK
       })
 
       # Tcl proc called on widget creation (trace leave)
-      @interp.tcl_eval("proc ::tinyk_track_create {cmd_string code result op} {
+      @interp.tcl_eval("proc ::teek_track_create {cmd_string code result op} {
         set path [lindex $cmd_string 1]
         if {$code == 0 && [winfo exists $path]} {
           set cls [winfo class $path]
@@ -95,8 +95,8 @@ module TinyK
       @interp.tcl_eval("bind all <Destroy> {ruby_callback #{@destroy_cb_id} %W}")
 
       # Add trace on each widget command
-      TinyK::WIDGET_COMMANDS.each do |cmd|
-        @interp.tcl_eval("catch {trace add execution #{cmd} leave ::tinyk_track_create}")
+      Teek::WIDGET_COMMANDS.each do |cmd|
+        @interp.tcl_eval("catch {trace add execution #{cmd} leave ::teek_track_create}")
       end
     end
 

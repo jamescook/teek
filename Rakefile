@@ -72,7 +72,7 @@ task yard: 'docs:yard'
 #     --without-X11
 
 # Clean up extconf cached config files
-CLEAN.include('ext/tinyk/config_list')
+CLEAN.include('ext/teek/config_list')
 CLOBBER.include('tmp', 'lib/*.bundle', 'lib/*.so', 'ext/**/*.o', 'ext/**/*.bundle', 'ext/**/*.bundle.dSYM')
 
 # Clean coverage artifacts before test runs to prevent accumulation
@@ -83,7 +83,7 @@ if Gem::Specification.find_all_by_name('rake-compiler').any?
   require 'rake/extensiontask'
   Rake::ExtensionTask.new do |ext|
     ext.name = 'tcltklib'
-    ext.ext_dir = 'ext/tinyk'
+    ext.ext_dir = 'ext/teek'
     ext.lib_dir = 'lib'
   end
 end
@@ -150,11 +150,11 @@ task :default => :compile
 # Docker tasks for local testing and CI
 namespace :docker do
   DOCKERFILE = 'Dockerfile.ci-test'
-  DOCKER_LABEL = 'project=tinyk'
+  DOCKER_LABEL = 'project=teek'
 
   def docker_image_name(tcl_version, ruby_version = nil)
     ruby_version ||= ruby_version_from_env
-    base = tcl_version == '8.6' ? 'tinyk-ci-test-8' : 'tinyk-ci-test-9'
+    base = tcl_version == '8.6' ? 'teek-ci-test-8' : 'teek-ci-test-9'
     ruby_version == '3.4' ? base : "#{base}-ruby#{ruby_version}"
   end
 
@@ -231,7 +231,7 @@ namespace :docker do
     sh cmd
   end
 
-  desc "Remove dangling Docker images from tinyk builds"
+  desc "Remove dangling Docker images from teek builds"
   task :prune do
     sh "docker image prune -f --filter label=#{DOCKER_LABEL}"
   end

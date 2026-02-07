@@ -22,7 +22,7 @@ require_relative 'simplecov_config'
 require 'open3'
 require 'timeout'
 
-module TinyKTestHelper
+module TeekTestHelper
   # Project root for absolute paths in subprocesses
   PROJECT_ROOT = SimpleCovConfig::PROJECT_ROOT
 
@@ -57,7 +57,7 @@ module TinyKTestHelper
     load_path_args = load_paths.flat_map { |p| ["-I", p] }
 
     # Prepend SimpleCov setup for coverage merging
-    full_code = coverage ? "#{TinyKTestHelper.simplecov_preamble}\n#{code}" : code
+    full_code = coverage ? "#{TeekTestHelper.simplecov_preamble}\n#{code}" : code
 
     # Pass env vars to subprocess
     env = {}
@@ -118,8 +118,8 @@ module TinyKTestHelper
   @_subprocess_warned = false
 
   def assert_tk_subprocess(message = "Tk subprocess test failed")
-    unless TinyKTestHelper.instance_variable_get(:@_subprocess_warned)
-      TinyKTestHelper.instance_variable_set(:@_subprocess_warned, true)
+    unless TeekTestHelper.instance_variable_get(:@_subprocess_warned)
+      TeekTestHelper.instance_variable_set(:@_subprocess_warned, true)
       warn "Note: assert_tk_subprocess spawns a new process per test (slow). " \
            "Use assert_tk_app for most tests."
     end
@@ -135,7 +135,7 @@ module TinyKTestHelper
     assert success, "#{message}\n#{output.join("\n")}"
   end
 
-  # DEPRECATED: Use assert_tk_app instead (uses persistent TinyK::TestWorker)
+  # DEPRECATED: Use assert_tk_app instead (uses persistent Teek::TestWorker)
   # This spawns a new subprocess for each test - slower but supports VISUAL mode.
   def assert_tk_app_subprocess(message, app_method)
     # Extract method body (skip def line and closing end)
@@ -143,7 +143,7 @@ module TinyKTestHelper
     body = source_lines[1..-2].join
 
     # Prepend visual mode helper (defines tk_end)
-    full_body = "#{TinyKTestHelper.visual_mode_preamble}\n#{body}"
+    full_body = "#{TeekTestHelper.visual_mode_preamble}\n#{body}"
 
     success, stdout, stderr, status = tk_subprocess(full_body)
 
@@ -272,7 +272,7 @@ module TinyKTestHelper
     false
   end
 
-  # Run test using persistent TinyK::TestWorker (fast, no subprocess spawn per test).
+  # Run test using persistent Teek::TestWorker (fast, no subprocess spawn per test).
   #
   # The test code has access to `root` (a withdrawn TkRoot instance).
   # Do NOT create your own TkRoot or call root.destroy - worker manages this.
@@ -289,17 +289,17 @@ module TinyKTestHelper
   #   end
   #
   def assert_tk_app(message, app_method, pipe_capture: false, timeout: nil)
-    require_relative 'tinyk_test_worker'
+    require_relative 'teek_test_worker'
 
     # Extract method body (skip def line and closing end)
     source_lines = app_method.source.lines
     body = source_lines[1..-2].join
 
-    result = TinyK::TestWorker.run_test(body, pipe_capture: pipe_capture, timeout: timeout)
+    result = Teek::TestWorker.run_test(body, pipe_capture: pipe_capture, timeout: timeout)
 
     # Show warnings (interpreter cleanup, etc.) even on success
     if result[:warnings]&.any?
-      warn "TinyK::TestWorker warnings: #{result[:warnings].join('; ')}"
+      warn "Teek::TestWorker warnings: #{result[:warnings].join('; ')}"
     end
 
     unless result[:success]
