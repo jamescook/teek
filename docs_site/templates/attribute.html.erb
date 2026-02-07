@@ -1,0 +1,7 @@
+<div class="method-card<%= ' has-docs' if attr['has_content'] %>" id="attr-<%= h attr['name'] %>">
+  <h3><a href="#attr-<%= h attr['name'] %>" class="anchor-link"><%= h attr['name'] %></a> <span class="attr-access"><%= attr['reader'] && attr['writer'] ? '[RW]' : (attr['reader'] ? '[R]' : '[W]') %></span></h3>
+  <% unless attr['docstring'].to_s.empty? %>
+  <%= md(attr['docstring']) %>
+  <% end %>
+  <%= render_tags(attr['tags']) %>
+</div>

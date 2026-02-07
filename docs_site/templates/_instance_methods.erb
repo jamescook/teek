@@ -1,0 +1,12 @@
+<% if @doc['instance_methods']&.any? %>
+<h6 id="instance-methods">Instance Methods <a href="#" class="jump-top" title="Back to top">↑</a></h6>
+<% grouped_instance = @doc['instance_methods'].group_by { |m| m['group'] } %>
+<% grouped_instance.each do |group_name, methods| %>
+<% if group_name %>
+<h4 class="method-group"><%= h group_name %></h4>
+<% end %>
+<% methods.each do |method| %>
+<%= render_method(method, class_coverage: @class_coverage) %>
+<% end %>
+<% end %>
+<% end %>

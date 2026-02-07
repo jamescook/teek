@@ -1,0 +1,18 @@
+<%
+  parent_path = node[:path].include?('::') ? node[:path].rpartition('::').first : nil
+%>
+<%= indent %><li class="nav-item" data-nav-item data-path="<%= h node[:path] %>" data-name="<%= h name %>"<%= " data-parent=\"#{h parent_path}\"" if parent_path %>>
+<% if children.any? %>
+<%   collapse_id = "nav-#{url_path.gsub('/', '-')}" %>
+<%   expanded = (name == 'Tk' && depth == 3) %>
+<%= indent %>  <div data-nav-row>
+<%= indent %>    <a class="nav-link" data-nav-link href="{{ '/api/<%= url_path %>/' | relative_url }}" data-turbo-frame="main-content" data-expand-target="<%= collapse_id %>"><%= h name %></a>
+<%= indent %>    <a data-nav-chevron="<%= collapse_id %>" class="<%= 'collapsed' unless expanded %>" data-bs-toggle="collapse" href="#<%= collapse_id %>" role="button" aria-expanded="<%= expanded %>" aria-controls="<%= collapse_id %>"></a>
+<%= indent %>  </div>
+<%= indent %>  <ul data-nav-children data-collapse-for="<%= h node[:path] %>" class="collapse<%= ' show' if expanded %>" id="<%= collapse_id %>">
+<%= render_nav_tree(children, depth + 1) %>
+<%= indent %>  </ul>
+<% else %>
+<%= indent %>  <a class="nav-link" data-nav-link href="{{ '/api/<%= url_path %>/' | relative_url }}" data-turbo-frame="main-content"><%= h name %></a>
+<% end %>
+<%= indent %></li>

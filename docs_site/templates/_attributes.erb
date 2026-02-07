@@ -1,0 +1,6 @@
+<% if @doc['attributes']&.any? %>
+<h6 id="attributes">Attributes <a href="#" class="jump-top" title="Back to top">↑</a></h6>
+<% @doc['attributes'].each do |attr| %>
+<%= render_attribute(attr) %>
+<% end %>
+<% end %>

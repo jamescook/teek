@@ -1,0 +1,12 @@
+<div id="nav-breadcrumb" class="nav-breadcrumb"></div>
+<ul class="nav flex-column" id="api-nav">
+  <li class="nav-item">
+    <a class="nav-link" href="{{ '/' | relative_url }}">Home</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="{{ '/api/' | relative_url }}">API Reference</a>
+    <ul data-nav-children>
+<%= render_nav_tree(nav_tree, 3) %>
+    </ul>
+  </li>
+</ul>

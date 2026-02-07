@@ -1,0 +1,11 @@
+<% if @doc['superclass'] %>
+<p><strong>Inherits:</strong> <a href="#inherited-from-<%= @doc['superclass'].gsub('::', '-') %>"><code><%= h @doc['superclass'] %></code></a></p>
+<% end %>
+
+<% if @doc['class_mixins']&.any? %>
+<p><strong>Extended by:</strong> <%= @doc['class_mixins'].map { |m| "<code>#{h m}</code>" }.join(', ') %></p>
+<% end %>
+
+<% if @doc['instance_mixins']&.any? %>
+<p><strong>Includes:</strong> <%= @doc['instance_mixins'].map { |m| "<code>#{h m}</code>" }.join(', ') %></p>
+<% end %>

@@ -1,0 +1,244 @@
+// Custom styles for Ruby/Tk API documentation
+
+// Custom color variables
+$chevron-color: $grey-dk-000 !default;
+$card-shadow-color: rgba(0, 0, 0, 0.12) !default;
+$card-shadow-color-soft: rgba(0, 0, 0, 0.08) !default;
+
+// Method cards - subtle card styling for each method/attribute
+.method-card {
+  background: $body-background-color;
+  border-radius: 6px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 1px 3px $card-shadow-color, 0 2px 6px $card-shadow-color-soft;
+  border: 1px solid $border-color;
+
+  // Method name heading
+  h3 {
+    margin-top: 0;
+    padding-top: 0;
+    border-bottom: none;
+    font-size: 1.1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    .anchor-link {
+      color: $link-color;
+      text-decoration: none;
+      flex: 1;
+
+      &::after {
+        content: "🔗";
+        font-size: 0.7em;
+        margin-left: 0.5em;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+        display: inline-block;
+        text-decoration: none;
+      }
+
+      &:hover {
+        text-decoration: underline;
+
+        &::after {
+          opacity: 0.5;
+        }
+      }
+    }
+  }
+
+  // Chevron for cards with content
+  &.has-docs h3::after {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid $chevron-color;
+    border-bottom: 2px solid $chevron-color;
+    transform: rotate(45deg);
+    flex-shrink: 0;
+    margin-left: 1rem;
+  }
+
+  // Section headings (See also, Examples)
+  h6 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: $grey-dk-200;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+  }
+
+  // See also section
+  .see-also-section {
+    background: rgba($grey-lt-100, 0.5);
+    border: 1px solid $border-color;
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem;
+    margin-top: 1rem;
+    font-size: 0.85rem;
+
+    h6 {
+      margin-top: 0;
+      margin-bottom: 0.25rem;
+    }
+
+    .see-also {
+      margin: 0;
+      padding-left: 1.25rem;
+
+      li {
+        margin-bottom: 0.125rem;
+      }
+    }
+  }
+
+  // Official docs link
+  .official-docs-link {
+    text-align: right;
+    margin-top: 0.75rem;
+    font-size: 0.75rem;
+
+    a {
+      color: $grey-dk-100;
+      text-decoration: none;
+
+      &:hover {
+        color: $link-color;
+      }
+    }
+  }
+
+  // Examples section
+  .examples-section {
+    margin-top: 1rem;
+
+    h6 {
+      margin-bottom: 0.75rem;
+    }
+
+    pre {
+      margin-bottom: 0.75rem;
+      border-radius: 6px;
+      border: 1px solid darken($border-color, 5%);
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06), inset 0 1px 2px rgba(0, 0, 0, 0.08);
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+    }
+
+    code {
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+  }
+
+  // Code blocks inside cards
+  pre {
+    margin-bottom: 0.5rem;
+  }
+
+  // Last element shouldn't have bottom margin
+  > *:last-child {
+    margin-bottom: 0;
+  }
+
+  // Inline code styling
+  code {
+    font-size: 0.9em;
+  }
+}
+
+// Highlight.js overrides for consistency
+.hljs {
+  padding: 1rem;
+  border-radius: 6px;
+  background: transparent !important;
+}
+
+// Example code blocks - override highlight.js background
+.examples-section pre {
+  background: $grey-lt-100 !important;
+}
+
+// Type badge colors
+$type-class-bg: #e6f3ff !default;
+$type-class-color: #0969da !default;
+$type-module-bg: #dafbe1 !default;
+$type-module-color: #1a7f37 !default;
+
+// Hide theme's default footer
+div.site-footer {
+  display: none !important;
+}
+
+// Add bottom padding to main content for sticky footer
+.main-content {
+  padding-bottom: 3rem;
+}
+
+// Site footer (full width, sticky at bottom)
+footer.site-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-top: 1px solid $border-color;
+  padding: 0.75rem 1.5rem;
+  font-size: 0.8rem;
+  color: $grey-dk-100;
+  background: $body-background-color;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1;
+
+  .footer-left {
+    a {
+      color: $link-color;
+      text-decoration: none;
+      &:hover { text-decoration: underline; }
+    }
+  }
+
+  .footer-right {
+    a {
+      display: flex;
+      align-items: center;
+      opacity: 0.6;
+      &:hover { opacity: 1; }
+    }
+
+    .github-icon {
+      width: 20px;
+      height: 20px;
+    }
+  }
+}
+
+// Type badge (Module/Class) in page heading
+.type-badge {
+  display: inline-block;
+  font-size: 0.5em;
+  font-weight: 500;
+  padding: 0.2em 0.6em;
+  border-radius: 4px;
+  vertical-align: middle;
+  margin-left: 0.5em;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+
+  &.type-class {
+    background: $type-class-bg;
+    color: $type-class-color;
+  }
+
+  &.type-module {
+    background: $type-module-bg;
+    color: $type-module-color;
+  }
+}

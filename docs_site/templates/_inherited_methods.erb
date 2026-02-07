@@ -1,0 +1,27 @@
+<% if @doc['inherited_methods']&.any? %>
+<div class="inherited-section">
+<h6>Inherited Methods</h6>
+<%
+  direct_sources = [@doc['superclass'], *(@doc['class_mixins'] || []), *(@doc['instance_mixins'] || [])].compact
+%>
+<% @doc['inherited_methods'].each do |source, methods| %>
+<%
+  via = nil
+  unless direct_sources.include?(source)
+    via = @doc['superclass']
+  end
+%>
+<div class="inherited-source" id="inherited-from-<%= source.gsub('::', '-') %>">
+<span class="inherited-from">from <a href="{{ '/api/<%= source.gsub('::', '/') %>/' | relative_url }}"><%= h source %></a><% if via %> <span class="inherited-via">(via <%= h via %>)</span><% end %></span>
+<ul class="inherited-list">
+<% methods['class_methods']&.each do |m| %>
+<li><a href="{{ '/api/<%= source.gsub('::', '/') %>/' | relative_url }}#class-method-<%= m %>" class="inherited-class-method">.<%= h m %></a></li>
+<% end %>
+<% methods['instance_methods']&.each do |m| %>
+<li><a href="{{ '/api/<%= source.gsub('::', '/') %>/' | relative_url }}#method-<%= m %>" class="inherited-instance-method">#<%= h m %></a></li>
+<% end %>
+</ul>
+</div>
+<% end %>
+</div>
+<% end %>

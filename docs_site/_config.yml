@@ -1,0 +1,22 @@
+title: Teek API Documentation
+description: Tcl/Tk interface for Ruby
+url: https://jamescook.github.io/teek
+
+# Collections for API docs
+collections:
+  api:
+    output: true
+    permalink: /api/:path/
+
+# Plugins
+plugins:
+  - jekyll-seo-tag
+
+# Exclude from build
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - node_modules
+  - vendor
+  - templates
+  - build_api_docs.rb

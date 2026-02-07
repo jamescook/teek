@@ -1,0 +1,35 @@
+<% if @tpl_included_by.any? || @tpl_extended_by.any? || @tpl_inherited_by.any? %>
+<div class="used-by-section">
+<h6>Used By</h6>
+<% if @tpl_included_by.any? %>
+<div class="used-by-group">
+<span class="used-by-label">Included by:</span>
+<ul class="used-by-list">
+<% @tpl_included_by.each do |path| %>
+<li><a href="{{ '/api/<%= path.gsub('::', '/') %>/' | relative_url }}"><%= h path %></a></li>
+<% end %>
+</ul>
+</div>
+<% end %>
+<% if @tpl_extended_by.any? %>
+<div class="used-by-group">
+<span class="used-by-label">Extended by:</span>
+<ul class="used-by-list">
+<% @tpl_extended_by.each do |path| %>
+<li><a href="{{ '/api/<%= path.gsub('::', '/') %>/' | relative_url }}"><%= h path %></a></li>
+<% end %>
+</ul>
+</div>
+<% end %>
+<% if @tpl_inherited_by.any? %>
+<div class="used-by-group">
+<span class="used-by-label">Subclasses:</span>
+<ul class="used-by-list">
+<% @tpl_inherited_by.each do |path| %>
+<li><a href="{{ '/api/<%= path.gsub('::', '/') %>/' | relative_url }}"><%= h path %></a></li>
+<% end %>
+</ul>
+</div>
+<% end %>
+</div>
+<% end %>

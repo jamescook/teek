@@ -1,0 +1,19 @@
+<% if @children_modules&.any? || @children_classes&.any? %>
+<div class="children-section">
+<h6>Members: <% if @children_modules.any? %>Modules (<%= @children_modules.size %>)<% end %><% if @children_modules.any? && @children_classes.any? %> · <% end %><% if @children_classes.any? %>Classes (<%= @children_classes.size %>)<% end %></h6>
+<% if @children_modules.any? %>
+<ul class="children-list">
+<% @children_modules.sort_by { |c| c[:name].downcase }.each do |child| %>
+<li><span class="badge bg-success">M</span> <a href="{{ '/api/<%= child[:url] %>/' | relative_url }}"><%= h child[:name] %></a></li>
+<% end %>
+</ul>
+<% end %>
+<% if @children_classes.any? %>
+<ul class="children-list<%= ' mt-3' if @children_modules.any? %>">
+<% @children_classes.sort_by { |c| c[:name].downcase }.each do |child| %>
+<li><span class="badge bg-primary">C</span> <a href="{{ '/api/<%= child[:url] %>/' | relative_url }}"><%= h child[:name] %></a></li>
+<% end %>
+</ul>
+<% end %>
+</div>
+<% end %>

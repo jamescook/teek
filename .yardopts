@@ -1,0 +1,14 @@
+--quiet
+--markup markdown
+--tag official:"Official Documentation"
+--title "Teek API Documentation"
+--readme README.md
+--output-dir doc
+--format json
+--template-path docs_site/yard_templates
+
+# Main library
+lib/**/*.rb
+
+# Exclude tests inside lib/ (pattern is regex, not glob)
+--exclude /test/

@@ -1,0 +1,39 @@
+---
+layout: default
+title: <%= @title %>
+parent: <%= @parent || 'API Reference' %>
+<% if @has_children %>
+has_children: true
+<% end %>
+nav_order: <%= @nav_order %>
+---
+
+<div class="page-header">
+<h1 class="page-title"><%= h @doc['path'] %> <button data-copy-path="<%= h @doc['path'] %>" title="Copy to clipboard" aria-label="Copy path to clipboard"><img src="{{ '/assets/images/copy.svg' | relative_url }}" alt="Copy" width="16" height="16"></button> <span class="type-badge type-<%= @doc['type'] %>"><%= @doc['type']&.capitalize %></span></h1>
+{% include search.html %}
+</div>
+
+<% if @doc['class_methods']&.any? || @doc['instance_methods']&.any? || @doc['attributes']&.any? || @doc['official_url'] %>
+<nav class="page-subnav">
+<span class="page-subnav-left">
+<% if @doc['class_methods']&.any? %><a href="#class-methods">Class Methods (<%= @doc['class_methods'].size %>)</a><% end %>
+<% if @doc['instance_methods']&.any? %><a href="#instance-methods">Instance Methods (<%= @doc['instance_methods'].size %>)</a><% end %>
+<% if @doc['attributes']&.any? %><a href="#attributes">Attributes (<%= @doc['attributes'].size %>)</a><% end %>
+</span>
+<% if @doc['official_url'] %><a href="<%= h @doc['official_url'] %>" target="_blank" rel="noopener" class="official-docs-link">Official Docs <i class="bi bi-box-arrow-up-right"></i></a><% end %>
+</nav>
+<% end %>
+
+<% unless @doc['docstring'].to_s.strip.empty? %>
+<div class="docstring">
+<%= md(@doc['docstring']) %>
+</div>
+<% end %>
+
+<%= partial('_inheritance_info') %>
+<%= partial('_class_methods') %>
+<%= partial('_instance_methods') %>
+<%= partial('_attributes') %>
+<%= partial('_children') %>
+<%= partial('_inherited_methods') %>
+<%= partial('_used_by') %>

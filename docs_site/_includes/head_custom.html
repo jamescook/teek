@@ -1,0 +1,23 @@
+<!-- Syntax highlighting with highlight.js (vendored, lazy-loaded) -->
+<link rel="stylesheet" href="{{ '/assets/css/github.min.css' | relative_url }}" media="(prefers-color-scheme: light), (prefers-color-scheme: no-preference)">
+<link rel="stylesheet" href="{{ '/assets/css/github-dark.min.css' | relative_url }}" media="(prefers-color-scheme: dark)">
+<script src="{{ '/assets/vendor/highlight.min.js' | relative_url }}"></script>
+<script src="{{ '/assets/js/ruby.min.js' | relative_url }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  var codeBlocks = document.querySelectorAll('pre code');
+
+  var observer = new IntersectionObserver(function(entries) {
+    entries.forEach(function(entry) {
+      if (entry.isIntersecting) {
+        hljs.highlightElement(entry.target);
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { rootMargin: '100px' });
+
+  codeBlocks.forEach(function(block) {
+    observer.observe(block);
+  });
+});
+</script>

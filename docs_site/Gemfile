@@ -1,0 +1,9 @@
+source "https://rubygems.org"
+
+gem "jekyll", "~> 4.3"
+gem "jekyll-seo-tag"
+gem "kramdown", "~> 2.4"  # Markdown rendering for docstrings
+gem "yard", "~> 0.9"      # Ruby doc generation
+gem "redcarpet", "~> 3.6" # Markdown support for YARD
+gem "rdoc"                # Required by YARD on Ruby 4.x
+gem "irb"                 # Required by YARD on Ruby 4.x (removed from stdlib)

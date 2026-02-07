@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page.title }} | {{ site.title }}</title>
+  <link rel="stylesheet" href="{{ '/assets/vendor/bootstrap/bootstrap.min.css' | relative_url }}">
+  <link rel="stylesheet" href="{{ '/assets/vendor/bootstrap-icons/bootstrap-icons.min.css' | relative_url }}">
+  <link rel="stylesheet" href="{{ '/assets/vendor/highlight-github.min.css' | relative_url }}">
+  <link rel="stylesheet" href="{{ '/assets/css/custom.css' | relative_url }}">
+  <script src="{{ '/assets/vendor/turbo.min.js' | relative_url }}" defer></script>
+  <script>
+    // Handle Turbo errors to prevent broken back button
+    document.addEventListener('turbo:fetch-request-error', function(e) {
+      e.preventDefault();
+      window.location.href = e.detail.fetchRequest.url;
+    });
+    // Handle anchor links inside turbo frames
+    document.addEventListener('turbo:click', function(e) {
+      var url = new URL(e.detail.url);
+      if (!url.hash) return;
+      if (url.pathname === window.location.pathname) {
+        // Same page: just scroll
+        e.preventDefault();
+        var target = document.querySelector(url.hash);
+        if (target) target.scrollIntoView();
+      } else {
+        // Cross-page with hash: full navigation so the browser scrolls to the anchor
+        e.preventDefault();
+        window.location.href = e.detail.url;
+      }
+    });
+  </script>
+  <script src="{{ '/assets/vendor/bootstrap/bootstrap.bundle.min.js' | relative_url }}" defer></script>
+  <script src="{{ '/assets/vendor/lunr.min.js' | relative_url }}" defer></script>
+  <script src="{{ '/assets/js/search.js' | relative_url }}" defer></script>
+  <script src="{{ '/assets/js/nav-breadcrumb.js' | relative_url }}" defer></script>
+  <script src="{{ '/assets/js/nav-expand-active.js' | relative_url }}" defer></script>
+  <script src="{{ '/assets/js/application.js' | relative_url }}" defer></script>
+  <script src="{{ '/assets/js/coverage-toggle.js' | relative_url }}" defer></script>
+</head>
+<body data-baseurl="{{ site.baseurl }}">
+
+  <!-- Mobile nav toggle -->
+  <button class="btn btn-light mobile-nav-toggle d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobile-nav" aria-controls="mobile-nav" aria-label="Toggle navigation">
+    <i class="bi bi-list"></i>
+  </button>
+
+  <!-- Mobile nav (offcanvas) -->
+  <div class="offcanvas offcanvas-start d-md-none" tabindex="-1" id="mobile-nav">
+    <div class="offcanvas-header">
+      <h5 class="offcanvas-title">{{ site.title }}</h5>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+    </div>
+    <div class="offcanvas-body">
+      {% include nav.html %}
+    </div>
+  </div>
+
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar (desktop only) -->
+      <nav id="sidebar" class="col-md-4 col-lg-3 d-none d-md-block bg-light sidebar">
+        <div class="sidebar-inner pt-3">
+          <div class="sidebar-header mb-3">
+            <a href="{{ '/' | relative_url }}" class="text-decoration-none">
+              <h5>{{ site.title }}</h5>
+            </a>
+          </div>
+
+          {% include nav.html %}
+        </div>
+      </nav>
+
+      <!-- Main content -->
+      <main class="col-md-8 ms-sm-auto col-lg-9 px-md-4">
+        <turbo-frame id="main-content" data-turbo-action="advance">
+        <div class="pt-3 pb-2 mb-3">
+          {{ content }}
+        </div>
+        </turbo-frame>
+      </main>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="site-footer d-flex align-items-center">
+    <div class="d-flex gap-4">{% include stats.html %}</div>
+    <a href="https://github.com/jamescook/teek" target="_blank" rel="noopener" class="ms-auto"><img src="{{ '/assets/images/github-mark.svg' | relative_url }}" alt="GitHub" class="github-icon"></a>
+  </footer>
+
+</body>
+</html>

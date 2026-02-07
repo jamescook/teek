@@ -1,0 +1,58 @@
+<% if tags && !tags.empty? %>
+<% if tags['params']&.any? %>
+<h6 class="text-muted small">Parameters</h6>
+<ul class="mb-2">
+<% tags['params'].each do |param| %>
+<li><code><%= h param['name'] %></code><%= " <code>#{h param['types'].join(', ')}</code>" if param['types']&.any? %><%= " — #{h param['text']}" if param['text'] && !param['text'].empty? %></li>
+<% end %>
+</ul>
+<% end %>
+
+<% if tags['returns']&.any? %>
+<% tags['returns'].each do |ret| %>
+<p><strong>Returns</strong> <%= "<code>#{h ret['types'].join(', ')}</code>" if ret['types']&.any? %><%= " — #{h ret['text']}" if ret['text'] && !ret['text'].empty? %></p>
+<% end %>
+<% end %>
+
+<% if tags['options']&.any? %>
+<h6 class="text-muted small">Options</h6>
+<ul class="mb-2">
+<% tags['options'].each do |opt| %>
+<li><code><%= h opt['name'] %></code><%= " <code>#{h opt['types'].join(', ')}</code>" if opt['types']&.any? %><%= " — #{h opt['text']}" if opt['text'] && !opt['text'].empty? %></li>
+<% end %>
+</ul>
+<% end %>
+
+<% if tags['regular']&.any? %>
+<% tags['regular'].each do |tag| %>
+<p class="tag"><strong>@<%= h tag['tag'] %></strong> <%= "<code>#{h tag['name']}</code> " if tag['name'] %><%= "<code>#{h tag['types'].join(', ')}</code>" if tag['types']&.any? %> <%= h tag['text'] %></p>
+<% end %>
+<% end %>
+
+<% if tags['examples']&.any? %>
+<div class="examples-section">
+<h6><%= tags['examples'].size == 1 ? 'Example' : 'Examples' %></h6>
+<% tags['examples'].each do |ex| %>
+<pre><code class="language-ruby"><% if ex['title'] && !ex['title'].to_s.strip.empty? %># <%= h ex['title'] %>
+<% end %><%= h ex['code'] %></code></pre>
+<% end %>
+</div>
+<% end %>
+
+<% if tags['see_also']&.any? %>
+<div class="see-also-section">
+  <h6>See also</h6>
+  <ul class="see-also">
+  <% tags['see_also'].each do |see| %>
+    <li><%= render_see_link(see) %></li>
+  <% end %>
+  </ul>
+</div>
+<% end %>
+
+<% if tags['official_docs_url'] %>
+<div class="official-docs-link">
+  <a href="<%= h tags['official_docs_url'] %>" target="_blank" rel="noopener">[View Official Docs]</a>
+</div>
+<% end %>
+<% end %>

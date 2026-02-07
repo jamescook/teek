@@ -1,0 +1,22 @@
+<div class="method-card method-<%= method['scope'] %><%= ' has-docs' if method['has_content'] %>" id="<%= method_anchor(method) %>">
+  <h3><a href="#<%= method_anchor(method) %>" class="anchor-link"><%= h method['signature'] %></a></h3>
+  <% unless method['docstring'].to_s.empty? %>
+  <%= md(method['docstring']) %>
+  <% end %>
+  <%= render_tags(method['tags']) %>
+  <% if method['source'] %>
+  <details class="method-source">
+    <summary>View source <span class="source-chevron">▼</span></summary>
+    <div class="source-content">
+      <pre><code id="source-<%= method_anchor(method) %>" class="language-ruby"<%= " data-coverage=\"#{method_cov_lines}\"" if method_cov_lines %>><%= h method['source'] %></code></pre>
+      <div class="source-meta">
+        <% if method_cov_lines %><button type="button" data-coverage-toggle data-target="source-<%= method_anchor(method) %>" data-bs-toggle="tooltip" data-bs-placement="right" data-bs-title="Toggle coverage highlighting" class="<%= 'invisible' if method_cov && method_cov >= 100 %>"><i class="bi bi-eye"></i></button><% end %>
+        <span class="source-meta-right">
+          <% if method_cov %><span class="coverage-badge coverage-<%= method_coverage_level %>"><%= method_cov == method_cov.to_i ? method_cov.to_i : method_cov %>% covered</span><% end %>
+          <% if github_url %><a href="<%= github_url %>" target="_blank" rel="noopener" class="github-link" data-bs-toggle="tooltip" data-bs-title="View on GitHub"><img src="{{ '/assets/images/github-mark.svg' | relative_url }}" alt="GitHub" class="github-icon-sm"></a><% end %>
+        </span>
+      </div>
+    </div>
+  </details>
+  <% end %>
+</div>
