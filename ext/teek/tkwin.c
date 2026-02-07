@@ -1,59 +1,10 @@
-/* tkutil.c - General Tcl/Tk utility C functions for tk-ng
+/* tkwin.c - Tk window query functions
  *
- * Miscellaneous utility functions: list parsing, idle detection, etc.
+ * Interp methods that require a live Tk display: idle detection,
+ * coordinate queries, hit testing.
  */
 
 #include "tcltkbridge.h"
-
-/* ---------------------------------------------------------
- * Interp#tcl_split_list(str) - Parse Tcl list into Ruby array
- *
- * Single C call instead of N+1 eval round-trips.
- * Returns array of strings (does not recursively parse nested lists).
- * --------------------------------------------------------- */
-
-static VALUE
-interp_tcl_split_list(VALUE self, VALUE list_str)
-{
-    struct tcltk_interp *tip = get_interp(self);
-    Tcl_Obj *listobj;
-    Tcl_Size objc;
-    Tcl_Obj **objv;
-    VALUE ary;
-    Tcl_Size i;
-    int result;
-
-    if (NIL_P(list_str)) {
-        return rb_ary_new();
-    }
-
-    StringValue(list_str);
-    if (RSTRING_LEN(list_str) == 0) {
-        return rb_ary_new();
-    }
-
-    /* Create Tcl object from Ruby string */
-    listobj = Tcl_NewStringObj(RSTRING_PTR(list_str), RSTRING_LEN(list_str));
-    Tcl_IncrRefCount(listobj);
-
-    /* Split into array of Tcl objects */
-    result = Tcl_ListObjGetElements(tip->interp, listobj, &objc, &objv);
-    if (result != TCL_OK) {
-        Tcl_DecrRefCount(listobj);
-        rb_raise(eTclError, "invalid Tcl list: %s", Tcl_GetStringResult(tip->interp));
-    }
-
-    /* Convert to Ruby array of strings */
-    ary = rb_ary_new2(objc);
-    for (i = 0; i < objc; i++) {
-        Tcl_Size len;
-        const char *str = Tcl_GetStringFromObj(objv[i], &len);
-        rb_ary_push(ary, rb_utf8_str_new(str, len));
-    }
-
-    Tcl_DecrRefCount(listobj);
-    return ary;
-}
 
 /* ---------------------------------------------------------
  * Interp#user_inactive_time
@@ -179,15 +130,14 @@ interp_coords_to_window(VALUE self, VALUE root_x, VALUE root_y)
 }
 
 /* ---------------------------------------------------------
- * Init_tkutil - Register utility methods on Teek::Interp class
+ * Init_tkwin - Register Tk window query methods on Interp
  *
- * Called from Init_tcltklib in tcltkbridge.c
+ * Called from Init_tcltklib in tcltkbridge.c.
  * --------------------------------------------------------- */
 
 void
-Init_tkutil(VALUE cInterp)
+Init_tkwin(VALUE cInterp)
 {
-    rb_define_method(cInterp, "tcl_split_list", interp_tcl_split_list, 1);
     rb_define_method(cInterp, "user_inactive_time", interp_user_inactive_time, 0);
     rb_define_method(cInterp, "get_root_coords", interp_get_root_coords, 1);
     rb_define_method(cInterp, "coords_to_window", interp_coords_to_window, 2);

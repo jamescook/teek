@@ -112,6 +112,12 @@ VALUE eTclError;  /* Non-static: shared with tkphoto.c */
 /* Track if stubs have been initialized (once per process) */
 static int tcl_stubs_initialized = 0;
 
+/* Lightweight Tcl interp for utility functions (split_list, make_list).
+ * Created at module load time to initialize stubs and provide error
+ * reporting without requiring the user to create a Teek::Interp first.
+ * No Tk loaded — just bare Tcl. */
+static Tcl_Interp *utility_interp = NULL;
+
 /* Track live interpreter instances for multi-interp safety checks */
 static VALUE live_instances;  /* Ruby Array of live Teek::Interp objects */
 
@@ -1187,37 +1193,110 @@ interp_set_thread_timer_ms(VALUE self, VALUE val)
 }
 
 /* ---------------------------------------------------------
- * TclTkLib._merge_tklist(*args) - Merge strings into Tcl list
+ * Teek.make_list(*args) - Merge strings into Tcl list
  *
  * Uses Tcl's quoting rules for proper escaping.
- * Module function (no interpreter needed).
+ * Module function — uses utility_interp (no user interp needed).
  * --------------------------------------------------------- */
 
-static VALUE
-lib_merge_tklist(int argc, VALUE *argv, VALUE self)
-{
+/* rb_ensure cleanup: release Tcl list object on exception */
+struct make_list_state {
     Tcl_Obj *listobj;
+    int argc;
+    VALUE *argv;
+};
+
+static VALUE
+make_list_body(VALUE arg)
+{
+    struct make_list_state *st = (struct make_list_state *)arg;
     Tcl_Size len;
     const char *result;
-    VALUE str;
     int i;
+
+    for (i = 0; i < st->argc; i++) {
+        VALUE s = StringValue(st->argv[i]);
+        Tcl_Obj *elem = Tcl_NewStringObj(RSTRING_PTR(s), RSTRING_LEN(s));
+        Tcl_ListObjAppendElement(NULL, st->listobj, elem);
+    }
+
+    result = Tcl_GetStringFromObj(st->listobj, &len);
+    return rb_utf8_str_new(result, len);
+}
+
+static VALUE
+make_list_cleanup(VALUE arg)
+{
+    struct make_list_state *st = (struct make_list_state *)arg;
+    Tcl_DecrRefCount(st->listobj);
+    return Qnil;
+}
+
+static VALUE
+teek_make_list(int argc, VALUE *argv, VALUE self)
+{
+    struct make_list_state st;
 
     if (argc == 0) return rb_utf8_str_new_cstr("");
 
-    listobj = Tcl_NewListObj(0, NULL);
-    Tcl_IncrRefCount(listobj);
+    st.listobj = Tcl_NewListObj(0, NULL);
+    Tcl_IncrRefCount(st.listobj);
+    st.argc = argc;
+    st.argv = argv;
 
-    for (i = 0; i < argc; i++) {
-        VALUE s = StringValue(argv[i]);
-        Tcl_Obj *elem = Tcl_NewStringObj(RSTRING_PTR(s), RSTRING_LEN(s));
-        Tcl_ListObjAppendElement(NULL, listobj, elem);
+    return rb_ensure(make_list_body, (VALUE)&st,
+                     make_list_cleanup, (VALUE)&st);
+}
+
+/* ---------------------------------------------------------
+ * Teek.split_list(str) - Parse Tcl list into Ruby array
+ *
+ * Module function — uses utility_interp for error reporting.
+ * Single C call instead of N+1 eval round-trips.
+ * Returns array of strings (does not recursively parse nested lists).
+ * --------------------------------------------------------- */
+
+static VALUE
+teek_split_list(VALUE self, VALUE list_str)
+{
+    Tcl_Obj *listobj;
+    Tcl_Size objc;
+    Tcl_Obj **objv;
+    VALUE ary;
+    Tcl_Size i;
+    int result;
+
+    if (NIL_P(list_str)) {
+        return rb_ary_new();
     }
 
-    result = Tcl_GetStringFromObj(listobj, &len);
-    str = rb_utf8_str_new(result, len);
+    StringValue(list_str);
+    if (RSTRING_LEN(list_str) == 0) {
+        return rb_ary_new();
+    }
+
+    /* Create Tcl object from Ruby string */
+    listobj = Tcl_NewStringObj(RSTRING_PTR(list_str), RSTRING_LEN(list_str));
+    Tcl_IncrRefCount(listobj);
+
+    /* Use utility_interp for error reporting */
+    result = Tcl_ListObjGetElements(utility_interp, listobj, &objc, &objv);
+    if (result != TCL_OK) {
+        const char *msg = Tcl_GetStringResult(utility_interp);
+        Tcl_DecrRefCount(listobj);
+        rb_raise(eTclError, "invalid Tcl list: %s", msg);
+    }
+
+    /* Convert to Ruby array of strings */
+    ary = rb_ary_new2(objc);
+    for (i = 0; i < objc; i++) {
+        Tcl_Size len;
+        const char *str = Tcl_GetStringFromObj(objv[i], &len);
+        rb_ary_push(ary, rb_utf8_str_new(str, len));
+    }
 
     Tcl_DecrRefCount(listobj);
-    return str;
+    return ary;
 }
 
 /* ---------------------------------------------------------
@@ -1396,6 +1475,18 @@ Init_tcltklib(void)
     cQueue = rb_path2class("Thread::Queue");
     rb_gc_register_address(&cQueue);
 
+    /* Bootstrap Tcl stubs via a lightweight utility interpreter.
+     * This makes Teek.make_list / Teek.split_list work immediately
+     * after require, without needing a Teek::Interp first.
+     * No Tk loaded — just bare Tcl. */
+    find_executable_bootstrap("ruby");
+    utility_interp = create_interp_bootstrap();
+    if (utility_interp) {
+        if (Tcl_InitStubs(utility_interp, TCL_VERSION, 0)) {
+            tcl_stubs_initialized = 1;
+        }
+    }
+
     /* Teek module (may already exist from Ruby side) */
     mTeek = rb_define_module("Teek");
 
@@ -1415,8 +1506,9 @@ Init_tcltklib(void)
     rb_define_const(mTeek, "CALLBACK_CONTINUE", ID2SYM(rb_intern("teek_continue")));
     rb_define_const(mTeek, "CALLBACK_RETURN", ID2SYM(rb_intern("teek_return")));
 
-    /* Module function for list operations */
-    rb_define_module_function(mTeek, "merge_tklist", lib_merge_tklist, -1);
+    /* Module functions for list operations (no interpreter needed) */
+    rb_define_module_function(mTeek, "make_list", teek_make_list, -1);
+    rb_define_module_function(mTeek, "split_list", teek_split_list, 1);
 
     /* Global event loop functions - don't require an interpreter */
     rb_define_module_function(mTeek, "mainloop", lib_mainloop, -1);
@@ -1469,8 +1561,8 @@ Init_tcltklib(void)
     /* Font functions (tkfont.c) */
     Init_tkfont(cInterp);
 
-    /* Utility functions (tkutil.c) */
-    Init_tkutil(cInterp);
+    /* Tk window query functions (tkwin.c) */
+    Init_tkwin(cInterp);
 
     /* Class methods for instance tracking */
     rb_define_singleton_method(cInterp, "instance_count", tcltkip_instance_count, 0);

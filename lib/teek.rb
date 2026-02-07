@@ -93,6 +93,14 @@ module Teek
       after_id
     end
 
+    def split_list(str)
+      Teek.split_list(str)
+    end
+
+    def make_list(*args)
+      Teek.make_list(*args)
+    end
+
     def command(cmd, *args, **kwargs)
       parts = [cmd.to_s]
       args.each do |arg|

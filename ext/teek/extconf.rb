@@ -74,6 +74,6 @@ end
 find_tcltk
 
 # Source files for the extension
-$srcs = ['tcltkbridge.c', 'tkphoto.c', 'tkfont.c', 'tkutil.c']
+$srcs = ['tcltkbridge.c', 'tkphoto.c', 'tkfont.c', 'tkwin.c']
 
 create_makefile('tcltklib')

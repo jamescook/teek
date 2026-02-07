@@ -36,7 +36,7 @@ void Init_tkphoto(VALUE cInterp);
 /* Font functions - defined in tkfont.c */
 void Init_tkfont(VALUE cInterp);
 
-/* Utility functions - defined in tkutil.c */
-void Init_tkutil(VALUE cInterp);
+/* Tk window query functions - defined in tkwin.c */
+void Init_tkwin(VALUE cInterp);
 
 #endif /* TCLTKBRIDGE_H */
