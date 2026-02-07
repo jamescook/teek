@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  schedule:
+    # Run weekly to keep Docker cache fresh (expires after 7 days of no access)
+    - cron: '0 4 * * 0'  # Sundays at 4am UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-tcl9:
+    name: test (ruby ${{ matrix.ruby }}, tcl 9.0)
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        ruby: ['3.4']
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Restore build cache
+      uses: actions/cache@v4
+      with:
+        path: cache-mount
+        key: docker-cache-tcl9-${{ hashFiles('Dockerfile.ci-test', 'Gemfile.lock') }}
+        restore-keys: |
+          docker-cache-tcl9-
+
+    - name: Inject/extract Docker cache mounts
+      uses: reproducible-containers/buildkit-cache-dance@v3
+      with:
+        cache-map: |
+          {
+            "cache-mount/var-cache-apt": "/var/cache/apt",
+            "cache-mount/var-lib-apt": "/var/lib/apt",
+            "cache-mount/bundle-cache": "/bundle-cache"
+          }
+        builder: ${{ steps.buildx.outputs.name }}
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: Dockerfile.ci-test
+        build-args: |
+          RUBY_VERSION=${{ matrix.ruby }}
+          TCL_VERSION=9.0
+        builder: ${{ steps.buildx.outputs.name }}
+        load: true
+        tags: tinyk-ci-test-9:latest
+        cache-from: type=gha,scope=tcl9
+        cache-to: type=gha,mode=max,scope=tcl9
+
+    - name: Run tests
+      run: |
+        docker run --rm \
+          -v ${{ github.workspace }}/coverage:/app/coverage \
+          -e TCL_VERSION=9.0 \
+          -e COVERAGE=1 \
+          -e TESTOPTS=-v \
+          tinyk-ci-test-9:latest
+
+    - name: Upload coverage report
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-ruby${{ matrix.ruby }}-tcl9
+        path: coverage/
+        retention-days: 30
+
+  test-tcl8:
+    name: test (ruby ${{ matrix.ruby }}, tcl 8.6)
+    runs-on: ubuntu-24.04
+    needs: test-tcl9
+    strategy:
+      matrix:
+        ruby: ['3.4']
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Restore build cache
+      uses: actions/cache@v4
+      with:
+        path: cache-mount
+        key: docker-cache-tcl8-${{ hashFiles('Dockerfile.ci-test', 'Gemfile.lock') }}
+        restore-keys: |
+          docker-cache-tcl8-
+
+    - name: Inject/extract Docker cache mounts
+      uses: reproducible-containers/buildkit-cache-dance@v3
+      with:
+        cache-map: |
+          {
+            "cache-mount/var-cache-apt": "/var/cache/apt",
+            "cache-mount/var-lib-apt": "/var/lib/apt",
+            "cache-mount/bundle-cache": "/bundle-cache"
+          }
+        builder: ${{ steps.buildx.outputs.name }}
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        file: Dockerfile.ci-test
+        build-args: |
+          RUBY_VERSION=${{ matrix.ruby }}
+          TCL_VERSION=8.6
+        builder: ${{ steps.buildx.outputs.name }}
+        load: true
+        tags: tinyk-ci-test-8:latest
+        cache-from: type=gha,scope=tcl8
+        cache-to: type=gha,mode=max,scope=tcl8
+
+    - name: Run tests
+      run: |
+        docker run --rm \
+          -e TCL_VERSION=8.6 \
+          -e TESTOPTS=-v \
+          tinyk-ci-test-8:latest
