@@ -195,7 +195,7 @@ class Teek::TestWorker
           deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
           result = nil
           while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-            @app.tcl_eval('update')
+            @app.update
             result = block.call
             break if result.to_s == expected
             sleep 0.02
@@ -210,7 +210,7 @@ class Teek::TestWorker
           deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
           result = nil
           while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-            @app.tcl_eval('update')
+            @app.update
             result = block.call
             break if result
             sleep 0.02
@@ -237,7 +237,7 @@ class Teek::TestWorker
             require 'tkextlib/tkimg/png'
 
             FileUtils.mkdir_p(screenshot_dir)
-            @app.tcl_eval('update')
+            @app.update
 
             path = File.join(screenshot_dir, "#{name}_#{test_count}.png")
             img = TkPhotoImage.new(:format => 'window', :data => win.path)

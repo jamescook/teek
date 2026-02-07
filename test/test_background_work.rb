@@ -33,7 +33,7 @@ class TestBackgroundWork < Minitest::Test
 
     start = Time.now
     while !done && (Time.now - start) < 5
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -67,7 +67,7 @@ class TestBackgroundWork < Minitest::Test
     # Let it run a bit
     start = Time.now
     while counter < 10 && (Time.now - start) < 2
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -77,7 +77,7 @@ class TestBackgroundWork < Minitest::Test
 
     # Wait and pump events - counter should stop
     sleep 0.2
-    10.times { app.tcl_eval('update'); sleep 0.02 }
+    10.times { app.update; sleep 0.02 }
     after_pause = counter
 
     # Should not have advanced much (maybe 1-2 in flight)
@@ -90,7 +90,7 @@ class TestBackgroundWork < Minitest::Test
     # Wait for completion
     start = Time.now
     while !done && (Time.now - start) < 5
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -120,7 +120,7 @@ class TestBackgroundWork < Minitest::Test
 
     start = Time.now
     while !done && (Time.now - start) < 5
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -153,7 +153,7 @@ class TestBackgroundWork < Minitest::Test
 
     start = Time.now
     while !done && (Time.now - start) < 5
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -183,7 +183,7 @@ class TestBackgroundWork < Minitest::Test
 
     start = Time.now
     while !done && (Time.now - start) < 5
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -214,7 +214,7 @@ class TestBackgroundWork < Minitest::Test
 
     start = Time.now
     while !done && (Time.now - start) < 5
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 

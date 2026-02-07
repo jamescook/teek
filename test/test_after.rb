@@ -17,7 +17,7 @@ class TestAfter < Minitest::Test
     # Pump the event loop until the timer fires
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
     until fired || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -40,7 +40,7 @@ class TestAfter < Minitest::Test
 
     deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
     until results.size >= 2 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 

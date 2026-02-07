@@ -26,7 +26,7 @@ class TestThreading < Minitest::Test
     # Run event loop briefly
     start = Time.now
     while Time.now - start < 0.3
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -44,7 +44,7 @@ class TestThreading < Minitest::Test
 
     start = Time.now
     while Time.now - start < 0.3
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -65,7 +65,7 @@ class TestThreading < Minitest::Test
 
     start = Time.now
     while Time.now - start < 0.1
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 
@@ -87,7 +87,7 @@ class TestThreading < Minitest::Test
 
     start = Time.now
     while Time.now - start < 0.1
-      app.tcl_eval('update')
+      app.update
       sleep 0.01
     end
 

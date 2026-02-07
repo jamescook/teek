@@ -72,6 +72,14 @@ module Teek
       @interp.mainloop
     end
 
+    def update
+      @interp.tcl_eval('update')
+    end
+
+    def update_idletasks
+      @interp.tcl_eval('update idletasks')
+    end
+
     private
 
     def setup_widget_tracking
