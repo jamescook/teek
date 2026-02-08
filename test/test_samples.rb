@@ -20,4 +20,14 @@ class TestSamples < Minitest::Test
 
     assert success, "Goldberg demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
   end
+
+  def test_threading_demo
+    success, stdout, stderr = smoke_test_sample(
+      "#{SAMPLE_DIR}/threading_demo.rb",
+      timeout: 30,
+      args: ['--max-files=20']
+    )
+
+    assert success, "Threading demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
+  end
 end
