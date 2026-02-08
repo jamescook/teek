@@ -23,7 +23,7 @@ class TestCallbackControlFlow < Minitest::Test
     first_fired = false
     second_fired = false
 
-    app.tcl_eval("wm deiconify .")
+    app.show
     app.tcl_eval("entry .e")
     app.tcl_eval("pack .e")
 

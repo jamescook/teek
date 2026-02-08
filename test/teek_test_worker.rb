@@ -316,7 +316,7 @@ class Teek::TestWorker
       children.each do |child|
         @app.tcl_eval("destroy #{child}") rescue nil
       end
-      @app.tcl_eval('wm withdraw .')
+      @app.hide
 
       # Reset WM properties (these persist between tests)
       @app.tcl_eval('wm minsize . 1 1')

@@ -31,12 +31,12 @@ module Teek
     end
 
     def show
-      @app.command(:wm, 'deiconify', TOP)
+      @app.show(TOP)
       @app.command(:raise, TOP)
     end
 
     def hide
-      @app.command(:wm, 'withdraw', TOP)
+      @app.hide(TOP)
     end
 
     # Called by App when a widget is created

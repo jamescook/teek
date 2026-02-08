@@ -32,7 +32,7 @@ class TestDebugger < Minitest::Test
     app = Teek::App.new(debug: true)
 
     # Create some widgets in the app
-    app.tcl_eval('wm deiconify .')
+    app.show
     app.tcl_eval('ttk::frame .f')
     app.tcl_eval('ttk::button .f.btn -text Hello')
     app.update
@@ -52,7 +52,7 @@ class TestDebugger < Minitest::Test
   def app_debugger_tracks_destroy
     app = Teek::App.new(debug: true)
 
-    app.tcl_eval('wm deiconify .')
+    app.show
     app.tcl_eval('ttk::button .btn -text Bye')
     app.update
 

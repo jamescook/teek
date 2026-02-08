@@ -8,7 +8,7 @@ require 'teek'
 app = Teek::App.new(debug: true)
 
 # Show the main app window
-app.tcl_eval('wm deiconify .')
+app.show
 app.tcl_eval('wm title . "Debug Demo App"')
 app.tcl_eval('wm geometry . 300x200')
 

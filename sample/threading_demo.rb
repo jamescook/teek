@@ -54,7 +54,7 @@ class ThreadingDemo
   end
 
   def build_ui
-    @app.command(:wm, 'deiconify', '.')
+    @app.show
     @app.command(:wm, 'title', '.', 'Concurrency Demo - File Hasher')
     @app.command(:wm, 'minsize', '.', 600, 400)
 

@@ -29,7 +29,7 @@ module Teek
     def initialize(track_widgets: true, debug: false, &block)
       @interp = Teek::Interp.new
       @interp.tcl_eval('package require Tk')
-      @interp.tcl_eval('wm withdraw .')
+      hide
       @widgets = {}
       debug ||= !!ENV['TEEK_DEBUG']
       track_widgets = true if debug
