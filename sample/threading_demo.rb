@@ -195,6 +195,7 @@ class ThreadingDemo
 
     max_files = ARGV.find { |a| a.start_with?('--max-files=') }&.split('=')&.last&.to_i
     max_files ||= ENV['DEMO_MAX_FILES']&.to_i
+    max_files ||= 5 if ENV['TK_READY_PORT'] # test mode -- don't hash 200+ files
     @files = @files.first(max_files) if max_files && max_files > 0
 
     @app.command('.status.info.files', 'configure', text: "#{@files.size} files")

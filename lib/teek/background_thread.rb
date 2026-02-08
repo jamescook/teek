@@ -140,33 +140,30 @@ module Teek
           # This prevents UI choking when worker yields faster than UI polls.
           last_progress = nil
           results_this_poll = 0
-          begin
-            while (msg = @output_queue.pop(true))
-              type, value = msg
-              case type
-              when :done
-                @done = true
-                # Call progress with final value before done callback
-                @callbacks[:progress]&.call(last_progress) if last_progress
-                last_progress = nil  # Prevent duplicate call after loop
-                warn_if_choked
-                @callbacks[:done]&.call
-                break
-              when :result
-                results_this_poll += 1
-                if drop_intermediate
-                  last_progress = value  # Keep only latest
-                else
-                  @callbacks[:progress]&.call(value)  # Call for every value
-                end
-              when :message
-                @callbacks[:message]&.call(value)
-              when :error
-                warn "[Thread] Background work error: #{value}"
+          until @output_queue.empty?
+            msg = @output_queue.pop(true)
+            type, value = msg
+            case type
+            when :done
+              @done = true
+              # Call progress with final value before done callback
+              @callbacks[:progress]&.call(last_progress) if last_progress
+              last_progress = nil  # Prevent duplicate call after loop
+              warn_if_choked
+              @callbacks[:done]&.call
+              break
+            when :result
+              results_this_poll += 1
+              if drop_intermediate
+                last_progress = value  # Keep only latest
+              else
+                @callbacks[:progress]&.call(value)  # Call for every value
               end
+            when :message
+              @callbacks[:message]&.call(value)
+            when :error
+              warn "[Thread] Background work error: #{value}"
             end
-          rescue ThreadError
-            # Queue empty
           end
 
           # Track dropped messages (all but the last one we processed)
@@ -218,6 +215,7 @@ module Teek
         # Non-blocking check for messages from main thread.
         # Returns the message or nil if none.
         def check_message
+          return nil if @message_queue.empty?
           msg = @message_queue.pop(true)
           handle_control_message(msg)
           msg
@@ -240,11 +238,9 @@ module Teek
         # Check pause state, blocking if paused
         def check_pause
           # First drain any pending messages (non-blocking)
-          loop do
+          until @message_queue.empty?
             msg = @message_queue.pop(true)
             handle_control_message(msg)
-          rescue ThreadError
-            break  # Queue empty
           end
 
           # Then block while paused
