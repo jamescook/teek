@@ -110,4 +110,4 @@ The debugger provides three tabs:
 - **Variables** — all global Tcl variables with search/filter, auto-refreshes every second
 - **Watches** — right-click or double-click a variable to watch it; tracks last 50 values with timestamps
 
-The debugger runs in the same interpreter as your app (as a Toplevel window) and filters its own widgets from `app.widgets`.
+The debugger runs in the same interpreter as your app (as a [Toplevel](https://www.tcl-lang.org/man/tcl8.6/TkCmd/toplevel.htm) window) and filters its own widgets from `app.widgets`.

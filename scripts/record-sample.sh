@@ -35,7 +35,8 @@ case "$CODEC" in
         ;;
     x264|h264)
         EXT="mp4"
-        CODEC_OPTS="-c:v libx264 -preset fast -crf 23"
+        # yuv420p required — x11grab produces yuv444p which browsers can't decode
+        CODEC_OPTS="-c:v libx264 -pix_fmt yuv420p -preset fast -crf 23"
         ;;
     *)
         echo "Error: Unknown codec '$CODEC' (use vp9 or x264)"

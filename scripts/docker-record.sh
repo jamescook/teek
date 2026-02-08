@@ -13,7 +13,7 @@ set -e
 
 SAMPLE="${1:?Usage: $0 <sample.rb>}"
 TCL_VERSION="${TCL_VERSION:-9}"
-RUBY_VERSION="${RUBY_VERSION:-3.4}"
+RUBY_VERSION="${RUBY_VERSION:-4.0}"
 CODEC="${CODEC:-x264}"
 
 # Build image name matching Rakefile convention
@@ -22,7 +22,7 @@ if [ "$TCL_VERSION" = "8.6" ] || [ "$TCL_VERSION" = "8" ]; then
 else
     BASE="teek-ci-test-9"
 fi
-if [ "$RUBY_VERSION" = "3.4" ]; then
+if [ "$RUBY_VERSION" = "4.0" ]; then
     IMAGE="$BASE"
 else
     IMAGE="${BASE}-ruby${RUBY_VERSION}"

@@ -1,0 +1,19 @@
+---
+layout: default
+title: Demos
+---
+
+<h1 class="page-title">Demos</h1>
+<p class="text-muted mb-4">Recorded demos of Teek sample applications.</p>
+
+<% recordings.each do |rec| %>
+<div class="card mb-4">
+  <div class="card-body">
+    <h5 class="card-title"><%= rec[:title] %></h5>
+    <video controls width="100%" preload="metadata">
+      <source src="{{ '/assets/recordings/<%= rec[:filename] %>' | relative_url }}" type="<%= rec[:mime] %>">
+      Your browser does not support the video tag.
+    </video>
+  </div>
+</div>
+<% end %>

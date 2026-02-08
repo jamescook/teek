@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
+# teek-record: title=Concurrency Demo - File Hasher
 
 # Concurrency Demo - File Hasher
 #
@@ -437,24 +438,61 @@ demo = ThreadingDemo.new
 require_relative '../lib/teek/demo_support'
 TeekDemo.app = demo.app
 
-if TeekDemo.testing?
+if TeekDemo.recording?
+  demo.app.tcl_eval('wm geometry . +0+0')
+  demo.app.tcl_eval('. configure -cursor none')
+  TeekDemo.signal_recording_ready
+end
+
+if TeekDemo.active?
   TeekDemo.after_idle {
-    # Set batch high and max-files low for fast test
-    demo.app.command(:set, '::chunk_size', 100)
+    demo.app.after(100) {
+      app = demo.app
 
-    # Click Start — need Allow Pause checked first
-    demo.app.command(:set, '::allow_pause', 1)
-    demo.app.command('.ctrl.start', 'invoke')
+      # Set batch size high for fast processing
+      app.command(:set, '::chunk_size', 100)
 
-    # Wait for completion, then finish
-    check_done = proc do
-      if demo.instance_variable_get(:@running)
-        demo.app.after(200, &check_done)
-      else
-        demo.app.after(200) { TeekDemo.finish }
+      # Test matrix: [mode, pause_enabled]
+      tests = [['None', false], ['None+update', false], ['Thread', false]]
+      tests << ['Ractor', false] if RACTOR_AVAILABLE
+      # Quick mode for smoke tests
+      tests = [['Thread', false]] if ARGV.include?('--quick') || TeekDemo.testing?
+
+      test_index = 0
+
+      run_next_test = proc do
+        if test_index < tests.size
+          mode, pause = tests[test_index]
+
+          # Configure mode and pause
+          app.command(:set, '::mode', mode)
+          app.command(:set, '::allow_pause', pause ? 1 : 0)
+
+          # Start hashing
+          app.after(100) { app.command('.ctrl.start', 'invoke') }
+
+          # Wait for completion
+          check_done = proc do
+            if demo.instance_variable_get(:@running)
+              app.after(200, &check_done)
+            else
+              test_index += 1
+              if test_index < tests.size
+                app.after(200) {
+                  app.command('.ctrl.reset', 'invoke')
+                  app.after(200, &run_next_test)
+                }
+              else
+                app.after(200) { TeekDemo.finish }
+              end
+            end
+          end
+          app.after(500, &check_done)
+        end
       end
-    end
-    demo.app.after(500, &check_done)
+
+      run_next_test.call
+    }
   }
 end
 

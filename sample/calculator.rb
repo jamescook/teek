@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
+# teek-record: title=Calculator
 
 # Calculator - A simple desktop calculator
 #
@@ -78,9 +79,27 @@ class Calculator
 
   # --- UI helpers ---
 
+  # Click a button by its label (for demo/testing).
+  # In recording mode, shows the pressed visual state briefly before invoking.
+  def click(label, recording: false)
+    path = @buttons[label]
+    return unless path
+    if recording
+      @app.command(path, 'state', 'pressed')
+      @app.after(80) {
+        @app.command(path, 'state', '!pressed')
+        @app.command(path, 'invoke')
+      }
+    else
+      @app.command(path, 'invoke')
+    end
+  end
+
   def button(text, row, col, style: :num, colspan: 1, &action)
     @btn_id = (@btn_id || 0) + 1
+    @buttons ||= {}
     path = ".btn_#{@btn_id}"
+    @buttons[text] = path
     @app.command('ttk::button', path, text: text, style: 'Calc.TButton',
       command: proc { |*| action.call })
     @app.command(:grid, path, row: row, column: col, columnspan: colspan,
@@ -189,28 +208,39 @@ calc = Calculator.new
 require_relative '../lib/teek/demo_support'
 TeekDemo.app = calc.app
 
+if TeekDemo.recording?
+  calc.app.tcl_eval('wm geometry . +0+0')
+  calc.app.tcl_eval('. configure -cursor none')
+  TeekDemo.signal_recording_ready
+end
+
 if TeekDemo.active?
   TeekDemo.after_idle {
     d = TeekDemo.method(:delay)
     app = calc.app
+    rec = TeekDemo.recording?
 
-    # Sequence of actions with delays so it looks natural in a recording.
-    # Compute 6 * 7 = 42, pause, then clear and do 3.14 + 2 = 5.14
+    # Exercises all four operations, landing on 42.
+    # 8 * 9 = 72, / 3 = 24, + 25 = 49, - 7 = 42
     steps = [
-      -> { calc.digit('6') },
-      -> { calc.set_op(:*) },
-      -> { calc.digit('7') },
-      -> { calc.equals },          # shows 42
-      nil,                          # extra pause to admire the result
-      -> { calc.clear },
-      -> { calc.digit('3') },
-      -> { calc.decimal },
-      -> { calc.digit('1') },
-      -> { calc.digit('4') },
-      -> { calc.set_op(:+) },
-      -> { calc.digit('2') },
-      -> { calc.equals },          # shows 5.14
-      nil,                          # pause before exit
+      -> { calc.click('8', recording: rec) },
+      -> { calc.click('*', recording: rec) },
+      -> { calc.click('9', recording: rec) },
+      -> { calc.click('=', recording: rec) },      # 72
+      nil,
+      -> { calc.click('/', recording: rec) },
+      -> { calc.click('3', recording: rec) },
+      -> { calc.click('=', recording: rec) },      # 24
+      nil,
+      -> { calc.click('+', recording: rec) },
+      -> { calc.click('2', recording: rec) },
+      -> { calc.click('5', recording: rec) },
+      -> { calc.click('=', recording: rec) },      # 49
+      nil,
+      -> { calc.click('-', recording: rec) },
+      -> { calc.click('7', recording: rec) },
+      -> { calc.click('=', recording: rec) },      # 42
+      nil, nil,
       -> { TeekDemo.finish },
     ]
 

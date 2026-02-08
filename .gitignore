@@ -19,6 +19,7 @@ ext/**/Makefile
 screenshots/unverified/
 screenshots/diffs/
 screenshots/logs
+/recordings/
 
 # ext/trofs build artifacts
 ext/trofs/*.dylib

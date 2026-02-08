@@ -33,8 +33,31 @@ namespace :docs do
     end
   end
 
+  desc "Bless recordings from recordings/ into docs_site/assets/recordings/"
+  task :bless_recordings do
+    require 'fileutils'
+    src = 'recordings'
+    dest = 'docs_site/assets/recordings'
+    FileUtils.mkdir_p(dest)
+    videos = Dir.glob("#{src}/*.{mp4,webm}")
+    if videos.empty?
+      puts "No recordings in #{src}/ to bless."
+      next
+    end
+    videos.each do |path|
+      FileUtils.cp(path, dest)
+      puts "  #{File.basename(path)} -> #{dest}/"
+    end
+    puts "Blessed #{videos.size} recording(s)."
+  end
+
+  desc "Generate recordings gallery page"
+  task :recordings do
+    sh 'ruby docs_site/build_recordings.rb'
+  end
+
   desc "Generate full docs site (YARD + Jekyll)"
-  task generate: :yard do
+  task generate: [:yard, :recordings] do
     Dir.chdir('docs_site') do
       Bundler.with_unbundled_env { sh 'bundle exec jekyll build' }
     end
@@ -42,7 +65,7 @@ namespace :docs do
   end
 
   desc "Serve docs locally"
-  task serve: :yard do
+  task serve: [:yard, :recordings] do
     Dir.chdir('docs_site') do
       Bundler.with_unbundled_env { sh 'bundle exec jekyll serve' }
     end
@@ -155,7 +178,7 @@ namespace :docker do
   def docker_image_name(tcl_version, ruby_version = nil)
     ruby_version ||= ruby_version_from_env
     base = tcl_version == '8.6' ? 'teek-ci-test-8' : 'teek-ci-test-9'
-    ruby_version == '3.4' ? base : "#{base}-ruby#{ruby_version}"
+    ruby_version == '4.0' ? base : "#{base}-ruby#{ruby_version}"
   end
 
   def tcl_version_from_env
@@ -167,7 +190,7 @@ namespace :docker do
   end
 
   def ruby_version_from_env
-    ENV.fetch('RUBY_VERSION', '3.4')
+    ENV.fetch('RUBY_VERSION', '4.0')
   end
 
   desc "Build Docker image (TCL_VERSION=9.0|8.6, RUBY_VERSION=3.4|4.0|...)"
@@ -258,7 +281,7 @@ namespace :docker do
     end
   end
 
-  desc "Record demos in Docker (TCL_VERSION=9.0|8.6, RUBY_VERSION=3.4|4.0|..., DEMO=sample/foo.rb)"
+  desc "Record demos in Docker (TCL_VERSION=9.0|8.6, DEMO=sample/foo.rb)"
   task record_demos: :build do
     require 'fileutils'
     FileUtils.mkdir_p('recordings')

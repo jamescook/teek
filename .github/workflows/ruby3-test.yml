@@ -1,4 +1,4 @@
-name: Ruby 4.x Test
+name: Ruby 3.4 Test
 
 on:
   workflow_dispatch:
@@ -6,11 +6,11 @@ on:
       ruby_version:
         description: 'Ruby version to test'
         required: true
-        default: '4.0.1'
+        default: '3.4'
         type: string
 
 jobs:
-  test-ruby4:
+  test-ruby3:
     name: test (ruby ${{ github.event.inputs.ruby_version }}, tcl 9.0)
     runs-on: ubuntu-24.04
     steps:
@@ -30,11 +30,11 @@ jobs:
           TCL_VERSION=9.0
         builder: ${{ steps.buildx.outputs.name }}
         load: true
-        tags: teek-ci-test-ruby4:latest
+        tags: teek-ci-test-ruby3:latest
 
     - name: Run tests
       run: |
         docker run --rm --init \
           -e TCL_VERSION=9.0 \
           -e TESTOPTS=-v \
-          teek-ci-test-ruby4:latest
+          teek-ci-test-ruby3:latest
