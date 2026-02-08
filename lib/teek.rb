@@ -143,7 +143,54 @@ module Teek
       @interp.tcl_eval('update idletasks')
     end
 
+    # Toggle the macOS window appearance between light ("aqua") and dark
+    # ("darkaqua") mode, or pass a specific value. No-op on non-macOS.
+    #
+    #   app.appearance          # => "aqua", "darkaqua", or "auto"
+    #   app.appearance = :light # force light mode
+    #   app.appearance = :dark  # force dark mode
+    #   app.appearance = :auto  # follow system setting
+    #
+    def appearance
+      return nil unless aqua?
+      if tk_major >= 9
+        @interp.tcl_eval('wm attributes . -appearance').delete('"')
+      else
+        @interp.tcl_eval('tk::unsupported::MacWindowStyle appearance .')
+      end
+    end
+
+    def appearance=(mode)
+      return unless aqua?
+      value = case mode.to_sym
+              when :light then 'aqua'
+              when :dark  then 'darkaqua'
+              when :auto  then 'auto'
+              else mode.to_s
+              end
+      if tk_major >= 9
+        @interp.tcl_eval("wm attributes . -appearance #{value}")
+      else
+        @interp.tcl_eval("tk::unsupported::MacWindowStyle appearance . #{value}")
+      end
+    end
+
+    # Returns true if the window is currently displayed in dark mode.
+    # Always returns false on non-macOS.
+    def dark?
+      return false unless aqua?
+      @interp.tcl_eval('tk::unsupported::MacWindowStyle isdark .').delete('"') == '1'
+    end
+
     private
+
+    def aqua?
+      @aqua ||= @interp.tcl_eval('tk windowingsystem') == 'aqua'
+    end
+
+    def tk_major
+      @tk_major ||= @interp.tcl_eval('info patchlevel').split('.').first.to_i
+    end
 
     def setup_widget_tracking
       @create_cb_id = @interp.register_callback(proc { |path, cls|
