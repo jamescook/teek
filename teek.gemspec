@@ -1,6 +1,8 @@
+require_relative "lib/teek/version"
+
 Gem::Specification.new do |spec|
   spec.name          = "teek"
-  spec.version       = "0.1.0"
+  spec.version       = Teek::VERSION
   spec.authors       = ["James Cook"]
   spec.email         = ["jcook.rubyist@gmail.com"]
 
@@ -9,8 +11,9 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/jamescook/teek"
   spec.licenses      = ["MIT"]
 
-  spec.files         = Dir.glob("{lib,ext,exe,sample}/**/*").select { |f| File.file?(f) } +
-                       %w[Rakefile LICENSE README.md teek.gemspec Gemfile]
+  spec.files         = Dir.glob("{lib,ext,exe,sample}/**/*").select { |f|
+                         File.file?(f) && f !~ /\.(bundle|so|o|log)$/
+                       } + %w[Rakefile LICENSE README.md teek.gemspec Gemfile]
   spec.bindir        = "exe"
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }
   spec.require_paths = ["lib"]

@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 require 'tcltklib'
+require_relative 'teek/version'
 require_relative 'teek/ractor_support'
 
 module Teek
-  VERSION = "0.1.0"
 
   def self.bool_to_tcl(val)
     val ? "1" : "0"
