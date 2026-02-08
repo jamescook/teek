@@ -30,4 +30,10 @@ class TestSamples < Minitest::Test
 
     assert success, "Threading demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
   end
+
+  def test_calculator
+    success, stdout, stderr = smoke_test_sample("#{SAMPLE_DIR}/calculator.rb", timeout: 10)
+
+    assert success, "Calculator demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
+  end
 end
