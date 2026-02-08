@@ -2,6 +2,8 @@
 
 A Ruby interface to Tcl/Tk.
 
+[API Documentation](https://jamescook.github.io/teek/)
+
 ## Quick Start
 
 ```ruby
