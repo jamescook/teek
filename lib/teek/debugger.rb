@@ -1,6 +1,14 @@
 # frozen_string_literal: true
 
 module Teek
+  # Live inspector for Teek applications. Opens a Toplevel window with three
+  # tabs: Widgets (tree + config), Variables (searchable list), and Watches
+  # (tracked variable history).
+  #
+  # @example
+  #   app = Teek::App.new(debug: true)
+  #
+  # Can also be enabled via the +TEEK_DEBUG+ environment variable.
   class Debugger
     # Prefix for all debugger widget paths
     TOP = ".teek_debug"
