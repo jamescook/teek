@@ -1,12 +1,12 @@
-name: Ruby 3.4 Test
+name: Ruby 3.x Test
 
 on:
   workflow_dispatch:
     inputs:
       ruby_version:
-        description: 'Ruby version to test'
+        description: 'Ruby 3.x version to test'
         required: true
-        default: '3.4'
+        default: '3.4.8'
         type: string
 
 jobs:
