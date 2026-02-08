@@ -2,6 +2,30 @@
 
 A Ruby interface to Tcl/Tk.
 
+## Quick Start
+
+```ruby
+require 'teek'
+
+app = Teek::App.new
+
+app.show
+app.tcl_eval('wm title . "Hello Teek"')
+
+# Create widgets with tcl_eval
+app.tcl_eval('ttk::label .lbl -text "Hello, world!"')
+app.tcl_eval('pack .lbl -pady 10')
+
+# Or use the command helper — Ruby values are auto-quoted,
+# symbols pass through bare, and procs become callbacks
+app.command('ttk::button', '.btn', text: 'Click me', command: proc {
+  app.command('.lbl', :configure, text: 'Clicked!')
+})
+app.command(:pack, '.btn', pady: 10)
+
+app.mainloop
+```
+
 ## Callbacks
 
 Register Ruby procs as Tcl callbacks using `app.register_callback`:
