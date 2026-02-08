@@ -1,11 +1,11 @@
 (function() {
   'use strict';
 
-  var NAV_ID = 'api-nav';
   var SIDEBAR_ID = 'sidebar';
 
   function nav() {
-    return document.getElementById(NAV_ID);
+    var sidebar = document.getElementById(SIDEBAR_ID);
+    return sidebar ? sidebar.querySelector('[data-nav]') : document.querySelector('[data-nav]');
   }
 
   function findActiveLink() {
@@ -22,11 +22,14 @@
   }
 
   function expandCollapse(collapseId) {
-    var collapseEl = document.getElementById(collapseId);
+    var el = nav();
+    if (!el) return;
+
+    var collapseEl = el.querySelector('#' + collapseId);
     if (!collapseEl || collapseEl.classList.contains('show')) return;
 
     collapseEl.classList.add('show');
-    var chevron = nav().querySelector('[data-nav-chevron="' + collapseId + '"]');
+    var chevron = el.querySelector('[data-nav-chevron="' + collapseId + '"]');
     if (chevron) {
       chevron.classList.remove('collapsed');
       chevron.setAttribute('aria-expanded', 'true');
@@ -101,8 +104,10 @@
   }
   document.addEventListener('turbo:load', onFullLoad);
 
-  // Turbo frame navigation: only update the active marker
+  // Turbo frame navigation: update active marker after URL has changed
   document.addEventListener('turbo:frame-load', function(e) {
-    if (e.target.id === 'main-content') updateActiveMarker();
+    if (e.target.id === 'main-content') {
+      requestAnimationFrame(function() { updateActiveMarker(); });
+    }
   });
 })();

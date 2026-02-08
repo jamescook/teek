@@ -9,8 +9,7 @@ module Teek
     # Poll interval when paused (slower to save CPU)
     PAUSED_POLL_MS = 500
 
-    #
-    # ### Why Ractor Mode Requires Ruby 4.x
+    # Why Ractor mode requires Ruby 4.x:
     #
     # Ruby 3.x Ractor support was attempted but abandoned due to fundamental issues:
     #
@@ -22,7 +21,7 @@ module Teek
     # | Orphaned threads on exit    | Hangs in rb_ractor_terminate | Exits cleanly                 |
     # | Non-blocking receive        | No API exists                | Ractor::Port with select      |
     #
-    # ### What We Tried on Ruby 3.x (All Failed)
+    # What we tried on Ruby 3.x (all failed):
     #
     # 1. Yielder thread pattern: Separate thread does blocking Ractor.yield while
     #    worker pushes to a Queue. Works but adds complexity and has shutdown bugs.
@@ -40,11 +39,28 @@ module Teek
     # and all workarounds either kill performance or cause hangs/crashes.
     #
     # On Ruby 3.x, use :thread mode instead - it works reliably with the GVL.
-    #
     # This 4.x implementation is simpler because Ruby 4.x Ractors just work.
+
+    # Ractor-based background work using Ruby 4.x Ractor::Port for streaming
+    # and Ractor.shareable_proc for blocks.
+    #
+    # @example Block form
+    #   work = BackgroundWork.new(app, urls) do |task, data|
+    #     data.each { |url| task.yield(fetch(url)) }
+    #   end
+    #   work.on_progress { |r| update_ui(r) }.on_done { puts "Done!" }
+    #
+    # @example Worker class form
+    #   work = BackgroundWork.new(app, data, worker: MyWorker)
+    #   work.on_progress { |r| update_ui(r) }
     class BackgroundWork
+      # @param app [Teek::App] the application instance (for +after+ scheduling)
+      # @param data [Object] data passed to the worker block/class
+      # @param worker [Class, nil] optional worker class (must respond to +#call(task, data)+)
+      # @yield [task, data] block executed inside a Ractor
+      # @yieldparam task [TaskContext] context for yielding results and checking messages
+      # @yieldparam data [Object] the data passed to the constructor
       def initialize(app, data, worker: nil, &block)
-        # Ruby 4.x supports both block and worker class
         @app = app
         @data = data
         @work_block = block || (worker && proc { |t, d| worker.new.call(t, d) })
@@ -61,23 +77,40 @@ module Teek
         @bridge_thread = nil
       end
 
+      # Register a callback for progress updates from the worker.
+      # Auto-starts the task if not already started.
+      # @yield [value] called on the main thread each time the worker yields a result
+      # @return [self]
       def on_progress(&block)
         @callbacks[:progress] = block
         maybe_start
         self
       end
 
+      # Register a callback for when the worker finishes.
+      # Auto-starts the task if not already started.
+      # @yield called on the main thread when the worker completes
+      # @return [self]
       def on_done(&block)
         @callbacks[:done] = block
         maybe_start
         self
       end
 
+      # Register a callback for custom messages sent by the worker via
+      # {TaskContext#send_message}.
+      # @yield [msg] called on the main thread with the message
+      # @return [self]
       def on_message(&block)
         @callbacks[:message] = block
         self
       end
 
+      # Send a message to the worker. The worker can receive it via
+      # {TaskContext#check_message} or {TaskContext#wait_message}.
+      # Messages are queued if the worker's control port isn't ready yet.
+      # @param msg [Object] any Ractor-shareable value
+      # @return [self]
       def send_message(msg)
         if @control_port
           begin
@@ -91,23 +124,33 @@ module Teek
         self
       end
 
+      # Pause the worker. The worker will block on the next {TaskContext#yield}
+      # or {TaskContext#check_pause} until {#resume} is called.
+      # @return [self]
       def pause
         @paused = true
         send_message(:pause)
         self
       end
 
+      # Resume a paused worker.
+      # @return [self]
       def resume
         @paused = false
         send_message(:resume)
         self
       end
 
+      # Request the worker to stop. Raises +StopIteration+ inside the worker
+      # on the next {TaskContext#check_message} or {TaskContext#yield}.
+      # @return [self]
       def stop
         send_message(:stop)
         self
       end
 
+      # Force-close the Ractor and all associated resources.
+      # @return [self]
       def close
         @done = true
         @control_port = nil  # Prevent further message sends
@@ -120,6 +163,10 @@ module Teek
         self
       end
 
+      # Explicitly start the background work. Called automatically by
+      # {#on_progress} and {#on_done}; only needed when using {#on_message}
+      # alone.
+      # @return [self]
       def start
         return self if @started
         @started = true
@@ -133,10 +180,12 @@ module Teek
         self
       end
 
+      # @return [Boolean] whether the worker has finished
       def done?
         @done
       end
 
+      # @return [Boolean] whether the worker is paused
       def paused?
         @paused
       end
@@ -282,19 +331,29 @@ module Teek
              "Only latest values were shown to UI."
       end
 
-      # Task context for Ractor mode (runs inside Ractor)
+      # Context object passed to the worker block inside the Ractor.
+      # Provides methods for yielding results, sending/receiving messages,
+      # and responding to pause/stop signals.
       class TaskContext
+        # @api private
         def initialize(output_port, msg_queue)
           @output_port = output_port
           @msg_queue = msg_queue
           @paused = false
         end
 
+        # Send a result to the main thread. Blocks while paused.
+        # The value arrives in the {BackgroundWork#on_progress} callback.
+        # @param value [Object] any Ractor-shareable value
         def yield(value)
           check_pause_loop
           @output_port.send([:result, value])
         end
 
+        # Non-blocking check for a message from the main thread.
+        # Handles built-in control messages (+:pause+, +:resume+, +:stop+)
+        # automatically; +:stop+ raises +StopIteration+.
+        # @return [Object, nil] the message, or +nil+ if none pending
         def check_message
           return nil if @msg_queue.empty?
           msg = @msg_queue.pop(true)
@@ -304,16 +363,24 @@ module Teek
           nil
         end
 
+        # Blocking wait for the next message from the main thread.
+        # Handles control messages automatically.
+        # @return [Object] the message
         def wait_message
           msg = @msg_queue.pop
           handle_control_message(msg)
           msg
         end
 
+        # Send a custom message back to the main thread.
+        # Arrives in the {BackgroundWork#on_message} callback.
+        # @param msg [Object] any Ractor-shareable value
         def send_message(msg)
           @output_port.send([:message, msg])
         end
 
+        # Block while paused, returning immediately if not paused.
+        # Call this periodically in long-running loops to honor pause requests.
         def check_pause
           check_pause_loop
         end

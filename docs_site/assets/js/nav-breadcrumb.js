@@ -4,7 +4,7 @@
   function initNavBreadcrumb() {
     var sidebar = document.getElementById('sidebar');
     var breadcrumb = document.getElementById('nav-breadcrumb');
-    var apiNav = document.getElementById('api-nav');
+    var apiNav = sidebar.querySelector('[data-nav]');
 
     if (!sidebar || !breadcrumb || !apiNav) return;
 

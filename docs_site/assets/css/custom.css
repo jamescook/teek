@@ -405,7 +405,7 @@ main {
 }
 
 /* Disable collapse animation in nav */
-#api-nav .collapsing {
+[data-nav] .collapsing {
   transition: none;
 }
 

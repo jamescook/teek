@@ -1,0 +1,7 @@
+docs_site/
+doc/
+recordings/
+coverage/
+.git/
+.github/
+.claude/
