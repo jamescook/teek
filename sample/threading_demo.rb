@@ -382,9 +382,11 @@ class ThreadingDemo
         end
 
         begin
+          t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           hash = algo_class.file(path).hexdigest
+          dt = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
           short_path = path.sub(%r{^/app/}, '').sub(data[:base_dir] + '/', '')
-          pending << "#{short_path}: #{hash}\n"
+          pending << "#{short_path}: #{hash} #{dt < 0.01 ? format('%.5fs', dt) : format('%.2fs', dt)}\n"
         rescue StandardError => e
           short_path = path.sub(%r{^/app/}, '').sub(data[:base_dir] + '/', '')
           pending << "#{short_path}: ERROR - #{e.message}\n"
