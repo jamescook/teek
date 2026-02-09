@@ -207,7 +207,7 @@
 
         var isCurrent = (baseUrl + doc.url) === window.location.pathname || (baseUrl + doc.url + '/') === window.location.pathname;
         var currentAttr = isCurrent ? ' data-current' : '';
-        return '<a href="' + baseUrl + doc.url + methodAnchor + '" class="search-result-item" data-search-result' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span>' + snippet + '</a>';
+        return '<a href="' + baseUrl + doc.url + methodAnchor + '" class="search-result-item" data-search-result data-turbo-frame="_top"' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span>' + snippet + '</a>';
       }).join('');
 
       searchResults.innerHTML = html;
