@@ -206,6 +206,48 @@ module Teek
       @interp.tcl_eval(parts.join(' '))
     end
 
+    # Add a directory to Tcl's package search path.
+    # @param path [String] directory containing Tcl packages
+    # @return [void]
+    def add_package_path(path)
+      tcl_eval("lappend ::auto_path {#{path}}")
+    end
+
+    # Load a Tcl package into this interpreter.
+    # @param name [String] package name (e.g. "BWidget")
+    # @param version [String, nil] minimum version constraint
+    # @return [String] the version that was loaded
+    # @raise [Teek::TclError] if the package is not found
+    def require_package(name, version = nil)
+      cmd = version ? "package require #{name} #{version}" : "package require #{name}"
+      tcl_eval(cmd)
+    rescue Teek::TclError => e
+      raise Teek::TclError, "Package '#{name}' not found. Ensure it is installed and on Tcl's auto_path. (#{e.message})"
+    end
+
+    # List all packages known to this interpreter.
+    # @return [Array<String>]
+    def package_names
+      split_list(tcl_eval('package names'))
+    end
+
+    # Check if a package is already loaded in this interpreter.
+    # @param name [String] package name
+    # @return [Boolean]
+    def package_present?(name)
+      tcl_eval("package present #{name}")
+      true
+    rescue Teek::TclError
+      false
+    end
+
+    # List available versions of a package.
+    # @param name [String] package name
+    # @return [Array<String>]
+    def package_versions(name)
+      split_list(tcl_eval("package versions #{name}"))
+    end
+
     # Enter the Tk event loop. Blocks until the application exits.
     # @return [void]
     def mainloop

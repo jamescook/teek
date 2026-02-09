@@ -96,6 +96,30 @@ Teek.bool_to_tcl(nil)     # => "0"
 
 `tcl_to_bool` recognizes all Tcl boolean forms: `true`/`false`, `yes`/`no`, `on`/`off`, `1`/`0`, and numeric values (case-insensitive).
 
+## Tcl Packages
+
+Load external Tcl packages (BWidget, tkimg, etc.):
+
+```ruby
+app.require_package('BWidget')
+app.require_package('BWidget', '1.9')  # with version constraint
+```
+
+For packages in non-standard locations:
+
+```ruby
+app.add_package_path('/path/to/packages')
+app.require_package('mypackage')
+```
+
+Query what's available:
+
+```ruby
+app.package_names          # => ["Tk", "BWidget", ...]
+app.package_present?('Tk') # => true
+app.package_versions('Tk') # => ["9.0.1"]
+```
+
 ## Debugger
 
 Pass `debug: true` to open a debugger window alongside your app:

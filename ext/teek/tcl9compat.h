@@ -105,18 +105,6 @@ typedef int Tcl_Size;
 #endif
 
 /*
- * Threading compatibility
- *
- * Tcl 9.0 always has threading enabled (TCL_THREADS is always defined).
- * For Tcl 8.x, it's optional.
- */
-#if TCL_MAJOR_VERSION >= 9
-#ifndef TCL_THREADS
-#define TCL_THREADS 1
-#endif
-#endif
-
-/*
  * Stubs version compatibility
  *
  * The minimum stubs version should be set appropriately.
@@ -205,14 +193,6 @@ typedef int Tcl_Size;
 #define RBTK_HAS_MAKE_SAFE 1
 #define RbTk_MakeSafe(interp) Tcl_MakeSafe(interp)
 #endif
-
-/*
- * Safe memory allocation
- *
- * Update the allocation macro to use proper size type.
- */
-#undef RbTk_ALLOC_N
-#define RbTk_ALLOC_N(type, n) ((type *)ckalloc(sizeof(type) * (size_t)(n)))
 
 /*
  * Version detection macros
