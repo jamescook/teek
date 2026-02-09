@@ -248,6 +248,13 @@ module Teek
       split_list(tcl_eval("package versions #{name}"))
     end
 
+    # Destroy a widget and all its children.
+    # @param widget [String] Tk widget path (e.g. ".frame1")
+    # @return [void]
+    def destroy(widget)
+      tcl_eval("destroy #{widget}")
+    end
+
     # Enter the Tk event loop. Blocks until the application exits.
     # @return [void]
     def mainloop
