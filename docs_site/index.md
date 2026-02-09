@@ -13,7 +13,7 @@ Tcl/Tk interface for Ruby (8.6+ and 9.x).
 
 ## Quick Links
 
-- [Teek Module](/api/Teek/) - Main entry point
+- [Teek::App](/api/Teek/App/) - Main entry point
 
 ## Getting Started
 
@@ -21,9 +21,10 @@ Tcl/Tk interface for Ruby (8.6+ and 9.x).
 require 'teek'
 
 app = Teek::App.new
-app.tcl_eval('button .b -text "Hello" -command exit')
-app.tcl_eval('pack .b')
-app.tcl_eval('tkwait window .')
+app.set_window_title('Hello Teek')
+app.command(:button, '.b', text: 'Hello', command: proc { app.destroy('.') })
+app.command(:pack, '.b')
+app.mainloop
 ```
 
 ## Search
