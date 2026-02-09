@@ -110,8 +110,8 @@ class TestThreading < Minitest::Test
   end
 
   def app_tcl_eval_string_roundtrip
-    app.tcl_eval('set testvar "hello from tcl"')
-    result = app.tcl_eval('set testvar')
+    app.set_variable('testvar', 'hello from tcl')
+    result = app.get_variable('testvar')
     raise "Expected 'hello from tcl', got '#{result}'" unless result == "hello from tcl"
   end
 end

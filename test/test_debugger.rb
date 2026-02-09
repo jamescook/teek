@@ -59,7 +59,7 @@ class TestDebugger < Minitest::Test
     exists = app.tcl_eval('.teek_debug.nb.widgets.tree exists .btn')
     raise "button should be in tree" unless exists == "1"
 
-    app.tcl_eval('destroy .btn')
+    app.destroy('.btn')
     app.update
 
     exists = app.tcl_eval('.teek_debug.nb.widgets.tree exists .btn')

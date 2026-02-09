@@ -140,10 +140,10 @@ module TeekDemo
             sock.close
           rescue StandardError
           end
-          app.after(0) { app.tcl_eval('destroy .') }
+          app.after(0) { app.destroy('.') }
         end
       else
-        app.after(0) { app.tcl_eval('destroy .') }
+        app.after(0) { app.destroy('.') }
       end
     end
   end

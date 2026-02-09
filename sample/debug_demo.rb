@@ -35,7 +35,7 @@ app.tcl_eval('pack .f.add -pady 5')
 # Button to destroy last widget
 rm_cb = app.register_callback(proc { |*|
   if counter > 0
-    app.tcl_eval("destroy .f.btn#{counter}")
+    app.destroy(".f.btn#{counter}")
     counter -= 1
   end
 })

@@ -104,7 +104,7 @@ class TestCallbackControlFlow < Minitest::Test
     result = app.tcl_eval("catch {ruby_callback #{cb}} errmsg")
     raise "expected Tcl error (1), got #{result}" unless result == "1"
 
-    msg = app.tcl_eval("set errmsg")
+    msg = app.get_variable('errmsg')
     raise "error message lost, got #{msg.inspect}" unless msg.include?("boom")
   end
 end

@@ -304,7 +304,7 @@ class Teek::TestWorker
     end
 
     def shutdown
-      @app.tcl_eval('destroy .') rescue nil
+      @app.destroy('.') rescue nil
       { shutdown: true }
     end
 
@@ -314,7 +314,7 @@ class Teek::TestWorker
       # Destroy all children of root, then withdraw
       children = @app.tcl_eval('winfo children .').split
       children.each do |child|
-        @app.tcl_eval("destroy #{child}") rescue nil
+        @app.destroy(child) rescue nil
       end
       @app.hide
 

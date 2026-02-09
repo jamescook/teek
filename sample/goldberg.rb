@@ -140,7 +140,7 @@ class TkGoldberg_Demo
     @app.tcl_eval("frame #{btnframe} -bg #{@C['bg']}")
 
     dismiss_cb = @app.register_callback(proc { |*|
-      @app.tcl_eval("destroy #{@top}")
+      @app.destroy(@top)
     })
     @app.tcl_eval("button #{btnframe}.dismiss -text Dismiss " \
                   "-bg #{@C['bg']} -activebackground #{@C['bg']} " \

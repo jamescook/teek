@@ -31,7 +31,7 @@ class TestWidgetTracking < Minitest::Test
     app.command(:label, ".l", text: "world")
     raise "expected 2 widgets" unless app.widgets.size == 2
 
-    app.tcl_eval("destroy .b")
+    app.destroy(".b")
     raise "expected 1 widget after destroy" unless app.widgets.size == 1
     raise ".b should be gone" if app.widgets[".b"]
     raise ".l should remain" unless app.widgets[".l"]

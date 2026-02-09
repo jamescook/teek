@@ -155,11 +155,11 @@ module GoldbergHelpers
     end
 
     def get
-      @app.tcl_eval("set #{@name}")
+      @app.get_variable(@name)
     end
 
     def set(v)
-      @app.tcl_eval("set #{@name} {#{v}}")
+      @app.set_variable(@name, v)
     end
 
     def to_s = get
