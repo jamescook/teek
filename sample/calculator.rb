@@ -209,7 +209,7 @@ require_relative '../lib/teek/demo_support'
 TeekDemo.app = calc.app
 
 if TeekDemo.recording?
-  calc.app.tcl_eval('wm geometry . +0+0')
+  calc.app.set_window_geometry('+0+0')
   calc.app.tcl_eval('. configure -cursor none')
   TeekDemo.signal_recording_ready
 end

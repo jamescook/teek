@@ -321,7 +321,7 @@ class Teek::TestWorker
       # Reset WM properties (these persist between tests)
       @app.tcl_eval('wm minsize . 1 1')
       @app.tcl_eval('wm maxsize . 0 0') rescue nil
-      @app.tcl_eval('wm geometry . ""')
+      @app.set_window_geometry('')
 
       reset_grid_config!
     end

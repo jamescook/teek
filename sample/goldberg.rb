@@ -1765,7 +1765,7 @@ app = Teek::App.new(track_widgets: false)
 
 top = '.goldberg'
 app.tcl_eval("toplevel #{top}")
-app.tcl_eval("wm title #{top} {Tk Goldberg (demonstration)}")
+app.set_window_title('Tk Goldberg (demonstration)', window: top)
 app.tcl_eval("wm iconname #{top} goldberg")
 
 base = "#{top}.base"
@@ -1779,7 +1779,7 @@ require_relative '../lib/teek/demo_support'
 TeekDemo.app = app
 
 if TeekDemo.recording?
-  app.tcl_eval("wm geometry #{top} +0+0")       # Position at top-left for capture
+  app.set_window_geometry('+0+0', window: top)   # Position at top-left for capture
   app.tcl_eval("#{top} configure -cursor none")  # Hide cursor for recording
   TeekDemo.signal_recording_ready(window: top)
   app.after(500) { demo.start }

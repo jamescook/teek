@@ -303,6 +303,53 @@ module Teek
       @interp.tcl_eval("wm withdraw #{window}")
     end
 
+    # Set a window's title.
+    # @param title [String] new title
+    # @param window [String] Tk window path
+    # @return [String] the title
+    def set_window_title(title, window: '.')
+      tcl_eval("wm title #{window} {#{title}}")
+    end
+
+    # Get a window's current title.
+    # @param window [String] Tk window path
+    # @return [String] current title
+    def window_title(window: '.')
+      tcl_eval("wm title #{window}")
+    end
+
+    # Set a window's geometry (e.g. "400x300", "400x300+100+50").
+    # @param geometry [String] geometry string
+    # @param window [String] Tk window path
+    # @return [String] the geometry
+    def set_window_geometry(geometry, window: '.')
+      tcl_eval("wm geometry #{window} #{geometry}")
+    end
+
+    # Get a window's current geometry.
+    # @param window [String] Tk window path
+    # @return [String] geometry string (e.g. "400x300+0+0")
+    def window_geometry(window: '.')
+      tcl_eval("wm geometry #{window}")
+    end
+
+    # Set whether a window is resizable.
+    # @param width [Boolean] allow horizontal resize
+    # @param height [Boolean] allow vertical resize
+    # @param window [String] Tk window path
+    # @return [void]
+    def set_window_resizable(width, height, window: '.')
+      tcl_eval("wm resizable #{window} #{width ? 1 : 0} #{height ? 1 : 0}")
+    end
+
+    # Get whether a window is resizable.
+    # @param window [String] Tk window path
+    # @return [Array(Boolean, Boolean)] [width_resizable, height_resizable]
+    def window_resizable(window: '.')
+      parts = tcl_eval("wm resizable #{window}").split
+      [parts[0] == '1', parts[1] == '1']
+    end
+
     # Bind a Tk event on a widget, with optional substitutions forwarded
     # as block arguments. Substitutions can be symbols (mapped via
     # {BIND_SUBS}) or raw Tcl +%+ codes passed through as-is.

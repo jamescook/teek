@@ -9,8 +9,8 @@ app = Teek::App.new(debug: true)
 
 # Show the main app window
 app.show
-app.tcl_eval('wm title . "Debug Demo App"')
-app.tcl_eval('wm geometry . 300x200')
+app.set_window_title('Debug Demo App')
+app.set_window_geometry('300x200')
 
 # Create some widgets
 app.tcl_eval('ttk::frame .f')
