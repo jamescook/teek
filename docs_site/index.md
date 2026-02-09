@@ -13,7 +13,7 @@ Tcl/Tk interface for Ruby (8.6+ and 9.x).
 
 ## Quick Links
 
-- [Teek::App](/api/Teek/App/) - Main entry point
+- [Teek::App]({{ '/api/Teek/App/' | relative_url }}) - Main entry point
 
 ## Getting Started
 
