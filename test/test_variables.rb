@@ -7,61 +7,41 @@ class TestVariables < Minitest::Test
   include TeekTestHelper
 
   def test_set_and_get_variable
-    assert_tk_app("set_variable/get_variable round-trip", method(:app_set_get))
-  end
-
-  def app_set_get
-    app.set_variable('myvar', 'hello')
-    val = app.get_variable('myvar')
-    raise "expected 'hello', got #{val.inspect}" unless val == 'hello'
+    assert_tk_app("set_variable/get_variable round-trip") do
+      app.set_variable('myvar', 'hello')
+      assert_equal 'hello', app.get_variable('myvar')
+    end
   end
 
   def test_set_variable_overwrites
-    assert_tk_app("set_variable should overwrite existing value", method(:app_overwrite))
-  end
-
-  def app_overwrite
-    app.set_variable('x', 'first')
-    app.set_variable('x', 'second')
-    val = app.get_variable('x')
-    raise "expected 'second', got #{val.inspect}" unless val == 'second'
+    assert_tk_app("set_variable should overwrite existing value") do
+      app.set_variable('x', 'first')
+      app.set_variable('x', 'second')
+      assert_equal 'second', app.get_variable('x')
+    end
   end
 
   def test_get_variable_nonexistent_raises
-    assert_tk_app("get_variable on nonexistent should raise", method(:app_get_missing))
-  end
-
-  def app_get_missing
-    begin
-      app.get_variable('does_not_exist_xyz')
-      raise "expected TclError but nothing was raised"
-    rescue Teek::TclError
-      # expected
+    assert_tk_app("get_variable on nonexistent should raise") do
+      assert_raises(Teek::TclError) { app.get_variable('does_not_exist_xyz') }
     end
   end
 
   def test_variable_works_with_widget_textvariable
-    assert_tk_app("variable should work with widget textvariable", method(:app_textvariable))
-  end
+    assert_tk_app("variable should work with widget textvariable") do
+      app.set_variable('lbl_text', 'initial')
+      app.command('ttk::label', '.lbl', textvariable: :lbl_text)
 
-  def app_textvariable
-    app.set_variable('lbl_text', 'initial')
-    app.command('ttk::label', '.lbl', textvariable: :lbl_text)
+      assert_equal 'initial', app.tcl_eval('.lbl cget -text')
 
-    displayed = app.tcl_eval('.lbl cget -text')
-    raise "expected 'initial', got #{displayed.inspect}" unless displayed == 'initial'
-
-    app.set_variable('lbl_text', 'updated')
-    displayed = app.tcl_eval('.lbl cget -text')
-    raise "expected 'updated', got #{displayed.inspect}" unless displayed == 'updated'
+      app.set_variable('lbl_text', 'updated')
+      assert_equal 'updated', app.tcl_eval('.lbl cget -text')
+    end
   end
 
   def test_set_variable_returns_value
-    assert_tk_app("set_variable should return the value", method(:app_returns_value))
-  end
-
-  def app_returns_value
-    ret = app.set_variable('rv', '42')
-    raise "expected '42', got #{ret.inspect}" unless ret == '42'
+    assert_tk_app("set_variable should return the value") do
+      assert_equal '42', app.set_variable('rv', '42')
+    end
   end
 end

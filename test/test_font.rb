@@ -17,129 +17,105 @@ class TestFont < Minitest::Test
   # -- text_width --
 
   def test_text_width_returns_integer
-    assert_tk_app("text_width returns integer", method(:app_text_width_returns_integer))
-  end
-
-  def app_text_width_returns_integer
-    w = app.text_width('TkDefaultFont', 'Hello')
-    raise "expected Integer, got #{w.class}" unless w.is_a?(Integer)
-    raise "expected positive width, got #{w}" unless w > 0
+    assert_tk_app("text_width returns integer") do
+      w = app.text_width('TkDefaultFont', 'Hello')
+      assert_kind_of Integer, w
+      assert_operator w, :>, 0, "expected positive width"
+    end
   end
 
   def test_text_width_longer_string_is_wider
-    assert_tk_app("longer string has greater width", method(:app_text_width_longer))
-  end
-
-  def app_text_width_longer
-    short = app.text_width('TkDefaultFont', 'Hi')
-    long = app.text_width('TkDefaultFont', 'Hello World, this is a longer string')
-    raise "expected long (#{long}) > short (#{short})" unless long > short
+    assert_tk_app("longer string has greater width") do
+      short = app.text_width('TkDefaultFont', 'Hi')
+      long = app.text_width('TkDefaultFont', 'Hello World, this is a longer string')
+      assert_operator long, :>, short
+    end
   end
 
   def test_text_width_empty_string
-    assert_tk_app("empty string has zero width", method(:app_text_width_empty))
-  end
-
-  def app_text_width_empty
-    w = app.text_width('TkDefaultFont', '')
-    raise "expected 0, got #{w}" unless w == 0
+    assert_tk_app("empty string has zero width") do
+      w = app.text_width('TkDefaultFont', '')
+      assert_equal 0, w
+    end
   end
 
   def test_text_width_with_font_spec
-    assert_tk_app("text_width works with font spec", method(:app_text_width_font_spec))
-  end
-
-  def app_text_width_font_spec
-    w = app.text_width('Helvetica 12', 'Hello')
-    raise "expected positive width, got #{w}" unless w > 0
+    assert_tk_app("text_width works with font spec") do
+      w = app.text_width('Helvetica 12', 'Hello')
+      assert_operator w, :>, 0, "expected positive width"
+    end
   end
 
   # -- font_metrics --
 
   def test_font_metrics_returns_hash
-    assert_tk_app("font_metrics returns hash with keys", method(:app_font_metrics_hash))
-  end
-
-  def app_font_metrics_hash
-    m = app.font_metrics('TkDefaultFont')
-    raise "expected Hash, got #{m.class}" unless m.is_a?(Hash)
-    [:ascent, :descent, :linespace].each do |k|
-      raise "missing key #{k}" unless m.key?(k)
-      raise "#{k} should be Integer, got #{m[k].class}" unless m[k].is_a?(Integer)
-      raise "#{k} should be positive, got #{m[k]}" unless m[k] > 0
+    assert_tk_app("font_metrics returns hash with keys") do
+      m = app.font_metrics('TkDefaultFont')
+      assert_kind_of Hash, m
+      [:ascent, :descent, :linespace].each do |k|
+        assert m.key?(k), "missing key #{k}"
+        assert_kind_of Integer, m[k], "#{k} should be Integer"
+        assert_operator m[k], :>, 0, "#{k} should be positive"
+      end
     end
   end
 
   def test_font_metrics_linespace_is_sum
-    assert_tk_app("linespace == ascent + descent", method(:app_font_metrics_linespace))
-  end
-
-  def app_font_metrics_linespace
-    m = app.font_metrics('TkDefaultFont')
-    expected = m[:ascent] + m[:descent]
-    raise "linespace #{m[:linespace]} != ascent #{m[:ascent]} + descent #{m[:descent]}" unless m[:linespace] == expected
+    assert_tk_app("linespace == ascent + descent") do
+      m = app.font_metrics('TkDefaultFont')
+      assert_equal m[:ascent] + m[:descent], m[:linespace]
+    end
   end
 
   def test_font_metrics_with_font_spec
-    assert_tk_app("font_metrics works with font spec", method(:app_font_metrics_font_spec))
-  end
-
-  def app_font_metrics_font_spec
-    m = app.font_metrics('Helvetica 12')
-    raise "expected positive ascent, got #{m[:ascent]}" unless m[:ascent] > 0
+    assert_tk_app("font_metrics works with font spec") do
+      m = app.font_metrics('Helvetica 12')
+      assert_operator m[:ascent], :>, 0, "expected positive ascent"
+    end
   end
 
   # -- measure_chars --
 
   def test_measure_chars_returns_hash
-    assert_tk_app("measure_chars returns hash", method(:app_measure_chars_hash))
-  end
-
-  def app_measure_chars_hash
-    r = app.measure_chars('TkDefaultFont', 'Hello World', 50)
-    raise "expected Hash, got #{r.class}" unless r.is_a?(Hash)
-    raise "missing :bytes" unless r.key?(:bytes)
-    raise "missing :width" unless r.key?(:width)
-    raise ":bytes should be Integer" unless r[:bytes].is_a?(Integer)
-    raise ":width should be Integer" unless r[:width].is_a?(Integer)
+    assert_tk_app("measure_chars returns hash") do
+      r = app.measure_chars('TkDefaultFont', 'Hello World', 50)
+      assert_kind_of Hash, r
+      assert r.key?(:bytes), "missing :bytes"
+      assert r.key?(:width), "missing :width"
+      assert_kind_of Integer, r[:bytes]
+      assert_kind_of Integer, r[:width]
+    end
   end
 
   def test_measure_chars_respects_limit
-    assert_tk_app("measure_chars respects pixel limit", method(:app_measure_chars_limit))
-  end
-
-  def app_measure_chars_limit
-    text = 'Hello World, this is a long string for measurement'
-    full_width = app.text_width('TkDefaultFont', text)
-    limit = full_width / 2
-    r = app.measure_chars('TkDefaultFont', text, limit)
-    raise "bytes #{r[:bytes]} should be less than full length #{text.bytesize}" unless r[:bytes] < text.bytesize
-    raise "width #{r[:width]} should be <= limit #{limit}" unless r[:width] <= limit
+    assert_tk_app("measure_chars respects pixel limit") do
+      text = 'Hello World, this is a long string for measurement'
+      full_width = app.text_width('TkDefaultFont', text)
+      limit = full_width / 2
+      r = app.measure_chars('TkDefaultFont', text, limit)
+      assert_operator r[:bytes], :<, text.bytesize, "bytes should be less than full length"
+      assert_operator r[:width], :<=, limit, "width should be <= limit"
+    end
   end
 
   def test_measure_chars_unlimited
-    assert_tk_app("measure_chars with -1 returns full text", method(:app_measure_chars_unlimited))
-  end
-
-  def app_measure_chars_unlimited
-    text = 'Hello'
-    r = app.measure_chars('TkDefaultFont', text, -1)
-    raise "expected all bytes (#{text.bytesize}), got #{r[:bytes]}" unless r[:bytes] == text.bytesize
+    assert_tk_app("measure_chars with -1 returns full text") do
+      text = 'Hello'
+      r = app.measure_chars('TkDefaultFont', text, -1)
+      assert_equal text.bytesize, r[:bytes]
+    end
   end
 
   def test_measure_chars_whole_words
-    assert_tk_app("measure_chars whole_words option", method(:app_measure_chars_whole_words))
-  end
+    assert_tk_app("measure_chars whole_words option") do
+      text = 'Hello World Foo'
+      w1 = app.text_width('TkDefaultFont', 'Hello ')
+      w2 = app.text_width('TkDefaultFont', 'Hello World')
+      limit = (w1 + w2) / 2
 
-  def app_measure_chars_whole_words
-    text = 'Hello World Foo'
-    # Get width that fits "Hello " but not "Hello World"
-    w1 = app.text_width('TkDefaultFont', 'Hello ')
-    w2 = app.text_width('TkDefaultFont', 'Hello World')
-    limit = (w1 + w2) / 2  # between the two
-
-    r = app.measure_chars('TkDefaultFont', text, limit, whole_words: true)
-    fitted = text[0, r[:bytes]]
-    raise "expected word break, got '#{fitted}'" if fitted.include?('Wor') && !fitted.include?('World')
+      r = app.measure_chars('TkDefaultFont', text, limit, whole_words: true)
+      fitted = text[0, r[:bytes]]
+      refute(fitted.include?('Wor') && !fitted.include?('World'), "expected word break, got '#{fitted}'")
+    end
   end
 end

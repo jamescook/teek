@@ -7,92 +7,67 @@ class TestDebugger < Minitest::Test
   include TeekTestHelper
 
   def test_debugger_creates_window
-    assert_tk_app("debugger creates window", method(:app_debugger_creates_window))
-  end
+    assert_tk_app("debugger creates window") do
+      app = Teek::App.new(debug: true)
+      assert app.debugger, "debugger not created"
+      assert app.debugger.interp, "debugger interp missing"
 
-  def app_debugger_creates_window
-    app = Teek::App.new(debug: true)
-    raise "debugger not created" unless app.debugger
-    raise "debugger interp missing" unless app.debugger.interp
-
-    # Debugger toplevel should exist
-    result = app.tcl_eval('winfo exists .teek_debug')
-    raise "debugger window doesn't exist" unless result == "1"
-
-    # Notebook should exist
-    result = app.tcl_eval('winfo exists .teek_debug.nb')
-    raise "notebook doesn't exist" unless result == "1"
+      assert_equal "1", app.tcl_eval('winfo exists .teek_debug')
+      assert_equal "1", app.tcl_eval('winfo exists .teek_debug.nb')
+    end
   end
 
   def test_debugger_tracks_widgets
-    assert_tk_app("debugger tracks widget creation", method(:app_debugger_tracks_widgets))
-  end
+    assert_tk_app("debugger tracks widget creation") do
+      app = Teek::App.new(debug: true)
 
-  def app_debugger_tracks_widgets
-    app = Teek::App.new(debug: true)
+      app.show
+      app.tcl_eval('ttk::frame .f')
+      app.tcl_eval('ttk::button .f.btn -text Hello')
+      app.update
 
-    # Create some widgets in the app
-    app.show
-    app.tcl_eval('ttk::frame .f')
-    app.tcl_eval('ttk::button .f.btn -text Hello')
-    app.update
-
-    # Check that they appear in the debugger tree
-    exists_f = app.tcl_eval('.teek_debug.nb.widgets.tree exists .f')
-    raise "frame not in debugger tree" unless exists_f == "1"
-
-    exists_btn = app.tcl_eval('.teek_debug.nb.widgets.tree exists .f.btn')
-    raise "button not in debugger tree" unless exists_btn == "1"
+      assert_equal "1", app.tcl_eval('.teek_debug.nb.widgets.tree exists .f')
+      assert_equal "1", app.tcl_eval('.teek_debug.nb.widgets.tree exists .f.btn')
+    end
   end
 
   def test_debugger_tracks_destroy
-    assert_tk_app("debugger tracks widget destruction", method(:app_debugger_tracks_destroy))
-  end
+    assert_tk_app("debugger tracks widget destruction") do
+      app = Teek::App.new(debug: true)
 
-  def app_debugger_tracks_destroy
-    app = Teek::App.new(debug: true)
+      app.show
+      app.tcl_eval('ttk::button .btn -text Bye')
+      app.update
 
-    app.show
-    app.tcl_eval('ttk::button .btn -text Bye')
-    app.update
+      assert_equal "1", app.tcl_eval('.teek_debug.nb.widgets.tree exists .btn')
 
-    exists = app.tcl_eval('.teek_debug.nb.widgets.tree exists .btn')
-    raise "button should be in tree" unless exists == "1"
+      app.destroy('.btn')
+      app.update
 
-    app.destroy('.btn')
-    app.update
-
-    exists = app.tcl_eval('.teek_debug.nb.widgets.tree exists .btn')
-    raise "button should be removed from tree" unless exists == "0"
+      assert_equal "0", app.tcl_eval('.teek_debug.nb.widgets.tree exists .btn')
+    end
   end
 
   def test_debugger_show_hide
-    assert_tk_app("debugger show/hide", method(:app_debugger_show_hide))
-  end
+    assert_tk_app("debugger show/hide") do
+      app = Teek::App.new(debug: true)
 
-  def app_debugger_show_hide
-    app = Teek::App.new(debug: true)
+      app.debugger.hide
+      assert_equal "withdrawn", app.tcl_eval('wm state .teek_debug')
 
-    app.debugger.hide
-    state = app.tcl_eval('wm state .teek_debug')
-    raise "expected withdrawn, got #{state}" unless state == "withdrawn"
-
-    app.debugger.show
-    app.update
-    state = app.tcl_eval('wm state .teek_debug')
-    raise "expected normal, got #{state}" unless state == "normal"
+      app.debugger.show
+      app.update
+      assert_equal "normal", app.tcl_eval('wm state .teek_debug')
+    end
   end
 
   def test_debugger_widgets_not_tracked
-    assert_tk_app("debugger widgets filtered", method(:app_debugger_widgets_not_tracked))
-  end
+    assert_tk_app("debugger widgets filtered") do
+      app = Teek::App.new(debug: true)
 
-  def app_debugger_widgets_not_tracked
-    app = Teek::App.new(debug: true)
-
-    # Debugger widgets should not appear in app.widgets
-    app.widgets.each_key do |path|
-      raise "debugger widget #{path} leaked into app.widgets" if path.start_with?('.teek_debug')
+      app.widgets.each_key do |path|
+        refute path.start_with?('.teek_debug'), "debugger widget #{path} leaked into app.widgets"
+      end
     end
   end
 end

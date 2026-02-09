@@ -14,6 +14,7 @@
 #   Teek::TestWorker.stop
 
 require 'teek'
+require 'minitest'
 require 'stringio'
 
 # Test-only extension to reset widget auto-naming counters between tests.
@@ -77,10 +78,11 @@ class Teek::TestWorker
     # Default timeout for test execution (can be overridden via TK_TEST_TIMEOUT env var)
     DEFAULT_TIMEOUT = 60
 
-    def run_test(code, pipe_capture: false, timeout: nil)
+    def run_test(code, pipe_capture: false, timeout: nil, source_file: nil, source_line: nil)
       start unless running?
       timeout ||= Integer(ENV['TK_TEST_TIMEOUT'] || DEFAULT_TIMEOUT)
-      send_command('run', { code: code, pipe_capture: pipe_capture }, timeout: timeout)
+      send_command('run', { code: code, pipe_capture: pipe_capture,
+                            source_file: source_file, source_line: source_line }, timeout: timeout)
     end
 
     def running?
@@ -131,6 +133,44 @@ class Teek::TestWorker
     end
   end
 
+  # Eval context for test code — provides minitest assertions and test helpers.
+  class TestContext
+    include Minitest::Assertions
+    attr_accessor :assertions
+    attr_reader :app
+
+    def initialize(app)
+      @app = app
+      @assertions = 0
+    end
+
+    # Retry until expected value is returned or timeout.
+    def wait_for_display(expected, timeout: 1.0)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+      result = nil
+      while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        @app.update
+        result = yield
+        break if result.to_s == expected
+        sleep 0.02
+      end
+      result
+    end
+
+    # Wait until block returns truthy or timeout.
+    def wait_until(timeout: 1.0)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+      result = nil
+      while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+        @app.update
+        result = yield
+        break if result
+        sleep 0.02
+      end
+      result
+    end
+  end
+
   # Server-side: runs in subprocess
   class Server
     def initialize
@@ -150,7 +190,8 @@ class Teek::TestWorker
         result = case msg[:cmd]
         when 'run'
           data = msg[:data]
-          run_test(data[:code], pipe_capture: data[:pipe_capture])
+          run_test(data[:code], pipe_capture: data[:pipe_capture],
+                   source_file: data[:source_file], source_line: data[:source_line])
         when 'shutdown'
           # Write coverage BEFORE responding (parent closes pipes after response)
           # This must happen here, not in at_exit, because the parent process
@@ -169,13 +210,15 @@ class Teek::TestWorker
       end
     end
 
-    def run_test(code, pipe_capture: false)
+    def run_test(code, pipe_capture: false, source_file: nil, source_line: nil)
       @test_count += 1
       # Use instance variable to avoid shadowing by test code's local variables
       @_test_result = { success: true, stdout: "", stderr: "", test_number: @test_count }
 
       # Pipe-based capture is needed for Ractor tests (StringIO isn't thread-safe)
       @pipe_capture = pipe_capture
+      @source_file = source_file
+      @source_line = source_line
 
       begin
         # Capture stdout/stderr
@@ -194,72 +237,11 @@ class Teek::TestWorker
           $stderr = captured_err
         end
 
-        # Make interp available to the test code
-        b = binding
-        b.local_variable_set(:app, @app)
-
-        # Helper for display-dependent checks that may need time to settle
-        # Retries until expected value is returned or timeout
-        wait_for_display = ->(expected, timeout: 1.0, &block) {
-          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
-          result = nil
-          while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-            @app.update
-            result = block.call
-            break if result.to_s == expected
-            sleep 0.02
-          end
-          result
-        }
-        b.local_variable_set(:wait_for_display, wait_for_display)
-
-        # Helper that waits until block returns truthy or timeout
-        # Returns the truthy value or nil on timeout
-        wait_until = ->(timeout: 1.0, &block) {
-          deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
-          result = nil
-          while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
-            @app.update
-            result = block.call
-            break if result
-            sleep 0.02
-          end
-          result
-        }
-        b.local_variable_set(:wait_until, wait_until)
-
-        # TODO: Not yet working in Teek — needs tkextlib/tkimg ported
-        # Helper to capture screenshots for debugging test failures
-        # Usage: capture_screenshot("my_test") or capture_screenshot("step1", window: some_widget)
-        screenshot_dir = File.expand_path('../../screenshots/test', __FILE__)
-        test_root = @app # TODO: screenshot helper needs rework for Teek
-        test_count = @test_count
-        capture_screenshot = ->(name, window: nil) {
-          begin
-            win = window || test_root
-            unless win
-              STDERR.puts "Screenshot failed: no root window available"
-              return
-            end
-
-            require 'tkextlib/tkimg/window'
-            require 'tkextlib/tkimg/png'
-
-            FileUtils.mkdir_p(screenshot_dir)
-            @app.update
-
-            path = File.join(screenshot_dir, "#{name}_#{test_count}.png")
-            img = TkPhotoImage.new(:format => 'window', :data => win.path)
-            img.write(path, :format => 'png')
-            STDERR.puts "Screenshot saved: #{path}"
-          rescue => e
-            STDERR.puts "Screenshot failed: #{e.message}"
-          end
-        }
-        b.local_variable_set(:capture_screenshot, capture_screenshot)
-
-        # Execute the test code
-        eval(code, b, "(test)", 1)
+        # Execute test code with minitest assertions available
+        ctx = TestContext.new(@app)
+        eval_file = @source_file || "(test)"
+        eval_line = @source_line || 1
+        ctx.instance_eval(code, eval_file, eval_line)
 
         if @pipe_capture
           $stdout.close
@@ -286,19 +268,20 @@ class Teek::TestWorker
         end
 
         # Extract code context if error is in eval'd code
-        if e.backtrace&.first&.start_with?('(test):')
-          line_match = e.backtrace.first.match(/\(test\):(\d+)/)
-          if line_match
-            line_num = line_match[1].to_i
-            code_lines = code.lines
-            start_line = [line_num - 3, 0].max
-            end_line = [line_num + 1, code_lines.size - 1].min
-            context_lines = (start_line..end_line).map do |i|
-              prefix = (i + 1 == line_num) ? ">>>" : "   "
-              "#{prefix} #{i + 1}: #{code_lines[i]}"
-            end
-            @_test_result[:code_context] = context_lines.join
+        bt_pattern = @source_file ? /#{Regexp.escape(@source_file)}:(\d+)/ : /\(test\):(\d+)/
+        if (line_match = e.backtrace&.first&.match(bt_pattern))
+          line_num = line_match[1].to_i
+          code_lines = code.lines
+          # Convert absolute line number back to code array index
+          code_index = @source_line ? line_num - @source_line : line_num - 1
+          start_idx = [code_index - 2, 0].max
+          end_idx = [code_index + 2, code_lines.size - 1].min
+          context_lines = (start_idx..end_idx).map do |i|
+            abs_line = @source_line ? i + @source_line : i + 1
+            prefix = (i == code_index) ? ">>>" : "   "
+            "#{prefix} #{abs_line}: #{code_lines[i]}"
           end
+          @_test_result[:code_context] = context_lines.join
         end
       ensure
         $stdout, $stderr = old_stdout, old_stderr

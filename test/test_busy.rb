@@ -7,70 +7,54 @@ class TestBusy < Minitest::Test
   include TeekTestHelper
 
   def test_busy_block
-    assert_tk_app("busy sets and clears busy state", method(:app_busy_block))
-  end
+    assert_tk_app("busy sets and clears busy state") do
+      app.show
+      app.update
 
-  def app_busy_block
-    app.show
-    app.update
+      was_busy = false
+      app.busy do
+        result = app.tcl_eval('tk busy status .')
+        was_busy = (result == '1')
+      end
 
-    was_busy = false
-    app.busy do
-      result = app.tcl_eval('tk busy status .')
-      was_busy = (result == '1')
+      assert was_busy, "expected busy during block"
+      assert_equal '0', app.tcl_eval('tk busy status .')
     end
-
-    after_busy = app.tcl_eval('tk busy status .')
-    raise "expected busy during block, got not busy" unless was_busy
-    raise "expected not busy after block, got busy" unless after_busy == '0'
   end
 
   def test_busy_block_returns_value
-    assert_tk_app("busy returns block value", method(:app_busy_returns_value))
-  end
+    assert_tk_app("busy returns block value") do
+      app.show
+      app.update
 
-  def app_busy_returns_value
-    app.show
-    app.update
-
-    result = app.busy { 42 }
-    raise "expected 42, got #{result}" unless result == 42
+      assert_equal 42, app.busy { 42 }
+    end
   end
 
   def test_busy_clears_on_exception
-    assert_tk_app("busy clears on exception", method(:app_busy_clears_on_exception))
-  end
+    assert_tk_app("busy clears on exception") do
+      app.show
+      app.update
 
-  def app_busy_clears_on_exception
-    app.show
-    app.update
-
-    begin
-      app.busy { raise "boom" }
-    rescue RuntimeError
-      # expected
+      assert_raises(RuntimeError) { app.busy { raise "boom" } }
+      assert_equal '0', app.tcl_eval('tk busy status .')
     end
-
-    after = app.tcl_eval('tk busy status .')
-    raise "expected not busy after exception, got busy" unless after == '0'
   end
 
   def test_busy_with_window
-    assert_tk_app("busy works on specific window", method(:app_busy_with_window))
-  end
+    assert_tk_app("busy works on specific window") do
+      app.show
+      app.tcl_eval('toplevel .t')
+      app.update
 
-  def app_busy_with_window
-    app.show
-    app.tcl_eval('toplevel .t')
-    app.update
+      was_busy = false
+      app.busy(window: '.t') do
+        result = app.tcl_eval('tk busy status .t')
+        was_busy = (result == '1')
+      end
 
-    was_busy = false
-    app.busy(window: '.t') do
-      result = app.tcl_eval('tk busy status .t')
-      was_busy = (result == '1')
+      assert was_busy, "expected .t busy during block"
+      app.destroy('.t')
     end
-
-    raise "expected .t busy during block" unless was_busy
-    app.destroy('.t')
   end
 end

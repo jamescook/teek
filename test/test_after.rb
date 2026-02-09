@@ -7,79 +7,69 @@ class TestAfter < Minitest::Test
   include TeekTestHelper
 
   def test_after_fires
-    assert_tk_app("after should fire callback", method(:app_after_fires))
-  end
+    assert_tk_app("after should fire callback") do
+      fired = false
+      app.after(50) { fired = true }
 
-  def app_after_fires
-    fired = false
-    app.after(50) { fired = true }
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
+      until fired || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        app.update
+        sleep 0.01
+      end
 
-    # Pump the event loop until the timer fires
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
-    until fired || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-      app.update
-      sleep 0.01
+      assert fired, "timer did not fire"
     end
-
-    raise "timer did not fire" unless fired
   end
 
   def test_after_idle_fires
-    assert_tk_app("after_idle should fire callback", method(:app_after_idle_fires))
-  end
+    assert_tk_app("after_idle should fire callback") do
+      fired = false
+      app.after_idle { fired = true }
 
-  def app_after_idle_fires
-    fired = false
-    app.after_idle { fired = true }
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
+      until fired || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        app.update
+        sleep 0.01
+      end
 
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
-    until fired || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-      app.update
-      sleep 0.01
+      assert fired, "after_idle did not fire"
     end
-
-    raise "after_idle did not fire" unless fired
   end
 
   def test_after_cancel
-    assert_tk_app("after_cancel should prevent callback", method(:app_after_cancel))
-  end
+    assert_tk_app("after_cancel should prevent callback") do
+      fired = false
+      timer_id = app.after(50) { fired = true }
+      app.after_cancel(timer_id)
 
-  def app_after_cancel
-    fired = false
-    timer_id = app.after(50) { fired = true }
-    app.after_cancel(timer_id)
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.3
+      until Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        app.update
+        sleep 0.01
+      end
 
-    # Wait long enough that it would have fired
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 0.3
-    until Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-      app.update
-      sleep 0.01
+      refute fired, "callback fired despite cancel"
     end
-
-    raise "callback fired despite cancel" if fired
   end
 
   def test_nested_after
-    assert_tk_app("nested timers should both fire", method(:app_nested_after))
-  end
+    assert_tk_app("nested timers should both fire") do
+      results = []
 
-  def app_nested_after
-    results = []
-
-    app.after(50) do
-      results << "first"
       app.after(50) do
-        results << "second"
+        results << "first"
+        app.after(50) do
+          results << "second"
+        end
       end
-    end
 
-    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
-    until results.size >= 2 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-      app.update
-      sleep 0.01
-    end
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 2.0
+      until results.size >= 2 || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        app.update
+        sleep 0.01
+      end
 
-    raise "expected [first, second], got #{results.inspect}" unless results == ["first", "second"]
+      assert_equal ["first", "second"], results
+    end
   end
 end

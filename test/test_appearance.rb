@@ -14,31 +14,25 @@ class TestAppearance < Minitest::Test
   end
 
   def test_set_light_mode
-    assert_tk_app("appearance = :light should set aqua and dark? false", method(:app_set_light_mode))
-  end
-
-  def app_set_light_mode
-    app.appearance = :light
-    raise "expected aqua, got #{app.appearance}" unless app.appearance == "aqua"
-    raise "dark? should be false in light mode" if app.dark?
+    assert_tk_app("appearance = :light should set aqua and dark? false") do
+      app.appearance = :light
+      assert_equal "aqua", app.appearance
+      refute app.dark?, "dark? should be false in light mode"
+    end
   end
 
   def test_set_dark_mode
-    assert_tk_app("appearance = :dark should set darkaqua and dark? true", method(:app_set_dark_mode))
-  end
-
-  def app_set_dark_mode
-    app.appearance = :dark
-    raise "expected darkaqua, got #{app.appearance}" unless app.appearance == "darkaqua"
-    raise "dark? should be true in dark mode" unless app.dark?
+    assert_tk_app("appearance = :dark should set darkaqua and dark? true") do
+      app.appearance = :dark
+      assert_equal "darkaqua", app.appearance
+      assert app.dark?, "dark? should be true in dark mode"
+    end
   end
 
   def test_set_auto_mode
-    assert_tk_app("appearance = :auto should set auto", method(:app_set_auto_mode))
-  end
-
-  def app_set_auto_mode
-    app.appearance = :auto
-    raise "expected auto, got #{app.appearance}" unless app.appearance == "auto"
+    assert_tk_app("appearance = :auto should set auto") do
+      app.appearance = :auto
+      assert_equal "auto", app.appearance
+    end
   end
 end

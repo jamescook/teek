@@ -14,104 +14,85 @@ require_relative 'tk_test_helper'
 class TestThreading < Minitest::Test
   include TeekTestHelper
 
-  # Timer fires correctly (exercises after callback)
   def test_after_fires
-    assert_tk_app("after callback should fire", method(:app_after_fires))
-  end
+    assert_tk_app("after callback should fire") do
+      timer_fired = false
+      app.after(50) { timer_fired = true }
 
-  def app_after_fires
-    timer_fired = false
-    app.after(50) { timer_fired = true }
+      start = Time.now
+      while Time.now - start < 0.3
+        app.update
+        sleep 0.01
+      end
 
-    # Run event loop briefly
-    start = Time.now
-    while Time.now - start < 0.3
-      app.update
-      sleep 0.01
+      assert timer_fired, "after callback did not fire"
     end
-
-    raise "after callback did not fire" unless timer_fired
   end
 
-  # Ruby Thread runs alongside Tk
   def test_ruby_thread_alongside_tk
-    assert_tk_app("Ruby Thread should execute alongside Tk", method(:app_ruby_thread_alongside_tk))
-  end
+    assert_tk_app("Ruby Thread should execute alongside Tk") do
+      thread_result = nil
+      t = Thread.new { thread_result = 42 }
 
-  def app_ruby_thread_alongside_tk
-    thread_result = nil
-    t = Thread.new { thread_result = 42 }
+      start = Time.now
+      while Time.now - start < 0.3
+        app.update
+        sleep 0.01
+      end
 
-    start = Time.now
-    while Time.now - start < 0.3
-      app.update
-      sleep 0.01
+      t.join(1)
+      assert_equal 42, thread_result, "Ruby Thread did not execute"
     end
-
-    t.join(1)
-    raise "Ruby Thread did not execute, got #{thread_result.inspect}" unless thread_result == 42
   end
 
-  # Widget callback (exercises ip_ruby_cmd - Tcl calling Ruby)
   def test_widget_callback
-    assert_tk_app("Widget callback should fire via ip_ruby_cmd", method(:app_widget_callback))
-  end
+    assert_tk_app("Widget callback should fire via ip_ruby_cmd") do
+      callback_fired = false
+      app.command(:button, ".b_cb", command: proc { callback_fired = true })
+      app.command(:pack, ".b_cb")
+      app.command(".b_cb", "invoke")
 
-  def app_widget_callback
-    callback_fired = false
-    app.command(:button, ".b_cb", command: proc { callback_fired = true })
-    app.command(:pack, ".b_cb")
-    app.command(".b_cb", "invoke")
+      start = Time.now
+      while Time.now - start < 0.1
+        app.update
+        sleep 0.01
+      end
 
-    start = Time.now
-    while Time.now - start < 0.1
-      app.update
-      sleep 0.01
+      assert callback_fired, "Widget callback did not fire"
     end
-
-    raise "Widget callback did not fire" unless callback_fired
   end
 
-  # Callback spawning a thread
   def test_callback_spawns_thread
-    assert_tk_app("Callback should be able to spawn threads", method(:app_callback_spawns_thread))
-  end
+    assert_tk_app("Callback should be able to spawn threads") do
+      callback_thread_result = nil
+      app.command(:button, ".b_thr", command: proc {
+        Thread.new { callback_thread_result = "from_callback" }.join
+      })
+      app.command(:pack, ".b_thr")
+      app.command(".b_thr", "invoke")
 
-  def app_callback_spawns_thread
-    callback_thread_result = nil
-    app.command(:button, ".b_thr", command: proc {
-      Thread.new { callback_thread_result = "from_callback" }.join
-    })
-    app.command(:pack, ".b_thr")
-    app.command(".b_thr", "invoke")
+      start = Time.now
+      while Time.now - start < 0.1
+        app.update
+        sleep 0.01
+      end
 
-    start = Time.now
-    while Time.now - start < 0.1
-      app.update
-      sleep 0.01
+      assert_equal "from_callback", callback_thread_result, "Thread in callback failed"
     end
-
-    raise "Thread in callback failed, got #{callback_thread_result.inspect}" unless callback_thread_result == "from_callback"
   end
 
-  # Round-trip Tcl eval
   def test_tcl_eval_roundtrip
-    assert_tk_app("Tcl eval should return correct result", method(:app_tcl_eval_roundtrip))
+    assert_tk_app("Tcl eval should return correct result") do
+      result = app.tcl_eval("expr {2 + 2}")
+      assert_equal "4", result
+    end
   end
 
-  def app_tcl_eval_roundtrip
-    result = app.tcl_eval("expr {2 + 2}")
-    raise "Expected '4', got '#{result}'" unless result == "4"
-  end
-
-  # Round-trip with string data
   def test_tcl_eval_string_roundtrip
-    assert_tk_app("Tcl variable round-trip should preserve string", method(:app_tcl_eval_string_roundtrip))
-  end
-
-  def app_tcl_eval_string_roundtrip
-    app.set_variable('testvar', 'hello from tcl')
-    result = app.get_variable('testvar')
-    raise "Expected 'hello from tcl', got '#{result}'" unless result == "hello from tcl"
+    assert_tk_app("Tcl variable round-trip should preserve string") do
+      app.set_variable('testvar', 'hello from tcl')
+      result = app.get_variable('testvar')
+      assert_equal "hello from tcl", result
+    end
   end
 end

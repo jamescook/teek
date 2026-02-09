@@ -138,6 +138,7 @@ module TeekTestHelper
   # DEPRECATED: Use assert_tk_app instead (uses persistent Teek::TestWorker)
   # This spawns a new subprocess for each test - slower but supports VISUAL mode.
   def assert_tk_app_subprocess(message, app_method)
+    app_method = method(app_method) if app_method.is_a?(Symbol)
     # Extract method body (skip def line and closing end)
     source_lines = app_method.source.lines
     body = source_lines[1..-2].join
@@ -274,28 +275,31 @@ module TeekTestHelper
 
   # Run test using persistent Teek::TestWorker (fast, no subprocess spawn per test).
   #
-  # The test code has access to `root` (a withdrawn TkRoot instance).
+  # The test code has access to `app` (a Teek::App instance) and minitest assertions.
   # Do NOT create your own TkRoot or call root.destroy - worker manages this.
   #
   # Example:
   #   def test_something
-  #     assert_tk_app("should work", method(:my_app))
+  #     assert_tk_app("should work") do
+  #       btn = app.create_widget('ttk::button', text: 'Hello')
+  #       assert_equal 'Hello', btn.command(:cget, '-text')
+  #     end
   #   end
   #
-  #   def my_app
-  #     require 'tk'
-  #     label = TkLabel.new(root) { text "Hello" }
-  #     raise "wrong" unless label.cget(:text) == "Hello"
-  #   end
-  #
-  def assert_tk_app(message, app_method, pipe_capture: false, timeout: nil)
+  def assert_tk_app(message, pipe_capture: false, timeout: nil, &block)
     require_relative 'teek_test_worker'
 
-    # Extract method body (skip def line and closing end)
-    source_lines = app_method.source.lines
+    # Extract block body (skip do/{ line and closing end/})
+    source_lines = block.source.lines
     body = source_lines[1..-2].join
 
-    result = Teek::TestWorker.run_test(body, pipe_capture: pipe_capture, timeout: timeout)
+    # Pass real source location so backtraces show correct file:line
+    source_file, source_line = block.source_location
+    # body starts after the do/{ line
+    source_line += 1 if source_line
+
+    result = Teek::TestWorker.run_test(body, pipe_capture: pipe_capture, timeout: timeout,
+                                             source_file: source_file, source_line: source_line)
 
     # Show warnings (interpreter cleanup, etc.) even on success
     if result[:warnings]&.any?
