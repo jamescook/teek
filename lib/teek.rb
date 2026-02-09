@@ -271,6 +271,19 @@ module Teek
       tcl_eval("destroy #{widget}")
     end
 
+    # Show a busy cursor on a window while executing a block.
+    # The cursor is restored even if the block raises.
+    # @param window [String] Tk window path
+    # @yield the work to perform while busy
+    # @return the block's return value
+    def busy(window: '.')
+      tcl_eval("tk busy hold #{window}")
+      tcl_eval('update idletasks')
+      yield
+    ensure
+      tcl_eval("tk busy forget #{window}")
+    end
+
     # Enter the Tk event loop. Blocks until the application exits.
     # @return [void]
     def mainloop
