@@ -64,6 +64,31 @@ end
 class APIDocBuilder
   TEMPLATES_DIR = File.expand_path('templates', __dir__)
 
+  # YARD cross-reference patterns: {#method}, {.method}, {Class#method}, etc.
+  YARD_REF = /\{([^}]+)\}/                          # outer wrapper, captures ref
+
+  YARD_INSTANCE_METHOD = /\A
+    \# (?<method>\w+[?!=]?)                          # #method_name
+  \z/x
+
+  YARD_CLASS_METHOD = /\A
+    \. (?<method>\w+[?!=]?)                          # .method_name
+  \z/x
+
+  YARD_EXTERNAL_INSTANCE_METHOD = /\A
+    (?<class>[A-Z][\w:]+) \# (?<method>\w+[?!=]?)   # Class#method
+  \z/x
+
+  YARD_EXTERNAL_CLASS_METHOD = /\A
+    (?<class>[A-Z][\w:]+) \. (?<method>\w+[?!=]?)   # Class.method
+  \z/x
+
+  YARD_CLASS_REF = /\A
+    (?<class>[A-Z][\w:]+)                            # ClassName or Module::Class
+  \z/x
+
+  YARD_CODE = /\+([^+]+)\+/                         # +code+ markup
+
   def initialize(json_dir:, output_dir:)
     @json_dir = json_dir
     @output_dir = output_dir
@@ -311,15 +336,16 @@ has_children: true
 
       # Separate fields for weighted search
       method_names = []
+      method_docs = {}   # method_name => first line of docstring (for snippet)
       docstrings = [doc['docstring'].to_s]
 
-      (doc['class_methods'] || []).each do |m|
-        method_names << m['name']
-        docstrings << m['docstring'].to_s
-      end
-      (doc['instance_methods'] || []).each do |m|
-        method_names << m['name']
-        docstrings << m['docstring'].to_s
+      %w[class_methods instance_methods].each do |scope|
+        (doc[scope] || []).each do |m|
+          method_names << m['name']
+          docstrings << m['docstring'].to_s
+          ds = m['docstring'].to_s.strip
+          method_docs[m['name']] = ds[0, 120] unless ds.empty?
+        end
       end
 
       # Include path parts in content so entries are searchable even without docstrings
@@ -332,6 +358,7 @@ has_children: true
         type: doc['type'],
         url: url,
         methods: method_names.join(' '),
+        method_docs: method_docs,
         content: content_text[0, 500]
       }
       idx += 1
@@ -444,15 +471,37 @@ has_children: true
     CGI.escapeHTML(str.to_s)
   end
 
-  # HTML-escape, then convert YARD +code+ markup to <code> tags.
+  # Convert YARD +code+ and {#link} markup to HTML.
   def ht(str)
-    h(str).gsub(/\+([^+]+)\+/, '<code>\1</code>')
+    text = str.to_s
+    text = text.gsub(YARD_REF) { yard_link_html($1.strip) }
+    text.gsub(YARD_CODE) { "<code>#{h($1)}</code>" }
+  end
+
+  # Convert a single YARD cross-reference to an HTML <a> tag.
+  def yard_link_html(ref)
+    if (m = YARD_INSTANCE_METHOD.match(ref))
+      "<a href=\"#method-#{h m[:method]}\" data-turbo=\"false\"><code>##{h m[:method]}</code></a>"
+    elsif (m = YARD_CLASS_METHOD.match(ref))
+      "<a href=\"#class-method-#{h m[:method]}\" data-turbo=\"false\"><code>.#{h m[:method]}</code></a>"
+    elsif (m = YARD_EXTERNAL_INSTANCE_METHOD.match(ref))
+      url_path = m[:class].gsub('::', '/')
+      "<a href=\"/api/#{h url_path}/#method-#{h m[:method]}\"><code>#{h m[:class]}##{h m[:method]}</code></a>"
+    elsif (m = YARD_EXTERNAL_CLASS_METHOD.match(ref))
+      url_path = m[:class].gsub('::', '/')
+      "<a href=\"/api/#{h url_path}/#class-method-#{h m[:method]}\"><code>#{h m[:class]}.#{h m[:method]}</code></a>"
+    elsif (m = YARD_CLASS_REF.match(ref))
+      url_path = m[:class].gsub('::', '/')
+      "<a href=\"/api/#{h url_path}/\"><code>#{h m[:class]}</code></a>"
+    else
+      "<code>#{h ref}</code>"
+    end
   end
 
   def md(text, current_path: nil)
     return '' if text.nil? || text.to_s.strip.empty?
     # Convert YARD +code+ to markdown `code` before Kramdown processing
-    converted = text.to_s.gsub(/\+([^+]+)\+/, '`\1`')
+    converted = text.to_s.gsub(YARD_CODE, '`\1`')
     # Convert YARD link syntax to markdown links before Kramdown processing
     converted = convert_yard_links(converted, current_path)
     Kramdown::Document.new(converted).to_html
@@ -460,42 +509,29 @@ has_children: true
 
   # Convert YARD {#method}, {ClassName}, {Class#method} syntax to markdown links
   def convert_yard_links(text, current_path)
-    text.gsub(/\{([^}]+)\}/) do |match|
+    text.gsub(YARD_REF) do
       ref = $1.strip
       convert_single_yard_link(ref, current_path)
     end
   end
 
   def convert_single_yard_link(ref, current_path)
-    # Kramdown attribute syntax for disabling Turbo on in-page anchors
-    turbo_off = '{: data-turbo="false"}'
+    turbo_off = '{: data-turbo="false"}'   # Kramdown attribute syntax
 
-    case ref
-    when /^#(\w+)$/
-      # {#method_name} -> instance method on same page
-      method_name = $1
-      "[`##{method_name}`](#method-#{method_name})#{turbo_off}"
-    when /^\.(\w+)$/
-      # {.method_name} -> class method on same page
-      method_name = $1
-      "[`.#{method_name}`](#class-method-#{method_name})#{turbo_off}"
-    when /^([A-Z][\w:]+)#(\w+)$/
-      # {ClassName#method} -> instance method on another page
-      class_name, method_name = $1, $2
-      url_path = class_name.gsub('::', '/')
-      "[`#{class_name}##{method_name}`](/api/#{url_path}/#method-#{method_name})"
-    when /^([A-Z][\w:]+)\.(\w+)$/
-      # {ClassName.method} -> class method on another page
-      class_name, method_name = $1, $2
-      url_path = class_name.gsub('::', '/')
-      "[`#{class_name}.#{method_name}`](/api/#{url_path}/#class-method-#{method_name})"
-    when /^([A-Z][\w:]+)$/
-      # {ClassName} or {Module::Class} -> link to that page
-      class_name = $1
-      url_path = class_name.gsub('::', '/')
-      "[`#{class_name}`](/api/#{url_path}/)"
+    if (m = YARD_INSTANCE_METHOD.match(ref))
+      "[`##{m[:method]}`](#method-#{m[:method]})#{turbo_off}"
+    elsif (m = YARD_CLASS_METHOD.match(ref))
+      "[`.#{m[:method]}`](#class-method-#{m[:method]})#{turbo_off}"
+    elsif (m = YARD_EXTERNAL_INSTANCE_METHOD.match(ref))
+      url_path = m[:class].gsub('::', '/')
+      "[`#{m[:class]}##{m[:method]}`](/api/#{url_path}/#method-#{m[:method]})"
+    elsif (m = YARD_EXTERNAL_CLASS_METHOD.match(ref))
+      url_path = m[:class].gsub('::', '/')
+      "[`#{m[:class]}.#{m[:method]}`](/api/#{url_path}/#class-method-#{m[:method]})"
+    elsif (m = YARD_CLASS_REF.match(ref))
+      url_path = m[:class].gsub('::', '/')
+      "[`#{m[:class]}`](/api/#{url_path}/)"
     else
-      # Unknown format, leave as code
       "`#{ref}`"
     end
   end

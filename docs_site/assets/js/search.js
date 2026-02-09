@@ -173,42 +173,56 @@
         return lenA - lenB || b.score - a.score;
       });
 
-      var html = results.slice(0, 25).map(function(result, i) {
+      // Expand each class/module result into per-method entries when methods match
+      var entries = [];
+      results.forEach(function(result) {
         var doc = searchData[result.ref];
         var badge = doc.type === 'module' ? '<span class="badge bg-success">M</span>' : '<span class="badge bg-primary">C</span>';
         var titleLower = doc.title.toLowerCase();
-        var snippet = '';
-
-        var methodAnchor = '';
-        if (!titleLower.includes(queryLower)) {
-          var methodsLower = (doc.methods || '').toLowerCase();
-          var methodMatch = methodsLower.indexOf(queryLower);
-          if (methodMatch !== -1) {
-            var start = methodsLower.lastIndexOf(' ', methodMatch);
-            start = start === -1 ? 0 : start + 1;
-            var end = doc.methods.indexOf(' ', methodMatch);
-            end = end === -1 ? doc.methods.length : end;
-            var methodName = doc.methods.substring(start, end);
-            snippet = '<span class="search-snippet">#' + methodName + '</span>';
-            methodAnchor = '#method-' + methodName;
-          } else {
-            var contentLower = doc.content.toLowerCase();
-            var matchIdx = contentLower.indexOf(queryLower);
-            if (matchIdx !== -1) {
-              var start = Math.max(0, matchIdx - 15);
-              var end = Math.min(matchIdx + queryLower.length + 25, doc.content.length);
-              var matchText = doc.content.substring(start, end).trim();
-              if (start > 0) matchText = '...' + matchText;
-              if (end < doc.content.length) matchText += '...';
-              snippet = '<span class="search-snippet">' + matchText + '</span>';
-            }
-          }
-        }
-
         var isCurrent = (baseUrl + doc.url) === window.location.pathname || (baseUrl + doc.url + '/') === window.location.pathname;
         var currentAttr = isCurrent ? ' data-current' : '';
-        return '<a href="' + baseUrl + doc.url + methodAnchor + '" class="search-result-item" data-search-result data-turbo-frame="_top"' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span>' + snippet + '</a>';
-      }).join('');
+
+        if (titleLower.includes(queryLower)) {
+          // Class/module name matches — show as-is
+          entries.push('<a href="' + baseUrl + doc.url + '" class="search-result-item" data-search-result data-turbo-frame="_top"' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span></a>');
+        }
+
+        // Find all matching methods — each gets its own entry
+        var methodNames = (doc.methods || '').split(/\s+/).filter(function(m) {
+          return m && m.toLowerCase().indexOf(queryLower) !== -1;
+        });
+        methodNames.forEach(function(m) {
+          var snippet = '<span class="search-snippet">#' + m + '</span>';
+          entries.push('<a href="' + baseUrl + doc.url + '#method-' + m + '" class="search-result-item" data-search-result data-turbo-frame="_top"' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span>' + snippet + '</a>');
+        });
+
+        // Docstring matches — find methods whose docstrings contain the query
+        if (!titleLower.includes(queryLower) && methodNames.length === 0) {
+          var methodDocs = doc.method_docs || {};
+          var docMatches = Object.keys(methodDocs).filter(function(name) {
+            return methodDocs[name].toLowerCase().indexOf(queryLower) !== -1;
+          });
+
+          if (docMatches.length > 0) {
+            docMatches.forEach(function(name) {
+              var ds = methodDocs[name].toLowerCase();
+              var mi = ds.indexOf(queryLower);
+              var start = Math.max(0, mi - 15);
+              var end = Math.min(mi + queryLower.length + 25, methodDocs[name].length);
+              var ctx = methodDocs[name].substring(start, end).trim();
+              if (start > 0) ctx = '...' + ctx;
+              if (end < methodDocs[name].length) ctx += '...';
+              var snippet = '<span class="search-snippet">#' + name + ' — ' + ctx + '</span>';
+              entries.push('<a href="' + baseUrl + doc.url + '#method-' + name + '" class="search-result-item" data-search-result data-turbo-frame="_top"' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span>' + snippet + '</a>');
+            });
+          } else {
+            // No specific method found — link to class page
+            entries.push('<a href="' + baseUrl + doc.url + '" class="search-result-item" data-search-result data-turbo-frame="_top"' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span></a>');
+          }
+        }
+      });
+
+      var html = entries.slice(0, 25).join('');
 
       searchResults.innerHTML = html;
       searchResults.style.display = 'block';
