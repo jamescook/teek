@@ -6,7 +6,7 @@
   var selectedIndex = -1;
   var lastNavTime = 0;
   var navDelay = 80; // ms delay when holding arrow keys
-  var initialized = false;
+  var currentInput = null;
   var savedScrollTop = 0;
 
   // Load search data once
@@ -38,9 +38,9 @@
 
     if (!searchInput || !searchResults) return;
 
-    // Only add event listeners once (element is data-turbo-permanent)
-    if (initialized) return;
-    initialized = true;
+    // Skip if we already bound listeners to this exact element
+    if (searchInput === currentInput) return;
+    currentInput = searchInput;
 
     function updateSelection() {
       var items = searchResults.querySelectorAll('[data-search-result]');
