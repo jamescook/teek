@@ -118,6 +118,7 @@ module Teek
     # @param ms [Integer] delay in milliseconds
     # @yield block to call when the timer fires
     # @return [String] timer ID, pass to {#after_cancel} to cancel
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/after.htm#M5 after ms
     def after(ms, &block)
       cb_id = nil
       cb_id = @interp.register_callback(proc { |*|
@@ -132,6 +133,7 @@ module Teek
     # Schedule a block to run once when the event loop is idle.
     # @yield block to call when the event loop is idle
     # @return [String] timer ID, pass to {#after_cancel} to cancel
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/after.htm#M9 after idle
     def after_idle(&block)
       cb_id = nil
       cb_id = @interp.register_callback(proc { |*|
@@ -146,6 +148,7 @@ module Teek
     # Cancel a pending {#after} or {#after_idle} timer.
     # @param after_id [String] timer ID returned by {#after} or {#after_idle}
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/after.htm#M7 after cancel
     def after_cancel(after_id)
       @interp.tcl_eval("after cancel #{after_id}")
       if (cb_id = after_id.instance_variable_get(:@cb_id))
@@ -218,6 +221,7 @@ module Teek
     # @param version [String, nil] minimum version constraint
     # @return [String] the version that was loaded
     # @raise [Teek::TclError] if the package is not found
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/package.htm#M10 package require
     def require_package(name, version = nil)
       cmd = version ? "package require #{name} #{version}" : "package require #{name}"
       tcl_eval(cmd)
@@ -228,6 +232,7 @@ module Teek
     # List all packages known to this interpreter.
     # Scans +auto_path+ for package indexes before querying.
     # @return [Array<String>]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/package.htm#M7 package names
     def package_names
       scan_packages
       split_list(tcl_eval('package names'))
@@ -236,6 +241,7 @@ module Teek
     # Check if a package is already loaded in this interpreter.
     # @param name [String] package name
     # @return [Boolean]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/package.htm#M8 package present
     def package_present?(name)
       tcl_eval("package present #{name}")
       true
@@ -247,6 +253,7 @@ module Teek
     # Scans +auto_path+ for package indexes before querying.
     # @param name [String] package name
     # @return [Array<String>]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/package.htm#M14 package versions
     def package_versions(name)
       scan_packages
       split_list(tcl_eval("package versions #{name}"))
@@ -256,6 +263,7 @@ module Teek
     # @param name [String] variable name
     # @param value [String] value to set
     # @return [String] the value
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/set.htm set
     def set_variable(name, value)
       tcl_eval("set #{name} {#{value}}")
     end
@@ -264,6 +272,7 @@ module Teek
     # @param name [String] variable name
     # @return [String] the value
     # @raise [Teek::TclError] if the variable doesn't exist
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/set.htm set
     def get_variable(name)
       tcl_eval("set #{name}")
     end
@@ -271,6 +280,7 @@ module Teek
     # Destroy a widget and all its children.
     # @param widget [String] Tk widget path (e.g. ".frame1")
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/destroy.htm destroy
     def destroy(widget)
       tcl_eval("destroy #{widget}")
     end
@@ -281,6 +291,7 @@ module Teek
     # @param text [String] text to measure
     # @return [Integer] pixel width
     # @raise [Teek::TclError] if the font is not found
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkLib/MeasureChar.htm Tk_TextWidth
     def text_width(font, text)
       @interp.text_width(font, text)
     end
@@ -290,6 +301,7 @@ module Teek
     # @param font [String] font description (e.g. "Helvetica 12", "TkDefaultFont")
     # @return [Hash{Symbol => Integer}] +:ascent+, +:descent+, +:linespace+
     # @raise [Teek::TclError] if the font is not found
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkLib/FontId.htm Tk_GetFontMetrics
     def font_metrics(font)
       @interp.font_metrics(font)
     end
@@ -305,6 +317,7 @@ module Teek
     # @option opts [Boolean] :at_least_one always return at least one character
     # @return [Hash{Symbol => Integer}] +:bytes+ and +:width+
     # @raise [Teek::TclError] if the font is not found
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkLib/MeasureChar.htm Tk_MeasureChars
     def measure_chars(font, text, max_pixels, **opts)
       @interp.measure_chars(font, text, max_pixels, opts)
     end
@@ -314,6 +327,7 @@ module Teek
     # @param window [String] Tk window path
     # @yield the work to perform while busy
     # @return the block's return value
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/busy.htm tk busy
     def busy(window: '.')
       tcl_eval("tk busy hold #{window}")
       tcl_eval('update idletasks')
@@ -324,6 +338,7 @@ module Teek
 
     # Enter the Tk event loop. Blocks until the application exits.
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkLib/MainLoop.htm Tk_MainLoop
     def mainloop
       if defined?(IRB) || defined?(Pry) || $0 == 'irb' || $0 == 'pry'
         warn "Teek: mainloop blocks the current thread and will make your REPL unresponsive.\n" \
@@ -338,12 +353,14 @@ module Teek
 
     # Process all pending events and idle callbacks, then return.
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/update.htm update
     def update
       @interp.tcl_eval('update')
     end
 
     # Process only pending idle callbacks (e.g. geometry redraws), then return.
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/update.htm update idletasks
     def update_idletasks
       @interp.tcl_eval('update idletasks')
     end
@@ -351,6 +368,7 @@ module Teek
     # Show a window. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M38 wm deiconify
     def show(window = '.')
       @interp.tcl_eval("wm deiconify #{window}")
     end
@@ -358,6 +376,7 @@ module Teek
     # Hide a window without destroying it. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M65 wm withdraw
     def hide(window = '.')
       @interp.tcl_eval("wm withdraw #{window}")
     end
@@ -366,6 +385,7 @@ module Teek
     # @param title [String] new title
     # @param window [String] Tk window path
     # @return [String] the title
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def set_window_title(title, window: '.')
       tcl_eval("wm title #{window} {#{title}}")
     end
@@ -373,6 +393,7 @@ module Teek
     # Get a window's current title.
     # @param window [String] Tk window path
     # @return [String] current title
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def window_title(window: '.')
       tcl_eval("wm title #{window}")
     end
@@ -381,6 +402,7 @@ module Teek
     # @param geometry [String] geometry string
     # @param window [String] Tk window path
     # @return [String] the geometry
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def set_window_geometry(geometry, window: '.')
       tcl_eval("wm geometry #{window} #{geometry}")
     end
@@ -388,6 +410,7 @@ module Teek
     # Get a window's current geometry.
     # @param window [String] Tk window path
     # @return [String] geometry string (e.g. "400x300+0+0")
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def window_geometry(window: '.')
       tcl_eval("wm geometry #{window}")
     end
@@ -397,6 +420,7 @@ module Teek
     # @param height [Boolean] allow vertical resize
     # @param window [String] Tk window path
     # @return [void]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def set_window_resizable(width, height, window: '.')
       tcl_eval("wm resizable #{window} #{width ? 1 : 0} #{height ? 1 : 0}")
     end
@@ -404,6 +428,7 @@ module Teek
     # Get whether a window is resizable.
     # @param window [String] Tk window path
     # @return [Array(Boolean, Boolean)] [width_resizable, height_resizable]
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def window_resizable(window: '.')
       parts = tcl_eval("wm resizable #{window}").split
       [parts[0] == '1', parts[1] == '1']
@@ -439,6 +464,7 @@ module Teek
     # @yield [*values] called when the event fires, with substitution values
     # @return [void]
     # @see #unbind
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/bind.htm bind
     #
     BIND_SUBS = {
       x: '%x', y: '%y',                   # window coordinates
@@ -465,6 +491,7 @@ module Teek
     # @param event [String] Tk event name, with or without angle brackets
     # @return [void]
     # @see #bind
+    # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/bind.htm bind
     def unbind(widget, event)
       event_str = event.start_with?('<') ? event : "<#{event}>"
       @interp.tcl_eval("bind #{widget} #{event_str} {}")

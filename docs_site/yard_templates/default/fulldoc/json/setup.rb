@@ -118,6 +118,7 @@ def serialize_tags(tags, context_object)
   examples = []
   see_also = []
   official_docs_url = nil
+  official_docs_text = nil
 
   tags.each do |tag|
     case tag.tag_name
@@ -144,6 +145,7 @@ def serialize_tags(tags, context_object)
       # Extract official Tcl/Tk docs to separate field
       if see_tag[:type] == "official_docs"
         official_docs_url = see_tag[:url]
+        official_docs_text = see_tag[:text]
       else
         see_also << see_tag
       end
@@ -171,7 +173,10 @@ def serialize_tags(tags, context_object)
   result[:options] = options if options.any?
   result[:examples] = examples if examples.any?
   result[:see_also] = see_also if see_also.any?
-  result[:official_docs_url] = official_docs_url if official_docs_url
+  if official_docs_url
+    result[:official_docs_url] = official_docs_url
+    result[:official_docs_text] = official_docs_text if official_docs_text
+  end
   result
 end
 
@@ -185,7 +190,7 @@ def serialize_see_tag(tag, context_object)
   if ref =~ /\Ahttps?:\/\//
     # Check if official Tcl/Tk docs
     if ref.include?('tcl.tk') || ref.include?('tcl-lang.org')
-      { type: "official_docs", url: ref }
+      { type: "official_docs", url: ref, text: tag.text }
     else
       { type: "url", url: ref, text: tag.text }
     end

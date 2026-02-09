@@ -190,7 +190,7 @@
             end = end === -1 ? doc.methods.length : end;
             var methodName = doc.methods.substring(start, end);
             snippet = '<span class="search-snippet">#' + methodName + '</span>';
-            methodAnchor = '#method-' + methodName.replace(/[?!=]/g, function(c) { return encodeURIComponent(c); });
+            methodAnchor = '#method-' + methodName;
           } else {
             var contentLower = doc.content.toLowerCase();
             var matchIdx = contentLower.indexOf(queryLower);
@@ -207,7 +207,7 @@
 
         var isCurrent = (baseUrl + doc.url) === window.location.pathname || (baseUrl + doc.url + '/') === window.location.pathname;
         var currentAttr = isCurrent ? ' data-current' : '';
-        return '<a href="' + baseUrl + doc.url + methodAnchor + '" class="search-result-item" data-search-result' + currentAttr + '>' + badge + ' ' + doc.title + snippet + '</a>';
+        return '<a href="' + baseUrl + doc.url + methodAnchor + '" class="search-result-item" data-search-result' + currentAttr + '>' + badge + ' <span class="search-title">' + doc.title + '</span>' + snippet + '</a>';
       }).join('');
 
       searchResults.innerHTML = html;

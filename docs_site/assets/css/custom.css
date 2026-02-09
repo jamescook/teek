@@ -375,7 +375,7 @@ main {
   margin-left: var(--spacing-lg);
 }
 
-.search-result-item[data-current]::after {
+.search-result-item[data-current] .search-title::after {
   content: "\25CF";
   font-size: var(--font-size-badge);
   color: var(--bs-primary);
@@ -681,10 +681,32 @@ code {
   font-size: 0.9em;
 }
 
+/* Method card footer (official docs + view source) */
+.method-card-footer {
+  text-align: right;
+  margin-top: var(--spacing-sm);
+}
+
+.method-card-footer .tcl-docs-link {
+  font-size: var(--font-size-xs);
+  color: var(--bs-secondary);
+  text-decoration: none;
+}
+
+.method-card-footer .tcl-docs-link:hover {
+  color: var(--bs-primary);
+}
+
+.method-card-footer .footer-sep {
+  color: var(--bs-secondary);
+  font-size: var(--font-size-xs);
+  opacity: 0.4;
+  margin: 0 0.25em;
+}
+
 /* Method source view */
 .method-source {
-  margin-top: var(--spacing-sm);
-  text-align: right;
+  display: inline;
 }
 
 .method-source summary {
