@@ -291,6 +291,14 @@ module Teek
     # Enter the Tk event loop. Blocks until the application exits.
     # @return [void]
     def mainloop
+      if defined?(IRB) || defined?(Pry) || $0 == 'irb' || $0 == 'pry'
+        warn "Teek: mainloop blocks the current thread and will make your REPL unresponsive.\n" \
+             "  Instead, use app.update in a loop or call app.update manually between commands:\n" \
+             "    app.show\n" \
+             "    app.update          # process pending events\n" \
+             "    # ... interact with your app ...\n" \
+             "    app.update          # process again after changes"
+      end
       @interp.mainloop
     end
 
