@@ -275,6 +275,40 @@ module Teek
       tcl_eval("destroy #{widget}")
     end
 
+    # Measure the pixel width of a text string in a given font.
+    # Uses Tk's C font API directly — faster than the Tcl +font measure+ command.
+    # @param font [String] font description (e.g. "Helvetica 12", "TkDefaultFont")
+    # @param text [String] text to measure
+    # @return [Integer] pixel width
+    # @raise [Teek::TclError] if the font is not found
+    def text_width(font, text)
+      @interp.text_width(font, text)
+    end
+
+    # Get font metrics (ascent, descent, linespace) for a given font.
+    # Uses Tk's C font API directly.
+    # @param font [String] font description (e.g. "Helvetica 12", "TkDefaultFont")
+    # @return [Hash{Symbol => Integer}] +:ascent+, +:descent+, +:linespace+
+    # @raise [Teek::TclError] if the font is not found
+    def font_metrics(font)
+      @interp.font_metrics(font)
+    end
+
+    # Measure how many bytes of text fit within a pixel width limit.
+    # Useful for text truncation, ellipsis, and line wrapping.
+    # @param font [String] font description (e.g. "Helvetica 12")
+    # @param text [String] text to measure
+    # @param max_pixels [Integer] maximum pixel width (-1 for unlimited)
+    # @param opts [Hash] options
+    # @option opts [Boolean] :partial_ok allow partial character at boundary
+    # @option opts [Boolean] :whole_words break only at word boundaries
+    # @option opts [Boolean] :at_least_one always return at least one character
+    # @return [Hash{Symbol => Integer}] +:bytes+ and +:width+
+    # @raise [Teek::TclError] if the font is not found
+    def measure_chars(font, text, max_pixels, **opts)
+      @interp.measure_chars(font, text, max_pixels, opts)
+    end
+
     # Show a busy cursor on a window while executing a block.
     # The cursor is restored even if the block raises.
     # @param window [String] Tk window path
