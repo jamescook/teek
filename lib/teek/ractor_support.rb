@@ -232,7 +232,7 @@ module Teek
       @impl.stop
     end
 
-    # Adapter for old yielder API
+    # @api private
     class StreamYielder
       def initialize(task)
         @task = task
