@@ -226,8 +226,10 @@ module Teek
     end
 
     # List all packages known to this interpreter.
+    # Scans +auto_path+ for package indexes before querying.
     # @return [Array<String>]
     def package_names
+      scan_packages
       split_list(tcl_eval('package names'))
     end
 
@@ -242,9 +244,11 @@ module Teek
     end
 
     # List available versions of a package.
+    # Scans +auto_path+ for package indexes before querying.
     # @param name [String] package name
     # @return [Array<String>]
     def package_versions(name)
+      scan_packages
       split_list(tcl_eval("package versions #{name}"))
     end
 
@@ -468,6 +472,12 @@ module Teek
     end
 
     private
+
+    # Force Tcl to scan auto_path for pkgIndex.tcl files so that
+    # package_names and package_versions reflect all discoverable packages.
+    def scan_packages
+      tcl_eval('catch {package require __teek_scan__}')
+    end
 
     def aqua?
       @aqua ||= @interp.tcl_eval('tk windowingsystem') == 'aqua'
