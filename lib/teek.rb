@@ -248,6 +248,22 @@ module Teek
       split_list(tcl_eval("package versions #{name}"))
     end
 
+    # Set a Tcl variable. Useful for widget +textvariable+ and +variable+ options.
+    # @param name [String] variable name
+    # @param value [String] value to set
+    # @return [String] the value
+    def set_variable(name, value)
+      tcl_eval("set #{name} {#{value}}")
+    end
+
+    # Get a Tcl variable's value.
+    # @param name [String] variable name
+    # @return [String] the value
+    # @raise [Teek::TclError] if the variable doesn't exist
+    def get_variable(name)
+      tcl_eval("set #{name}")
+    end
+
     # Destroy a widget and all its children.
     # @param widget [String] Tk widget path (e.g. ".frame1")
     # @return [void]
