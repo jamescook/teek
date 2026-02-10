@@ -335,3 +335,10 @@ module TeekTestHelper
     assert success, "#{message}\n#{output.join("\n")}"
   end
 end
+
+# Stop TkWorker cleanly after all tests so coverage data is flushed
+Minitest.after_run do
+  if defined?(Teek::TestWorker) && Teek::TestWorker.running?
+    Teek::TestWorker.stop
+  end
+end

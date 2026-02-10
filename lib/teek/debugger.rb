@@ -75,6 +75,43 @@ module Teek
       $stderr.puts "teek debugger: on_widget_destroyed(#{path}): #{e.message}"
     end
 
+    # Add a variable watch by name. Registers a Tcl trace so changes are recorded.
+    def add_watch(name)
+      return if @watches.key?(name)
+
+      cb_id = @app.register_callback(proc { |var_name, index, *|
+        record_watch(var_name, index)
+      })
+
+      @app.tcl_eval("trace add variable #{Teek.make_list(name)} write {ruby_callback #{cb_id}}")
+
+      @watches[name] = { cb_id: cb_id, values: [] }
+      record_watch(name, nil)
+      update_watches_ui
+    end
+
+    # Remove a variable watch by name.
+    def remove_watch(name)
+      info = @watches.delete(name)
+      return unless info
+
+      @app.tcl_eval(
+        "trace remove variable #{Teek.make_list(name)} write {ruby_callback #{info[:cb_id]}}"
+      )
+      @app.unregister_callback(info[:cb_id])
+
+      # Remove the tree item
+      watch_tree = "#{NB}.watches.tree"
+      item_id = "watch_#{name}"
+      if @app.command(watch_tree, 'exists', item_id) == "1"
+        @app.command(watch_tree, 'delete', item_id)
+      end
+
+      update_watches_ui
+    rescue Teek::TclError => e
+      $stderr.puts "teek debugger: remove_watch(#{name}): #{e.message}"
+    end
+
     private
 
     def setup_ui
@@ -507,38 +544,6 @@ module Teek
       })
     end
 
-    def add_watch(name)
-      return if @watches.key?(name)
-
-      # Register Tcl trace on the variable
-      cb_id = @app.register_callback(proc { |var_name, index, *|
-        record_watch(var_name, index)
-      })
-
-      @app.tcl_eval("trace add variable #{Teek.make_list(name)} write {ruby_callback #{cb_id}}")
-
-      @watches[name] = { cb_id: cb_id, values: [] }
-
-      # Capture current value
-      record_watch(name, nil)
-
-      update_watches_ui
-    end
-
-    def remove_watch(name)
-      info = @watches.delete(name)
-      return unless info
-
-      # Remove Tcl trace
-      @app.tcl_eval(
-        "trace remove variable #{Teek.make_list(name)} write {ruby_callback #{info[:cb_id]}}"
-      )
-      @app.unregister_callback(info[:cb_id])
-
-      update_watches_ui
-    rescue Teek::TclError => e
-      $stderr.puts "teek debugger: remove_watch(#{name}): #{e.message}"
-    end
 
     def record_watch(name, index)
       watch = @watches[name]

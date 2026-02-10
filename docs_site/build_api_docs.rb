@@ -111,8 +111,19 @@ class APIDocBuilder
     coverage_path = File.join(File.dirname(@output_dir), '..', 'coverage', 'method_coverage.json')
     return nil unless File.exist?(coverage_path)
 
-    puts "Loading method coverage data"
-    JSON.parse(File.read(coverage_path))
+    data = JSON.parse(File.read(coverage_path))
+    covered = uncovered = 0
+    data.each_value do |cls|
+      %w[class_methods instance_methods].each do |scope|
+        cls[scope]&.each_value do |pct, lines|
+          lines.to_s.each_char { |c| c == '1' ? covered += 1 : c == '0' ? uncovered += 1 : nil }
+        end
+      end
+    end
+    total = covered + uncovered
+    pct = total > 0 ? (covered.to_f / total * 100).round(1) : 0
+    puts "Loading method coverage data (#{data.size} classes, #{pct}% total coverage)"
+    data
   rescue => e
     warn "Failed to load method coverage: #{e.message}"
     nil

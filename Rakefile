@@ -26,8 +26,18 @@ namespace :docs do
     end
   end
 
+  desc "Generate per-method coverage JSON from SimpleCov data"
+  task :method_coverage do
+    if Dir.exist?('coverage/results')
+      require_relative 'lib/teek/method_coverage_service'
+      Teek::MethodCoverageService.new(coverage_dir: 'coverage').call
+    else
+      puts "No coverage data found (run tests with COVERAGE=1 first)"
+    end
+  end
+
   desc "Generate API docs (YARD JSON -> HTML)"
-  task yard: :yard_json do
+  task yard: [:yard_json, :method_coverage] do
     Bundler.with_unbundled_env do
       sh 'BUNDLE_GEMFILE=docs_site/Gemfile bundle exec ruby docs_site/build_api_docs.rb'
     end
@@ -260,6 +270,39 @@ namespace :docker do
   end
 
   Rake::Task['docker:test'].enhance { Rake::Task['docker:prune'].invoke }
+
+  namespace :test do
+    desc "Run tests with coverage and generate report"
+    task coverage: 'docker:build' do
+      tcl_version = tcl_version_from_env
+      ruby_version = ruby_version_from_env
+      image_name = docker_image_name(tcl_version, ruby_version)
+
+      require 'fileutils'
+      FileUtils.rm_rf('coverage')
+      FileUtils.mkdir_p('coverage/results')
+
+      # Run tests with coverage enabled
+      ENV['COVERAGE'] = '1'
+      ENV['COVERAGE_NAME'] ||= 'main'
+      Rake::Task['docker:test'].invoke
+
+      # Collate inside Docker (paths match /app/lib/...)
+      puts "Collating coverage results..."
+      cmd = "docker run --rm --init"
+      cmd += " -v #{Dir.pwd}/coverage:/app/coverage"
+      cmd += " #{image_name}"
+      cmd += " bundle exec rake coverage:collate"
+
+      sh cmd
+
+      # Generate per-method coverage (runs locally, just needs Prism)
+      puts "Generating per-method coverage..."
+      Rake::Task['docs:method_coverage'].invoke
+
+      puts "Coverage report: coverage/index.html"
+    end
+  end
 
   # Scan sample files for # teek-record magic comment
   # Format: # teek-record: title=My Demo, codec=vp9

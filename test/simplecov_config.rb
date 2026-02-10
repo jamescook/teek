@@ -12,6 +12,10 @@ module SimpleCovConfig
   FILTERS = [
     '/test/',
     %r{^/ext/},
+    'lib/teek/method_coverage_service.rb',
+    'lib/teek/background_none.rb',
+    'lib/teek/demo_support.rb',
+    'lib/teek/version.rb',
   ].freeze
 
   def self.apply_filters(simplecov_context)

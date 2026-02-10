@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `Teek::Widget` — thin wrapper around Tk widget paths with `command`, `pack`, `grid`, `bind`, `unbind`, `destroy`, and `exist?`
 - `App#create_widget` — creates widgets with auto-generated paths derived from widget type (e.g. `ttk::button` produces `.ttkbtn1`)
+- `Debugger#add_watch` / `Debugger#remove_watch` — public API for programmatic variable watches
+
+### Fixed
+
+- `BackgroundRactor4x::BackgroundWork#close` — use Ruby 4.x Ractor API (was using removed 3.x methods)
+- `Debugger#remove_watch` — now correctly deletes the watch tree item
 
 ## [0.1.0] - 2026-02-08
 

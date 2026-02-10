@@ -153,13 +153,14 @@ module Teek
       # @return [self]
       def close
         @done = true
-        @control_port = nil  # Prevent further message sends
+        # Send stop to let the worker terminate itself — Ruby 4.x doesn't
+        # allow closing a Ractor from outside.
         begin
-          @worker_ractor&.close_incoming
-          @worker_ractor&.close_outgoing
+          @control_port&.send(:stop)
         rescue Ractor::ClosedError
           # Already closed
         end
+        @control_port = nil
         self
       end
 
