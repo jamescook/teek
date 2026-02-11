@@ -33,6 +33,7 @@ jobs:
         tags: teek-ci-test-ruby3:latest
 
     - name: Run tests
+      timeout-minutes: 5
       run: |
         docker run --rm --init \
           -e TCL_VERSION=9.0 \

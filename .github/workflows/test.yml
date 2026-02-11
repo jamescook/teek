@@ -66,8 +66,9 @@ jobs:
         cache-to: type=gha,mode=max,scope=tcl9
 
     - name: Run tests
+      timeout-minutes: 5
       run: |
-        docker run --rm \
+        docker run --rm --init -t \
           -v ${{ github.workspace }}/coverage:/app/coverage \
           -e TCL_VERSION=9.0 \
           -e COVERAGE=1 \
@@ -130,8 +131,9 @@ jobs:
         cache-to: type=gha,mode=max,scope=tcl8
 
     - name: Run tests
+      timeout-minutes: 5
       run: |
-        docker run --rm \
+        docker run --rm --init \
           -e TCL_VERSION=8.6 \
           -e TESTOPTS=-v \
           teek-ci-test-8:latest
