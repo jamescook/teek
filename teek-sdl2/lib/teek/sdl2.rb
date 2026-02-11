@@ -64,6 +64,8 @@ end
 require_relative "sdl2/renderer"
 require_relative "sdl2/texture"
 require_relative "sdl2/font"
+require_relative "sdl2/sound"
+require_relative "sdl2/music"
 
 # Tk bridge (embeds SDL2 surface into a Tk frame)
 require_relative "sdl2/viewport"

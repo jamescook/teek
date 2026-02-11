@@ -107,6 +107,16 @@ unless pkg_config('SDL2_image') || have_library('SDL2_image', 'IMG_Init', 'SDL2/
   MSG
 end
 
-$srcs = ['teek_sdl2.c', 'sdl2surface.c', 'sdl2bridge.c', 'sdl2text.c', 'sdl2pixels.c', 'sdl2image.c']
+# SDL2_mixer for audio playback
+unless pkg_config('SDL2_mixer') || have_library('SDL2_mixer', 'Mix_OpenAudio', 'SDL2/SDL_mixer.h')
+  abort <<~MSG
+    SDL2_mixer not found. Install it:
+      macOS:   brew install sdl2_mixer
+      Debian:  sudo apt-get install libsdl2-mixer-dev
+      Windows: pacman -S mingw-w64-x86_64-SDL2_mixer  (MSYS2)
+  MSG
+end
+
+$srcs = ['teek_sdl2.c', 'sdl2surface.c', 'sdl2bridge.c', 'sdl2text.c', 'sdl2pixels.c', 'sdl2image.c', 'sdl2mixer.c']
 
 create_makefile('teek_sdl2')

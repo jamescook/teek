@@ -52,6 +52,7 @@ docker run --rm \
     -e "FRAMERATE=${FRAMERATE:-30}" \
     -e "CODEC=${CODEC}" \
     -e "NAME=${NAME}" \
+    -e "AUDIO=${AUDIO}" \
     -e "DOCKER_RECORD=1" \
     -v "$(pwd)/scripts:/app/scripts:ro" \
     -v "$(pwd)/sample:/app/sample:ro" \
