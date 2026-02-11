@@ -128,6 +128,39 @@ if Gem::Specification.find_all_by_name('rake-compiler').any?
   end
 end
 
+namespace :screenshots do
+  desc "Bless current unverified screenshots as the new baselines"
+  task :bless do
+    require_relative 'test/screenshot_helper'
+    src = ScreenshotHelper.unverified_dir
+    dst = ScreenshotHelper.blessed_dir
+
+    pngs = Dir.glob(File.join(src, '*.png'))
+    if pngs.empty?
+      puts "No unverified screenshots in #{src}"
+      next
+    end
+
+    FileUtils.mkdir_p(dst)
+    pngs.each do |f|
+      FileUtils.cp(f, dst)
+      puts "  Blessed: #{File.basename(f)}"
+    end
+    puts "#{pngs.size} screenshot(s) blessed to #{dst}"
+  end
+
+  desc "Remove unverified screenshots and diffs"
+  task :clean do
+    require_relative 'test/screenshot_helper'
+    [ScreenshotHelper.unverified_dir, ScreenshotHelper.diffs_dir].each do |dir|
+      if Dir.exist?(dir)
+        FileUtils.rm_rf(dir)
+        puts "  Removed: #{dir}"
+      end
+    end
+  end
+end
+
 desc "Clear stale coverage artifacts"
 task :clean_coverage do
   require 'fileutils'
@@ -191,7 +224,8 @@ namespace :sdl2 do
 
   Rake::TestTask.new(:test) do |t|
     t.libs << 'teek-sdl2/test' << 'teek-sdl2/lib'
-    t.test_files = FileList['teek-sdl2/test/**/test_*.rb']
+    t.test_files = FileList['teek-sdl2/test/**/test_*.rb'] - FileList['teek-sdl2/test/test_helper.rb']
+    t.ruby_opts << '-r test_helper'
     t.verbose = true
   end
   task test: 'compile:teek_sdl2'
@@ -297,17 +331,26 @@ namespace :docker do
       ruby_version = ruby_version_from_env
       image_name = docker_image_name(tcl_version, ruby_version)
 
+      require 'fileutils'
+      FileUtils.mkdir_p('coverage')
+
       puts "Running teek-sdl2 tests in Docker (Ruby #{ruby_version}, Tcl #{tcl_version})..."
       cmd = "docker run --rm --init"
+      cmd += " -v #{Dir.pwd}/coverage:/app/coverage"
+      cmd += " -v #{Dir.pwd}/screenshots:/app/screenshots"
       cmd += " -e TCL_VERSION=#{tcl_version}"
+      if ENV['COVERAGE'] == '1'
+        cmd += " -e COVERAGE=1"
+        cmd += " -e COVERAGE_NAME=#{ENV['COVERAGE_NAME'] || 'sdl2'}"
+      end
       cmd += " #{image_name}"
       cmd += " xvfb-run -a bundle exec rake sdl2:test"
 
       sh cmd
     end
 
-    desc "Run tests with coverage and generate report"
-    task coverage: 'docker:build' do
+    desc "Run all tests (teek + teek-sdl2) with coverage and generate report"
+    task all: 'docker:build' do
       tcl_version = tcl_version_from_env
       ruby_version = ruby_version_from_env
       image_name = docker_image_name(tcl_version, ruby_version)
@@ -316,10 +359,16 @@ namespace :docker do
       FileUtils.rm_rf('coverage')
       FileUtils.mkdir_p('coverage/results')
 
-      # Run tests with coverage enabled
+      # Run both test suites with coverage enabled and distinct COVERAGE_NAMEs
       ENV['COVERAGE'] = '1'
-      ENV['COVERAGE_NAME'] ||= 'main'
+
+      ENV['COVERAGE_NAME'] = 'main'
       Rake::Task['docker:test'].invoke
+
+      ENV['COVERAGE_NAME'] = 'sdl2'
+      Rake::Task['docker:test:sdl2'].reenable
+      Rake::Task['docker:build'].reenable
+      Rake::Task['docker:test:sdl2'].invoke
 
       # Collate inside Docker (paths match /app/lib/...)
       puts "Collating coverage results..."
@@ -335,6 +384,22 @@ namespace :docker do
       Rake::Task['docs:method_coverage'].invoke
 
       puts "Coverage report: coverage/index.html"
+    end
+  end
+
+  namespace :screenshots do
+    desc "Bless linux screenshots inside Docker (copies unverified/ to blessed/)"
+    task bless: :build do
+      ruby_version = ruby_version_from_env
+      tcl_version = tcl_version_from_env
+      image_name = docker_image_name(tcl_version, ruby_version)
+
+      cmd = "docker run --rm --init"
+      cmd += " -v #{Dir.pwd}/screenshots:/app/screenshots"
+      cmd += " #{image_name}"
+      cmd += " bundle exec rake screenshots:bless"
+
+      sh cmd
     end
   end
 

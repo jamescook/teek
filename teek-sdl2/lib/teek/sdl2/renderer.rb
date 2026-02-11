@@ -110,6 +110,38 @@ module Teek
       #   Query the renderer's output dimensions.
       #   @return [Array(Integer, Integer)] +[width, height]+
 
+      # @!method read_pixels
+      #   Read the current renderer contents as raw RGBA pixel data.
+      #   @return [String] binary string of width*height*4 bytes (RGBA8888)
+
+      # Save the current renderer contents to a PNG file via ImageMagick.
+      #
+      # Reads raw pixels from the GPU and pipes them through ImageMagick's
+      # +convert+ command to produce a PNG. Useful for visual inspection
+      # and screenshot-based regression testing.
+      #
+      # @param path [String] output file path (should end in +.png+)
+      # @return [void]
+      # @raise [RuntimeError] if ImageMagick is not installed or conversion fails
+      #
+      # @example
+      #   renderer.clear(0, 0, 0)
+      #   renderer.fill_rect(10, 10, 100, 50, 255, 0, 0)
+      #   renderer.save_png("screenshot.png")
+      def save_png(path)
+        w, h = output_size
+        pixels = read_pixels
+
+        cmd = ["magick", "-size", "#{w}x#{h}", "-depth", "8", "rgba:-", path]
+        IO.popen(cmd, "wb") do |io|
+          io.write(pixels)
+        end
+
+        unless $?.success?
+          raise "save_png failed: is ImageMagick installed? (brew install imagemagick / apt-get install imagemagick)"
+        end
+      end
+
       # @!method destroy
       #   Destroy this renderer and free GPU resources.
       #   @return [void]

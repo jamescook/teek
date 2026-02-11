@@ -214,6 +214,35 @@ renderer_output_size(VALUE self)
 }
 
 /*
+ * Teek::SDL2::Renderer#read_pixels -> String (RGBA bytes)
+ *
+ * Reads the current renderer contents as raw RGBA pixel data.
+ * Returns a binary String of width*height*4 bytes.
+ * Call after rendering but before present for consistent results.
+ */
+static VALUE
+renderer_read_pixels(VALUE self)
+{
+    struct sdl2_renderer *ren = get_renderer(self);
+    int w, h;
+
+    if (SDL_GetRendererOutputSize(ren->renderer, &w, &h) != 0) {
+        rb_raise(eSDL2Error, "SDL_GetRendererOutputSize: %s", SDL_GetError());
+    }
+
+    long size = (long)w * h * 4;
+    VALUE buf = rb_str_buf_new(size);
+    rb_str_set_len(buf, size);
+
+    if (SDL_RenderReadPixels(ren->renderer, NULL, SDL_PIXELFORMAT_RGBA8888,
+                             RSTRING_PTR(buf), w * 4) != 0) {
+        rb_raise(eSDL2Error, "SDL_RenderReadPixels: %s", SDL_GetError());
+    }
+
+    return buf;
+}
+
+/*
  * Teek::SDL2::Renderer#destroy
  */
 static VALUE
@@ -488,6 +517,7 @@ Init_sdl2surface(VALUE mTeekSDL2)
     rb_define_method(cRenderer, "draw_rect", renderer_draw_rect, -1);
     rb_define_method(cRenderer, "draw_line", renderer_draw_line, -1);
     rb_define_method(cRenderer, "output_size", renderer_output_size, 0);
+    rb_define_method(cRenderer, "read_pixels", renderer_read_pixels, 0);
     rb_define_method(cRenderer, "create_texture", renderer_create_texture, -1);
     rb_define_method(cRenderer, "copy", renderer_copy, -1);
     rb_define_method(cRenderer, "destroy", renderer_destroy, 0);

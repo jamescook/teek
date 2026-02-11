@@ -143,6 +143,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     iproute2 \
     netcat-openbsd \
     ffmpeg \
+    imagemagick \
     bwidget \
     make \
     libyaml-0-2 \
@@ -209,5 +210,6 @@ COPY test/ test/
 COPY sample/ sample/
 COPY teek-sdl2/test/ teek-sdl2/test/
 COPY teek-sdl2/assets/ teek-sdl2/assets/
+COPY screenshots/blessed/ screenshots/blessed/
 
 CMD ["xvfb-run", "-a", "bundle", "exec", "rake", "test"]

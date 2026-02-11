@@ -219,6 +219,7 @@ module Teek
         output_port = Ractor::Port.new
 
         @worker_ractor = Ractor.new(data, output_port, shareable_block) do |d, out, blk|
+          # :nocov: -- Coverage.so cannot observe execution inside a Ractor
           # Worker creates its own control port for receiving messages
           control_port = Ractor::Port.new
           msg_queue = Thread::Queue.new
@@ -257,6 +258,7 @@ module Teek
             out.send([:error, "#{e.class}: #{e.message}\n#{e.backtrace.first(3).join("\n")}"])
             out.send([:done])
           end
+          # :nocov:
         end
 
         # Bridge thread: Port.receive -> Queue
@@ -359,6 +361,7 @@ module Teek
       # Context object passed to the worker block inside the Ractor.
       # Provides methods for yielding results, sending/receiving messages,
       # and responding to pause/stop signals.
+      # :nocov: -- TaskContext runs exclusively inside a Ractor; invisible to Coverage.so
       class TaskContext
         # @api private
         def initialize(output_port, msg_queue)
@@ -430,6 +433,7 @@ module Teek
           end
         end
       end
+      # :nocov:
     end
   end
 end

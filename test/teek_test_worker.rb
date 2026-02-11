@@ -127,6 +127,8 @@ class Teek::TestWorker
   # Eval context for test code — provides minitest assertions and test helpers.
   class TestContext
     include Minitest::Assertions
+    require_relative 'screenshot_helper'
+    include ScreenshotHelper
     attr_accessor :assertions
     attr_reader :app
 
