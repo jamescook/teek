@@ -6,9 +6,12 @@
 #
 # Demonstrates:
 # - Teek::SDL2::Viewport with animated rectangles
+# - SDL2_image: loading a PNG sprite (ruby gem)
+# - SDL2_ttf: text rendering
 # - Keyboard/mouse input via Tk event bindings
-# - SDL2_ttf text rendering
 # - Separate Tk event log window proving bidirectional event flow
+#
+# Ruby gem image: CC0 from https://purepng.com/photo/27996/clipart-ruby-gem
 #
 # Run: ruby -Ilib -Iteek-sdl2/lib sample/sdl2_demo.rb
 
@@ -18,6 +21,7 @@ require 'teek'
 require 'teek/sdl2'
 
 FONT_PATH = File.join(__dir__, '..', 'teek-sdl2', 'assets', 'JetBrainsMonoNL-Regular.ttf')
+RUBY_GEM_PATH = File.join(__dir__, '..', 'teek-sdl2', 'assets', 'ruby_gem_64.png')
 
 class SDL2Demo
   attr_reader :app
@@ -49,7 +53,10 @@ class SDL2Demo
     @font = @viewport.renderer.load_font(FONT_PATH, 18)
     @font_small = @viewport.renderer.load_font(FONT_PATH, 12)
 
-    # Bouncing boxes
+    # Load ruby gem sprite via SDL2_image
+    @gem_tex = @viewport.renderer.load_image(RUBY_GEM_PATH)
+
+    # Bouncing boxes (last one is the gem sprite)
     @boxes = COLORS.each_with_index.map do |color, i|
       {
         x: 40 + i * 100, y: 40 + i * 60,
@@ -58,6 +65,12 @@ class SDL2Demo
         r: color[0], g: color[1], b: color[2]
       }
     end
+    @boxes << {
+      x: 300, y: 200,
+      w: @gem_tex.width, h: @gem_tex.height,
+      dx: 3, dy: 2,
+      sprite: @gem_tex
+    }
 
     # Input state
     @recent_keys = []     # [{text:, age:}, ...]
@@ -177,10 +190,14 @@ class SDL2Demo
     @viewport.render do |r|
       r.clear(20, 20, 30)
 
-      # Bouncing boxes
+      # Bouncing boxes (+ gem sprite)
       @boxes.each do |box|
-        r.fill_rect(box[:x], box[:y], box[:w], box[:h],
-                     box[:r], box[:g], box[:b])
+        if box[:sprite]
+          r.copy(box[:sprite], nil, [box[:x], box[:y], box[:w], box[:h]])
+        else
+          r.fill_rect(box[:x], box[:y], box[:w], box[:h],
+                       box[:r], box[:g], box[:b])
+        end
       end
 
       # Particles
