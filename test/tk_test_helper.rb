@@ -306,6 +306,11 @@ module TeekTestHelper
       warn "Teek::TestWorker warnings: #{result[:warnings].join('; ')}"
     end
 
+    # Re-raise skips so minitest counts them as skips, not failures
+    if !result[:success] && result[:error_class] == 'Minitest::Skip'
+      skip result[:error_message]
+    end
+
     unless result[:success]
       output = []
       output << "Error: #{result[:error_class]}: #{result[:error_message]}"
