@@ -59,4 +59,7 @@ Init_teek_sdl2(void)
 
     /* Pixel format conversion helpers */
     Init_sdl2pixels(mTeekSDL2);
+
+    /* Image loading (SDL2_image) */
+    Init_sdl2image(mTeekSDL2);
 }

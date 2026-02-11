@@ -35,7 +35,10 @@ jobs:
         $MSYS2_ROOT/usr/bin/pacman -S --needed --noconfirm \
           mingw-w64-ucrt-x86_64-tcl \
           mingw-w64-ucrt-x86_64-tk \
-          mingw-w64-ucrt-x86_64-tkimg
+          mingw-w64-ucrt-x86_64-tkimg \
+          mingw-w64-ucrt-x86_64-SDL2 \
+          mingw-w64-ucrt-x86_64-SDL2_ttf \
+          mingw-w64-ucrt-x86_64-SDL2_image
 
     - name: Cache compiled extension
       uses: actions/cache@v4

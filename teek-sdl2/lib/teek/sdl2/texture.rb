@@ -45,6 +45,19 @@ module Teek
       # @!method destroyed?
       #   @return [Boolean] whether this texture has been destroyed
 
+      # Load an image file into a GPU texture via SDL2_image.
+      #
+      # @param renderer [Renderer] the renderer that owns this texture
+      # @param path [String] path to an image file (PNG, JPG, BMP, etc.)
+      # @return [Texture]
+      #
+      # @example
+      #   sprite = Teek::SDL2::Texture.from_file(renderer, "assets/player.png")
+      #   renderer.copy(sprite)
+      def self.from_file(renderer, path)
+        renderer.load_image(path)
+      end
+
       # Create a streaming texture (lockable, CPU-updatable).
       #
       # @param renderer [Renderer] the renderer that owns this texture

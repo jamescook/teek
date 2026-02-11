@@ -97,6 +97,16 @@ unless pkg_config('SDL2_ttf') || have_library('SDL2_ttf', 'TTF_Init', 'SDL2/SDL_
   MSG
 end
 
-$srcs = ['teek_sdl2.c', 'sdl2surface.c', 'sdl2bridge.c', 'sdl2text.c', 'sdl2pixels.c']
+# SDL2_image for loading PNG, JPG, WebP, etc.
+unless pkg_config('SDL2_image') || have_library('SDL2_image', 'IMG_Init', 'SDL2/SDL_image.h')
+  abort <<~MSG
+    SDL2_image not found. Install it:
+      macOS:   brew install sdl2_image
+      Debian:  sudo apt-get install libsdl2-image-dev
+      Windows: pacman -S mingw-w64-x86_64-SDL2_image  (MSYS2)
+  MSG
+end
+
+$srcs = ['teek_sdl2.c', 'sdl2surface.c', 'sdl2bridge.c', 'sdl2text.c', 'sdl2pixels.c', 'sdl2image.c']
 
 create_makefile('teek_sdl2')

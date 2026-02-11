@@ -95,6 +95,17 @@ module Teek
       #   @param access [Symbol] +:static+, +:streaming+, or +:target+
       #   @return [Texture]
 
+      # @!method load_image(path)
+      #   Load an image file into a GPU texture via SDL2_image.
+      #   Supports PNG, JPG, BMP, GIF, WebP, TGA, and more.
+      #   Alpha blending is enabled automatically.
+      #   @param path [String] path to the image file
+      #   @return [Texture]
+      #
+      #   @example
+      #     sprite = renderer.load_image("assets/player.png")
+      #     renderer.copy(sprite, nil, [x, y, sprite.width, sprite.height])
+
       # @!method output_size
       #   Query the renderer's output dimensions.
       #   @return [Array(Integer, Integer)] +[width, height]+

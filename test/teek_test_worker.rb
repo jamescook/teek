@@ -135,6 +135,15 @@ class Teek::TestWorker
       @assertions = 0
     end
 
+    # Resolve a path relative to the project root.
+    # Use for test fixtures that live in known locations.
+    #
+    #   fixture_path("teek-sdl2/assets/test_red_8x8.png")
+    #
+    def fixture_path(*parts)
+      File.expand_path(File.join(*parts), File.expand_path("..", __dir__))
+    end
+
     # Retry until expected value is returned or timeout.
     def wait_for_display(expected, timeout: 1.0)
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
