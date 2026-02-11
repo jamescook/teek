@@ -66,13 +66,33 @@ jobs:
         cache-to: type=gha,mode=max,scope=tcl9
 
     - name: Run tests
+      timeout-minutes: 5
       run: |
-        docker run --rm \
+        docker run --rm --init -t \
           -v ${{ github.workspace }}/coverage:/app/coverage \
           -e TCL_VERSION=9.0 \
           -e COVERAGE=1 \
           -e TESTOPTS=-v \
-          teek-ci-test-9:latest
+          teek-ci-test-9:latest 2>&1 | tee test-output.log
+
+    - name: Run SDL2 tests
+      timeout-minutes: 5
+      run: |
+        docker run --rm --init -t \
+          -e TCL_VERSION=9.0 \
+          -e TESTOPTS=-v \
+          teek-ci-test-9:latest \
+          xvfb-run -a bundle exec rake sdl2:test 2>&1 | tee sdl2-test-output.log
+
+    - name: Upload test log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-log-ruby${{ matrix.ruby }}-tcl9
+        path: |
+          test-output.log
+          sdl2-test-output.log
+        retention-days: 7
 
     - name: Upload coverage report
       if: always()
@@ -130,8 +150,28 @@ jobs:
         cache-to: type=gha,mode=max,scope=tcl8
 
     - name: Run tests
+      timeout-minutes: 5
       run: |
-        docker run --rm \
+        docker run --rm --init -t \
           -e TCL_VERSION=8.6 \
           -e TESTOPTS=-v \
-          teek-ci-test-8:latest
+          teek-ci-test-8:latest 2>&1 | tee test-output.log
+
+    - name: Run SDL2 tests
+      timeout-minutes: 5
+      run: |
+        docker run --rm --init -t \
+          -e TCL_VERSION=8.6 \
+          -e TESTOPTS=-v \
+          teek-ci-test-8:latest \
+          xvfb-run -a bundle exec rake sdl2:test 2>&1 | tee sdl2-test-output.log
+
+    - name: Upload test log
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-log-ruby${{ matrix.ruby }}-tcl8
+        path: |
+          test-output.log
+          sdl2-test-output.log
+        retention-days: 7
