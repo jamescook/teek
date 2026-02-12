@@ -186,6 +186,17 @@ class Teek::TestWorker
       })
 
       @app = Teek::App.new
+
+      # Override Tk's default bgerror dialog with a stderr handler.
+      # Without this, any background error (e.g. from `after` callbacks)
+      # shows a modal dialog that blocks headless/CI test runs.
+      @app.tcl_eval(<<~'TCL')
+        proc _teek_test_bgerror {msg opts} {
+          puts stderr "bgerror: $msg"
+        }
+        interp bgerror {} _teek_test_bgerror
+      TCL
+
       @test_count = 0
     end
 
