@@ -505,6 +505,7 @@ namespace :docker do
       puts "Recording #{sample} (#{codec})..."
       env = "CODEC=#{codec}"
       env += " NAME=#{name}" if name
+      env += " AUDIO=1" if demo['audio']
       sh "#{env} ./scripts/docker-record.sh #{sample}"
     end
 

@@ -51,9 +51,9 @@ command -v ffmpeg >/dev/null 2>&1 || { echo "Error: ffmpeg not installed"; exit 
 
 # Use bundle exec if Gemfile present (Docker), otherwise plain ruby
 if [ -f Gemfile ]; then
-    RUBY_CMD="bundle exec ruby -Ilib"
+    RUBY_CMD="bundle exec ruby -Ilib -Iteek-sdl2/lib"
 else
-    RUBY_CMD="ruby -Ilib"
+    RUBY_CMD="ruby -Ilib -Iteek-sdl2/lib"
 fi
 
 # If no DISPLAY, re-exec under xvfb-run with RandR extension enabled
@@ -86,8 +86,18 @@ NC_PID=$!
 # Poll until nc is actually listening
 while ! ss -tln | grep -q ":$STOP_PORT "; do sleep 0.01; done
 
+# Audio capture: if AUDIO=1, tell the app to write mixed audio to a WAV file
+AUDIO_WAV=""
+if [ "$AUDIO" = "1" ]; then
+    AUDIO_WAV="${BASENAME}_audio.wav"
+fi
+
+# Use dummy audio driver in headless environments (Docker) — the mixer still
+# processes audio (postmix callback writes to WAV) but no hardware needed.
+SDL_AUDIO="${SDL_AUDIODRIVER:-dummy}"
+
 # Now start the app
-TK_RECORD=1 TK_STOP_PORT="$STOP_PORT" TK_THUMBNAIL_PATH="$THUMBNAIL" $RUBY_CMD "$SAMPLE" &
+SDL_AUDIODRIVER="$SDL_AUDIO" TK_RECORD=1 TK_STOP_PORT="$STOP_PORT" TK_THUMBNAIL_PATH="$THUMBNAIL" TEEK_RECORD_AUDIO="$AUDIO_WAV" $RUBY_CMD "$SAMPLE" &
 APP_PID=$!
 
 # Wait for nc to finish (client connected and disconnected)
@@ -157,5 +167,16 @@ kill $FFMPEG_PID 2>/dev/null || true
 wait $FFMPEG_PID 2>/dev/null || true
 kill $WAIT_PID 2>/dev/null || true
 wait $APP_PID 2>/dev/null || true
+
+# Mux audio into video if captured
+if [ -n "$AUDIO_WAV" ] && [ -f "$AUDIO_WAV" ]; then
+    echo "Muxing audio into video..."
+    SILENT="${OUTPUT%.${EXT}}_silent.${EXT}"
+    mv "$OUTPUT" "$SILENT"
+    ffmpeg -y -i "$SILENT" -i "$AUDIO_WAV" \
+        -c:v copy -c:a aac -shortest \
+        "$OUTPUT" 2>/dev/null
+    rm -f "$SILENT" "$AUDIO_WAV"
+fi
 
 echo "Done: ${OUTPUT}"

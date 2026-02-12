@@ -62,4 +62,10 @@ Init_teek_sdl2(void)
 
     /* Image loading (SDL2_image) */
     Init_sdl2image(mTeekSDL2);
+
+    /* Audio (SDL2_mixer) */
+    Init_sdl2mixer(mTeekSDL2);
+
+    /* Gamepad (SDL2 GameController) */
+    Init_sdl2gamepad(mTeekSDL2);
 }

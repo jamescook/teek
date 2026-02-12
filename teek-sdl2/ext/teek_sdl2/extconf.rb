@@ -2,6 +2,17 @@
 
 require 'mkmf'
 
+# Detect MSYS2 package prefix based on Ruby's platform.
+# UCRT builds (Ruby 3.1+) use mingw-w64-ucrt-x86_64-*, older MINGW64
+# builds use mingw-w64-x86_64-*.
+def msys2_pkg_prefix
+  if RUBY_PLATFORM.include?('ucrt')
+    'mingw-w64-ucrt-x86_64'
+  else
+    'mingw-w64-x86_64'
+  end
+end
+
 def find_sdl2
   # 1. Try SDL2_DIR env var first (explicit override)
   if ENV['SDL2_DIR']
@@ -82,7 +93,7 @@ unless find_sdl2
     SDL2 not found. Install it:
       macOS:   brew install sdl2
       Debian:  sudo apt-get install libsdl2-dev
-      Windows: pacman -S mingw-w64-x86_64-SDL2  (MSYS2)
+      Windows: pacman -S #{msys2_pkg_prefix}-SDL2  (MSYS2)
     Or set SDL2_DIR=/path/to/sdl2
   MSG
 end
@@ -93,7 +104,7 @@ unless pkg_config('SDL2_ttf') || have_library('SDL2_ttf', 'TTF_Init', 'SDL2/SDL_
     SDL2_ttf not found. Install it:
       macOS:   brew install sdl2_ttf
       Debian:  sudo apt-get install libsdl2-ttf-dev
-      Windows: pacman -S mingw-w64-x86_64-SDL2_ttf  (MSYS2)
+      Windows: pacman -S #{msys2_pkg_prefix}-SDL2_ttf  (MSYS2)
   MSG
 end
 
@@ -103,10 +114,20 @@ unless pkg_config('SDL2_image') || have_library('SDL2_image', 'IMG_Init', 'SDL2/
     SDL2_image not found. Install it:
       macOS:   brew install sdl2_image
       Debian:  sudo apt-get install libsdl2-image-dev
-      Windows: pacman -S mingw-w64-x86_64-SDL2_image  (MSYS2)
+      Windows: pacman -S #{msys2_pkg_prefix}-SDL2_image  (MSYS2)
   MSG
 end
 
-$srcs = ['teek_sdl2.c', 'sdl2surface.c', 'sdl2bridge.c', 'sdl2text.c', 'sdl2pixels.c', 'sdl2image.c']
+# SDL2_mixer for audio playback
+unless pkg_config('SDL2_mixer') || have_library('SDL2_mixer', 'Mix_OpenAudio', 'SDL2/SDL_mixer.h')
+  abort <<~MSG
+    SDL2_mixer not found. Install it:
+      macOS:   brew install sdl2_mixer
+      Debian:  sudo apt-get install libsdl2-mixer-dev
+      Windows: pacman -S #{msys2_pkg_prefix}-SDL2_mixer  (MSYS2)
+  MSG
+end
+
+$srcs = ['teek_sdl2.c', 'sdl2surface.c', 'sdl2bridge.c', 'sdl2text.c', 'sdl2pixels.c', 'sdl2image.c', 'sdl2mixer.c', 'sdl2gamepad.c']
 
 create_makefile('teek_sdl2')
