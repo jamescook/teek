@@ -49,7 +49,7 @@ module Teek
   class App
     attr_reader :interp, :widgets, :debugger
 
-    def initialize(track_widgets: true, debug: false, &block)
+    def initialize(title: nil, track_widgets: true, debug: false, &block)
       @interp = Teek::Interp.new
       @interp.tcl_eval('package require Tk')
       hide
@@ -62,6 +62,7 @@ module Teek
         require_relative 'teek/debugger'
         @debugger = Teek::Debugger.new(self)
       end
+      set_window_title(title) if title
       instance_eval(&block) if block
     end
 
