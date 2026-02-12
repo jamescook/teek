@@ -77,23 +77,29 @@ class TestEvery < Minitest::Test
 
   # -- on_error: :raise (default) ---------------------------------------------
 
-  def test_raise_default_cancels_on_error
-    assert_tk_app("on_error: :raise should cancel timer") do
+  def test_raise_default_raises_from_update
+    assert_tk_app("on_error: :raise should raise from app.update") do
       count = 0
       timer = app.every(30) do
         count += 1
         raise "boom" if count == 2
       end
 
+      caught = nil
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1.0
-      until timer.cancelled? || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-        app.update
+      until caught || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        begin
+          app.update
+        rescue RuntimeError => e
+          caught = e
+        end
         sleep 0.01
       end
 
       assert timer.cancelled?, "timer should be cancelled after error"
       assert_equal 2, count, "should have ticked twice before error"
-      refute_nil timer.last_error
+      refute_nil caught, "exception should propagate from app.update"
+      assert_equal "boom", caught.message
       assert_equal "boom", timer.last_error.message
     end
   end
@@ -106,11 +112,42 @@ class TestEvery < Minitest::Test
         raise "fail" if count == 1
       end
 
-      # Pump events — should not hang
-      20.times { app.update; sleep 0.01 }
+      caught = nil
+      20.times do
+        begin
+          app.update
+        rescue RuntimeError => e
+          caught = e
+        end
+        sleep 0.01
+      end
 
       assert timer.cancelled?
       assert_equal 1, count
+      refute_nil caught
+      assert_equal "fail", caught.message
+    end
+  end
+
+  def test_raise_only_raises_once
+    assert_tk_app("on_error: :raise should not spam exceptions") do
+      count = 0
+      app.every(30) do
+        count += 1
+        raise "once" if count == 1
+      end
+
+      errors = []
+      30.times do
+        begin
+          app.update
+        rescue RuntimeError => e
+          errors << e.message
+        end
+        sleep 0.01
+      end
+
+      assert_equal ["once"], errors, "should raise exactly once, not spam"
     end
   end
 
@@ -164,15 +201,22 @@ class TestEvery < Minitest::Test
         raise "tick boom" if count == 2
       end
 
+      caught = nil
       deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 1.0
       until timer.cancelled? || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
-        app.update
+        begin
+          app.update
+        rescue RuntimeError => e
+          caught = e
+        end
         sleep 0.01
       end
 
       assert timer.cancelled?, "timer should be cancelled when on_error raises"
       assert_equal 2, count
       assert_equal "handler boom", timer.last_error.message
+      refute_nil caught, "handler error should raise from app.update"
+      assert_equal "handler boom", caught.message
     end
   end
 

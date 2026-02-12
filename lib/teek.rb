@@ -48,6 +48,7 @@ module Teek
 
   class App
     attr_reader :interp, :widgets, :debugger
+    attr_writer :_pending_exception # @api private
 
     def initialize(title: nil, track_widgets: true, debug: false, &block)
       @interp = Teek::Interp.new
@@ -55,6 +56,7 @@ module Teek
       hide
       @widgets = {}
       @widget_counters = Hash.new(0)
+      @_pending_exception = nil
       debug ||= !!ENV['TEEK_DEBUG']
       track_widgets = true if debug
       setup_widget_tracking if track_widgets
@@ -165,8 +167,8 @@ module Teek
     #
     # @param ms [Integer] interval in milliseconds
     # @param on_error [:raise, Proc, nil] error handling strategy:
-    #   - +:raise+ (default) — cancels the timer and re-raises. The exception
-    #     becomes a Tcl background error (shows bgerror dialog once).
+    #   - +:raise+ (default) — cancels the timer and raises the exception
+    #     from the next call to {#update}.
     #   - +Proc+ — called with the exception; timer keeps running.
     #   - +nil+ — cancels the timer silently; error stored in {RepeatingTimer#last_error}.
     # @yield block to call on each tick
@@ -428,6 +430,10 @@ module Teek
     # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/update.htm update
     def update
       @interp.tcl_eval('update')
+      if (e = @_pending_exception)
+        @_pending_exception = nil
+        raise e
+      end
     end
 
     # Process only pending idle callbacks (e.g. geometry redraws), then return.
@@ -835,16 +841,18 @@ module Teek
       @last_error = e
       case @on_error
       when :raise
-        # Cancel first so the re-raise only triggers one bgerror dialog
         @cancelled = true
-        raise
+        # Store on App so it raises from the next app.update call.
+        # Don't re-raise here — that would go through rb_protect → bgerror.
+        @app._pending_exception = e
       when Proc
         begin
           @on_error.call(e)
         rescue => handler_err
           @last_error = handler_err
           @cancelled = true
-          raise
+          @app._pending_exception = handler_err
+          return
         end
         schedule
       when nil
