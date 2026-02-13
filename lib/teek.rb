@@ -242,8 +242,25 @@ module Teek
     # @return [String] the Tcl result
     def command(cmd, *args, **kwargs)
       parts = [cmd.to_s]
-      args.each do |arg|
-        parts << tcl_value(arg)
+      i = 0
+      while i < args.length
+        arg = args[i]
+        if arg.is_a?(Proc)
+          id = @interp.register_callback(arg)
+          subs = []
+          while i + 1 < args.length && args[i + 1].is_a?(String) && args[i + 1].start_with?('%')
+            subs << args[i + 1]
+            i += 1
+          end
+          parts << if subs.empty?
+                     "{ruby_callback #{id}}"
+                   else
+                     "{ruby_callback #{id} #{subs.join(' ')}}"
+                   end
+        else
+          parts << tcl_value(arg)
+        end
+        i += 1
       end
       kwargs.each do |key, value|
         parts << "-#{key}"

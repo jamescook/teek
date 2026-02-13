@@ -124,6 +124,70 @@ class TestBind < Minitest::Test
     end
   end
 
+  # -- command(:bind, ...) with Tk substitutions ----------------------------
+
+  def test_command_bind_with_proc_and_percent_sub
+    assert_tk_app("command(:bind) should fold %K into callback script") do
+      received_keysym = nil
+
+      app.show
+      app.tcl_eval("entry .e")
+      app.tcl_eval("pack .e")
+
+      app.command(:bind, '.e', '<KeyPress>',
+        proc { |k, *| received_keysym = k }, '%K')
+
+      app.tcl_eval("focus -force .e")
+      app.update
+      app.tcl_eval("event generate .e <KeyPress-a> -keysym a")
+      app.update
+
+      assert_equal "a", received_keysym
+    end
+  end
+
+  def test_command_bind_with_proc_and_multiple_percent_subs
+    assert_tk_app("command(:bind) should fold multiple % subs into callback") do
+      got_x = nil
+      got_y = nil
+
+      app.show
+      app.tcl_eval("frame .f -width 100 -height 100")
+      app.tcl_eval("pack .f")
+      app.update
+
+      app.command(:bind, '.f', '<Button-1>',
+        proc { |x, y, *| got_x = x; got_y = y }, '%x', '%y')
+
+      app.tcl_eval("event generate .f <Button-1> -x 42 -y 17")
+      app.update
+
+      assert_equal "42", got_x
+      assert_equal "17", got_y
+    end
+  end
+
+  def test_command_bind_with_proc_no_subs_still_works
+    assert_tk_app("command(:bind) with proc and no subs should work") do
+      fired = false
+
+      app.show
+      app.tcl_eval("entry .e")
+      app.tcl_eval("pack .e")
+
+      app.command(:bind, '.e', '<Key-c>', proc { fired = true })
+
+      app.tcl_eval("focus -force .e")
+      app.update
+      app.tcl_eval("event generate .e <Key-c>")
+      app.update
+
+      assert fired, "callback did not fire"
+    end
+  end
+
+  # -- unbind ---------------------------------------------------------------
+
   def test_unbind_removes_binding
     assert_tk_app("unbind should remove binding") do
       count = 0
