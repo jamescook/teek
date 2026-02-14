@@ -24,7 +24,7 @@ module Teek
         # so it doesn't revert to Tk's default "wish" menu when this window
         # has focus. On other platforms each window has its own menu bar,
         # so sharing creates a visible duplicate.
-        if RUBY_PLATFORM =~ /darwin/
+        if Teek.platform.darwin?
           parent_menu = @app.command('.', :cget, '-menu') rescue nil
           @app.command(top, :configure, menu: parent_menu) if parent_menu && !parent_menu.empty?
         end
@@ -36,9 +36,7 @@ module Teek
       # Position this window to the right of the main application window.
       def position_near_parent
         top = self.class::TOP
-        x = @app.command(:winfo, 'rootx', '.').to_i
-        y = @app.command(:winfo, 'rooty', '.').to_i
-        w = @app.command(:winfo, 'width', '.').to_i
+        x, y, w, _h = @app.interp.window_geometry('.')
         @app.command(:wm, 'geometry', top, "+#{x + w + 12}+#{y}")
       end
 

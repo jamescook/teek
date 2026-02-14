@@ -209,15 +209,6 @@ end
 
 task test: [:compile, :clean_coverage]
 
-def detect_platform
-  case RUBY_PLATFORM
-  when /darwin/ then 'darwin'
-  when /linux/ then 'linux'
-  when /mingw|mswin/ then 'windows'
-  else 'unknown'
-  end
-end
-
 namespace :sdl2 do
   Rake::TestTask.new(:test) do |t|
     t.libs << 'teek-sdl2/test' << 'teek-sdl2/lib'

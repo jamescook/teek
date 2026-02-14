@@ -49,6 +49,24 @@ class TestWm < Minitest::Test
     end
   end
 
+  # -- interp.window_geometry (C-level Tk_GetRootCoords + Tk_Width/Tk_Height) --
+
+  def test_interp_window_geometry_returns_four_integers
+    assert_tk_app("interp.window_geometry returns [x, y, w, h]") do
+      app.show
+      app.set_window_geometry('320x240')
+      app.update
+      result = app.interp.window_geometry('.')
+      assert_kind_of Array, result
+      assert_equal 4, result.length
+      result.each { |v| assert_kind_of Integer, v }
+      # Width/height should match what we requested
+      _x, _y, w, h = result
+      assert_equal 320, w
+      assert_equal 240, h
+    end
+  end
+
   # -- window_resizable --
 
   def test_set_window_resizable

@@ -2,6 +2,7 @@
 
 require 'tcltklib'
 require_relative 'teek/version'
+require_relative 'teek/platform'
 require_relative 'teek/ractor_support'
 require_relative 'teek/widget'
 require_relative 'teek/photo'

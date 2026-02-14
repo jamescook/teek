@@ -30,14 +30,20 @@ module Teek
       GBA_FPS        = 59.7272
       FRAME_PERIOD   = 1.0 / GBA_FPS
 
-      # Dynamic rate control (Near/byuu algorithm adapted for frame timing)
-      # Keep audio buffer ~50% full by adjusting frame period ±0.5%.
+      # Dynamic rate control constants (see tick_normal for the math)
       AUDIO_BUF_CAPACITY = (AUDIO_FREQ / GBA_FPS * 6).to_i  # ~6 frames (~100ms)
-      MAX_DELTA          = 0.005
+      MAX_DELTA          = 0.005                              # ±0.5% max adjustment
       FF_MAX_FRAMES      = 10  # cap for uncapped turbo to avoid locking event loop
       TOAST_DURATION     = 1.5 # seconds (fallback; overridden by config)
       SAVE_STATE_DEBOUNCE_DEFAULT = 3.0 # seconds; overridden by config
       SAVE_STATE_SLOTS    = 10
+
+      # Modal child window types → locale keys for the window title overlay
+      MODAL_LABELS = {
+        settings: 'menu.settings',
+        picker: 'menu.save_states',
+        rom_info: 'menu.rom_info',
+      }.freeze
 
       # Default keyboard → GBA button bitmask (Tk keysym → bitmask)
       DEFAULT_KEY_MAP = {
@@ -101,6 +107,7 @@ module Teek
         @last_save_time = 0
         @state_dir = nil  # set when ROM loaded
         load_keyboard_config
+        check_writable_dirs
 
         win_w = GBA_W * @scale
         win_h = GBA_H * @scale
@@ -230,11 +237,11 @@ module Teek
         @texture = @viewport.renderer.create_texture(GBA_W, GBA_H, :streaming)
 
         # Font for on-screen indicators (FPS, fast-forward label)
-        font_path = File.expand_path('../../../assets/JetBrainsMonoNL-Regular.ttf', __dir__)
+        font_path = File.join(ASSETS_DIR, 'JetBrainsMonoNL-Regular.ttf')
         @overlay_font = File.exist?(font_path) ? @viewport.renderer.load_font(font_path, 14) : nil
 
         # CJK-capable font for toast notifications and translated UI text
-        toast_font_path = File.expand_path('../../../assets/ark-pixel-12px-monospaced-ja.ttf', __dir__)
+        toast_font_path = File.join(ASSETS_DIR, 'ark-pixel-12px-monospaced-ja.ttf')
         @toast_font = File.exist?(toast_font_path) ? @viewport.renderer.load_font(toast_font_path, 12) : @overlay_font
 
         # Crop heights: ascent + partial descender. Excludes the very bottom
@@ -385,8 +392,9 @@ module Teek
         @app.interp.photo_put_block(photo_name, pixels, GBA_W, GBA_H, format: :argb)
         @app.tcl_eval("#{photo_name} write {#{path}} -format png")
         @app.tcl_eval("image delete #{photo_name}")
-      rescue StandardError
+      rescue StandardError => e
         # Screenshot is optional — don't fail the save state
+        warn "teek-mgba: screenshot failed for #{path}: #{e.message} (#{e.class})"
         @app.tcl_eval("image delete #{photo_name}") rescue nil
       end
 
@@ -397,12 +405,6 @@ module Teek
       def quick_load
         load_state(@quick_save_slot)
       end
-
-      MODAL_LABELS = {
-        settings: 'menu.settings',
-        picker: 'menu.save_states',
-        rom_info: 'menu.rom_info',
-      }.freeze
 
       def show_settings(tab: nil)
         return bell if @modal_child
@@ -527,6 +529,38 @@ module Teek
       end
 
       # Load stored keyboard config from the sentinel GUID
+      # Verify config/saves/states directories are writable.
+      # Shows a Tk dialog and aborts if any are not.
+      def check_writable_dirs
+        dirs = {
+          'Config'      => Config.config_dir,
+          'Saves'       => @config.saves_dir,
+          'Save States' => Config.default_states_dir,
+        }
+
+        problems = []
+        dirs.each do |label, dir|
+          begin
+            FileUtils.mkdir_p(dir)
+          rescue SystemCallError => e
+            problems << "#{label}: #{dir}\n  #{e.message}"
+            next
+          end
+          unless File.writable?(dir)
+            problems << "#{label}: #{dir}\n  Not writable"
+          end
+        end
+
+        return if problems.empty?
+
+        msg = "Cannot write to required directories:\n\n#{problems.join("\n\n")}\n\n" \
+              "Check file permissions or set a custom path in config."
+        @app.command(:tk_messageBox, icon: :error, type: :ok,
+                     title: 'mGBA Player', message: msg)
+        @app.destroy('.')
+        exit 1
+      end
+
       def load_keyboard_config
         kb_cfg = @config.mappings(Config::KEYBOARD_GUID)
         @key_map = {}
@@ -1086,7 +1120,19 @@ module Teek
           run_one_frame
           queue_audio
 
-          # Near/byuu: nudge frame period ±0.5% to keep audio buffer ~50% full
+          # Dynamic rate control — proportional feedback on audio buffer fill.
+          # Based on Near/byuu's algorithm for emulator A/V sync:
+          #   https://docs.libretro.com/guides/ratecontrol.pdf
+          #
+          # fill  = how full the audio buffer is          (0.0 .. 1.0)
+          # ratio = (1 - MAX_DELTA) + 2 * fill * MAX_DELTA
+          #
+          #   fill=0.0 (starving) → ratio=0.995 → shorter wait → emu speeds up
+          #   fill=0.5 (target)   → ratio=1.000 → no change
+          #   fill=1.0 (overfull) → ratio=1.005 → longer wait  → emu slows down
+          #
+          # The buffer naturally settles around 50% full. The ±0.5% limit
+          # keeps pitch/speed shifts imperceptible.
           fill = (@stream.queued_samples.to_f / AUDIO_BUF_CAPACITY).clamp(0.0, 1.0)
           ratio = (1.0 - MAX_DELTA) + 2.0 * fill * MAX_DELTA
           @next_frame += FRAME_PERIOD * ratio

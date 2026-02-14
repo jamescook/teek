@@ -15,6 +15,8 @@ require_relative "mgba/player"
 
 module Teek
   module MGBA
+    ASSETS_DIR = File.expand_path('../../assets', __dir__).freeze
+
     # Lazily loaded user config — shared across the application.
     # @return [Teek::MGBA::Config]
     def self.user_config

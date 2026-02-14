@@ -14,6 +14,7 @@ Tcl/Tk interface for Ruby (8.6+ and 9.x).
 ## Quick Links
 
 - [Teek::App]({{ '/api/Teek/App/' | relative_url }}) - Main entry point
+- [Platform Quirks]({{ '/platform-quirks/' | relative_url }}) - Cross-platform gotchas
 
 ## Getting Started
 

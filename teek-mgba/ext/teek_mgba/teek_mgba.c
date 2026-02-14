@@ -523,12 +523,21 @@ mgba_core_destroyed_p(VALUE self)
 /* Teek::MGBA.toast_background(w, h, radius)                 */
 /*                                                           */
 /* Generates ARGB8888 pixel data for a toast notification     */
-/* background: semi-transparent dark fill, lighter border,    */
-/* anti-aliased rounded corners, transparent outside.         */
+/* background with rounded corners.  For each pixel we        */
+/* compute a signed distance to the rounded-rect edge, then   */
+/* assign one of four zones based on that distance:           */
+/*   outside       → transparent                              */
+/*   outer fringe  → border color fading in (anti-alias)      */
+/*   border band   → solid border color                       */
+/*   inner fringe  → border blending to fill (anti-alias)     */
+/*   interior      → solid fill color                         */
 /* Returns a binary String of w*h*4 bytes.                   */
 /* --------------------------------------------------------- */
 
-/* Toast palette (non-premultiplied, for SDL_BLENDMODE_BLEND) */
+/* Toast palette (non-premultiplied, for SDL_BLENDMODE_BLEND)
+ *   Fill:   near-black, slight blue tint — readable over game art
+ *   Border: blue-grey — subtle edge visible against dark scenes
+ *   Alpha is 0–255: 180/255 ≈ 70% opaque, 210/255 ≈ 82% opaque */
 enum {
     TOAST_FILL_R = 20,  TOAST_FILL_G = 20,  TOAST_FILL_B = 28,  TOAST_FILL_A = 180,
     TOAST_BDR_R  = 100, TOAST_BDR_G  = 110, TOAST_BDR_B  = 140, TOAST_BDR_A  = 210,
@@ -568,7 +577,8 @@ mgba_toast_background(VALUE mod, VALUE rb_w, VALUE rb_h, VALUE rb_rad)
     for (int py = 0; py < h; py++) {
         for (int px = 0; px < w; px++) {
             /* Signed distance from the rounded-rect boundary (negative = inside).
-             * Uses standard SDF for a rounded rectangle. */
+             * SDF for a rounded rectangle per Inigo Quilez:
+             * https://iquilezles.org/articles/distfunctions/ */
             float qx, qy;
             float cx = (float)px + 0.5f;
             float cy = (float)py + 0.5f;

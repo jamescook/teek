@@ -32,6 +32,8 @@ module Teek
   # @see Texture
   # @see Font
   module SDL2
+    ASSETS_DIR = File.expand_path('../../assets', __dir__).freeze
+
     # @!group Audio (C-defined module functions)
 
     # @!method self.open_audio

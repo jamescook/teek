@@ -289,10 +289,10 @@ module Teek
       end
 
       def self.config_dir
-        case RUBY_PLATFORM
-        when /darwin/
+        p = Teek.platform
+        if p.darwin?
           File.join(Dir.home, 'Library', 'Application Support', APP_NAME)
-        when /mswin|mingw|cygwin/
+        elsif p.windows?
           File.join(ENV.fetch('APPDATA', File.join(Dir.home, 'AppData', 'Roaming')), APP_NAME)
         else
           # Linux / other Unix — XDG Base Directory Specification
