@@ -28,6 +28,7 @@ module Teek
       ASPECT_CHECK = "#{NB}.video.aspect_row.aspect"
       SHOW_FPS_CHECK = "#{NB}.video.fps_row.fps_check"
       TOAST_COMBO = "#{NB}.video.toast_row.toast_combo"
+      FILTER_COMBO = "#{NB}.video.filter_row.filter_combo"
       VOLUME_SCALE = "#{NB}.audio.vol_row.vol_scale"
       MUTE_CHECK = "#{NB}.audio.mute_row.mute"
 
@@ -105,6 +106,7 @@ module Teek
       VAR_ASPECT_RATIO = '::mgba_aspect_ratio'
       VAR_SHOW_FPS = '::mgba_show_fps'
       VAR_TOAST_DURATION = '::mgba_toast_duration'
+      VAR_FILTER   = '::mgba_filter'
       VAR_QUICK_SLOT     = '::mgba_quick_slot'
       VAR_SS_BACKUP      = '::mgba_ss_backup'
 
@@ -332,6 +334,30 @@ module Teek
               @callbacks[:on_toast_duration_change]&.call(secs)
               mark_dirty
             end
+          })
+
+        # Pixel Filter
+        filter_row = "#{frame}.filter_row"
+        @app.command('ttk::frame', filter_row)
+        @app.command(:pack, filter_row, fill: :x, padx: 10, pady: 5)
+
+        @app.command('ttk::label', "#{filter_row}.lbl", text: translate('settings.pixel_filter'))
+        @app.command(:pack, "#{filter_row}.lbl", side: :left)
+
+        @app.set_variable(VAR_FILTER, translate('settings.filter_nearest'))
+        @app.command('ttk::combobox', FILTER_COMBO,
+          textvariable: VAR_FILTER,
+          values: Teek.make_list(translate('settings.filter_nearest'), translate('settings.filter_linear')),
+          state: :readonly,
+          width: 18)
+        @app.command(:pack, FILTER_COMBO, side: :right)
+
+        @app.command(:bind, FILTER_COMBO, '<<ComboboxSelected>>',
+          proc { |*|
+            val = @app.get_variable(VAR_FILTER)
+            filter = val == translate('settings.filter_nearest') ? 'nearest' : 'linear'
+            @callbacks[:on_filter_change]&.call(filter)
+            mark_dirty
           })
       end
 

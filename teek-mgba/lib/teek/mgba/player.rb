@@ -64,6 +64,7 @@ module Teek
         @turbo_volume = @config.turbo_volume_pct / 100.0
         @keep_aspect_ratio = @config.keep_aspect_ratio?
         @show_fps = @config.show_fps?
+        @pixel_filter = @config.pixel_filter
         @fast_forward = false
         @fullscreen = fullscreen
         @quick_save_slot = @config.quick_save_slot
@@ -105,6 +106,7 @@ module Teek
           on_turbo_speed_change:  method(:apply_turbo_speed),
           on_aspect_ratio_change: method(:apply_aspect_ratio),
           on_show_fps_change:     method(:apply_show_fps),
+          on_filter_change:       method(:apply_pixel_filter),
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
           on_backup_change:       method(:apply_backup),
@@ -124,6 +126,8 @@ module Teek
         @app.set_variable(SettingsWindow::VAR_SHOW_FPS, @show_fps ? '1' : '0')
         toast_label = "#{@config.toast_duration}s"
         @app.set_variable(SettingsWindow::VAR_TOAST_DURATION, toast_label)
+        filter_label = @pixel_filter == 'nearest' ? @settings_window.send(:translate, 'settings.filter_nearest') : @settings_window.send(:translate, 'settings.filter_linear')
+        @app.set_variable(SettingsWindow::VAR_FILTER, filter_label)
         @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)
         @app.set_variable(SettingsWindow::VAR_SS_BACKUP, @save_state_backup ? '1' : '0')
 
@@ -203,6 +207,7 @@ module Teek
 
         # Streaming texture at native GBA resolution
         @texture = @viewport.renderer.create_texture(GBA_W, GBA_H, :streaming)
+        @texture.scale_mode = @pixel_filter.to_sym
 
         # Font for on-screen indicators (FPS, fast-forward label)
         font_path = File.join(ASSETS_DIR, 'JetBrainsMonoNL-Regular.ttf')
@@ -353,6 +358,7 @@ module Teek
         @config.turbo_speed = @turbo_speed
         @config.keep_aspect_ratio = @keep_aspect_ratio
         @config.show_fps = @show_fps
+        @config.pixel_filter = @pixel_filter
         @config.quick_save_slot = @quick_save_slot
         @config.save_state_backup = @save_state_backup
 
@@ -375,6 +381,11 @@ module Teek
 
       def apply_mute(muted)
         @muted = !!muted
+      end
+
+      def apply_pixel_filter(filter)
+        @pixel_filter = filter
+        @texture.scale_mode = filter.to_sym if @texture
       end
 
       # Returns the currently active input map based on settings window mode.

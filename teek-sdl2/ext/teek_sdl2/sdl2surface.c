@@ -1282,6 +1282,49 @@ texture_get_blend_mode(VALUE self)
 }
 
 /*
+ * Teek::SDL2::Texture#scale_mode=(mode)
+ *
+ * Sets the texture scale mode used when the texture is stretched.
+ *   :nearest - nearest-neighbor (sharp, pixelated)
+ *   :linear  - bilinear filtering (smooth)
+ */
+static VALUE
+texture_set_scale_mode(VALUE self, VALUE mode)
+{
+    struct sdl2_texture *t = get_texture(self);
+    SDL_ScaleMode sm;
+
+    Check_Type(mode, T_SYMBOL);
+    ID id = SYM2ID(mode);
+    if (id == rb_intern("nearest"))      sm = SDL_ScaleModeNearest;
+    else if (id == rb_intern("linear"))  sm = SDL_ScaleModeLinear;
+    else rb_raise(rb_eArgError, "unknown scale mode (use :nearest or :linear)");
+
+    if (SDL_SetTextureScaleMode(t->texture, sm) != 0) {
+        rb_raise(eSDL2Error, "SDL_SetTextureScaleMode: %s", SDL_GetError());
+    }
+    return mode;
+}
+
+/*
+ * Teek::SDL2::Texture#scale_mode -> Symbol
+ *
+ * Returns the current texture scale mode as :nearest or :linear.
+ */
+static VALUE
+texture_get_scale_mode(VALUE self)
+{
+    struct sdl2_texture *t = get_texture(self);
+    SDL_ScaleMode sm;
+
+    if (SDL_GetTextureScaleMode(t->texture, &sm) != 0) {
+        rb_raise(eSDL2Error, "SDL_GetTextureScaleMode: %s", SDL_GetError());
+    }
+    if (sm == SDL_ScaleModeNearest) return ID2SYM(rb_intern("nearest"));
+    return ID2SYM(rb_intern("linear"));
+}
+
+/*
  * Teek::SDL2.compose_blend_mode(src_color, dst_color, color_op,
  *                                src_alpha, dst_alpha, alpha_op) -> Integer
  *
@@ -1365,6 +1408,8 @@ Init_sdl2surface(VALUE mTeekSDL2)
     rb_define_method(cTexture, "height", texture_height, 0);
     rb_define_method(cTexture, "blend_mode=", texture_set_blend_mode, 1);
     rb_define_method(cTexture, "blend_mode", texture_get_blend_mode, 0);
+    rb_define_method(cTexture, "scale_mode=", texture_set_scale_mode, 1);
+    rb_define_method(cTexture, "scale_mode", texture_get_scale_mode, 0);
     rb_define_method(cTexture, "destroy", texture_destroy, 0);
     rb_define_method(cTexture, "destroyed?", texture_destroyed_p, 0);
 

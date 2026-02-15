@@ -32,6 +32,7 @@ module Teek
         'quick_save_slot'    => 1,
         'save_state_backup'  => true,
         'locale'             => 'auto',
+        'pixel_filter'       => 'nearest',
       }.freeze
 
       GAMEPAD_DEFAULTS = {
@@ -127,6 +128,15 @@ module Teek
 
       def show_fps=(val)
         global['show_fps'] = !!val
+      end
+
+      # @return [String] pixel filter mode ('nearest' or 'linear')
+      def pixel_filter
+        global['pixel_filter']
+      end
+
+      def pixel_filter=(val)
+        global['pixel_filter'] = %w[nearest linear].include?(val.to_s) ? val.to_s : 'nearest'
       end
 
       # @return [Float] toast notification duration in seconds
