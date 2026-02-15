@@ -497,6 +497,11 @@ module Teek
         File.join(config_dir, 'states')
       end
 
+      # @return [String] default directory for screenshots
+      def self.default_screenshots_dir
+        File.join(config_dir, 'screenshots')
+      end
+
       private
 
       def global

@@ -318,6 +318,34 @@ module Teek
         @toast&.show(msg) if msg
       end
 
+      def take_screenshot
+        return unless @core && !@core.destroyed?
+
+        dir = Config.default_screenshots_dir
+        FileUtils.mkdir_p(dir)
+
+        title = @core.title.strip.gsub(/[^a-zA-Z0-9_\-]/, '_')
+        stamp = Time.now.strftime('%Y%m%d_%H%M%S')
+        name = "#{title}_#{stamp}.png"
+        path = File.join(dir, name)
+
+        pixels = @core.video_buffer_argb
+        photo_name = "__teek_ss_#{object_id}"
+        out_w = GBA_W * @scale
+        out_h = GBA_H * @scale
+        @app.command(:image, :create, :photo, photo_name,
+                     width: out_w, height: out_h)
+        @app.interp.photo_put_zoomed_block(photo_name, pixels, GBA_W, GBA_H,
+                                           zoom_x: @scale, zoom_y: @scale, format: :argb)
+        @app.command(photo_name, :write, path, format: :png)
+        @app.command(:image, :delete, photo_name)
+        @toast&.show(translate('toast.screenshot_saved', name: name))
+      rescue StandardError => e
+        warn "teek-mgba: screenshot failed: #{e.message} (#{e.class})"
+        @app.command(:image, :delete, photo_name) rescue nil
+        @toast&.show(translate('toast.screenshot_failed'))
+      end
+
       def show_settings(tab: nil)
         return bell if @modal_child
         @modal_child = :settings
@@ -626,7 +654,7 @@ module Teek
             when :quick_save    then quick_save
             when :quick_load    then quick_load
             when :save_states   then show_state_picker
-            when :screenshot    then nil # future tinyk-qsa
+            when :screenshot    then take_screenshot
             else @keyboard.press(k)
             end
           end

@@ -24,6 +24,8 @@ toast:
   load_failed: "Failed to load state"
   loaded_sav: "Loaded {name}"
   created_sav: "Created {name}"
+  screenshot_saved: "Screenshot saved: {name}"
+  screenshot_failed: "Screenshot failed"
   paused: "Paused"
   waiting_for: "Waiting for {label}…"
 

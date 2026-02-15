@@ -24,6 +24,8 @@ toast:
   load_failed: "ステートロードに失敗しました"
   loaded_sav: "{name}を読み込みました"
   created_sav: "{name}を作成しました"
+  screenshot_saved: "スクリーンショットを保存: {name}"
+  screenshot_failed: "スクリーンショットに失敗しました"
   paused: "一時停止"
   waiting_for: "{label}を待機中…"
 
