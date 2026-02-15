@@ -29,6 +29,7 @@ module Teek
       SHOW_FPS_CHECK = "#{NB}.video.fps_row.fps_check"
       TOAST_COMBO = "#{NB}.video.toast_row.toast_combo"
       FILTER_COMBO = "#{NB}.video.filter_row.filter_combo"
+      INTEGER_SCALE_CHECK = "#{NB}.video.intscale_row.intscale"
       VOLUME_SCALE = "#{NB}.audio.vol_row.vol_scale"
       MUTE_CHECK = "#{NB}.audio.mute_row.mute"
 
@@ -107,6 +108,7 @@ module Teek
       VAR_SHOW_FPS = '::mgba_show_fps'
       VAR_TOAST_DURATION = '::mgba_toast_duration'
       VAR_FILTER   = '::mgba_filter'
+      VAR_INTEGER_SCALE = '::mgba_integer_scale'
       VAR_QUICK_SLOT     = '::mgba_quick_slot'
       VAR_SS_BACKUP      = '::mgba_ss_backup'
 
@@ -359,6 +361,22 @@ module Teek
             @callbacks[:on_filter_change]&.call(filter)
             mark_dirty
           })
+
+        # Integer scaling checkbox
+        intscale_row = "#{frame}.intscale_row"
+        @app.command('ttk::frame', intscale_row)
+        @app.command(:pack, intscale_row, fill: :x, padx: 10, pady: 5)
+
+        @app.set_variable(VAR_INTEGER_SCALE, '0')
+        @app.command('ttk::checkbutton', INTEGER_SCALE_CHECK,
+          text: translate('settings.integer_scale'),
+          variable: VAR_INTEGER_SCALE,
+          command: proc { |*|
+            enabled = @app.get_variable(VAR_INTEGER_SCALE) == '1'
+            @callbacks[:on_integer_scale_change]&.call(enabled)
+            mark_dirty
+          })
+        @app.command(:pack, INTEGER_SCALE_CHECK, side: :left)
       end
 
       def setup_audio_tab

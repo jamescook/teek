@@ -728,4 +728,65 @@ class TestMGBASettingsWindow < Minitest::Test
     end
   end
 
+  # -- Pixel filter combo ----------------------------------------------------
+
+  def test_pixel_filter_defaults_to_nearest
+    assert_tk_app("pixel filter defaults to Nearest Neighbor") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      assert_equal 'Nearest Neighbor', app.get_variable(Teek::MGBA::SettingsWindow::VAR_FILTER)
+    end
+  end
+
+  def test_selecting_bilinear_fires_callback
+    assert_tk_app("selecting Bilinear fires on_filter_change") do
+      require "teek/mgba/settings_window"
+      received = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_filter_change: proc { |f| received = f }
+      })
+      sw.show
+      app.update
+
+      app.set_variable(Teek::MGBA::SettingsWindow::VAR_FILTER, 'Bilinear')
+      app.command(:event, 'generate', Teek::MGBA::SettingsWindow::FILTER_COMBO, '<<ComboboxSelected>>')
+      app.update
+
+      assert_equal 'linear', received
+    end
+  end
+
+  # -- Integer scaling checkbox ----------------------------------------------
+
+  def test_integer_scale_defaults_to_off
+    assert_tk_app("integer scale checkbox defaults to off") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      assert_equal '0', app.get_variable(Teek::MGBA::SettingsWindow::VAR_INTEGER_SCALE)
+    end
+  end
+
+  def test_clicking_integer_scale_fires_callback
+    assert_tk_app("clicking integer scale fires on_integer_scale_change") do
+      require "teek/mgba/settings_window"
+      received = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_integer_scale_change: proc { |v| received = v }
+      })
+      sw.show
+      app.update
+
+      app.command(Teek::MGBA::SettingsWindow::INTEGER_SCALE_CHECK, 'invoke')
+      app.update
+
+      assert_equal true, received
+    end
+  end
+
 end

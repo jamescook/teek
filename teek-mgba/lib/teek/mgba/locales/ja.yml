@@ -73,6 +73,7 @@ settings:
   pixel_filter: "ピクセルフィルタ:"
   filter_nearest: "ニアレストネイバー"
   filter_linear: "バイリニア"
+  integer_scale: "整数スケーリング（端数ピクセルなし）"
   gp_a: "A"
   gp_b: "B"
   gp_l: "L"

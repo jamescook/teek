@@ -33,6 +33,7 @@ module Teek
         'save_state_backup'  => true,
         'locale'             => 'auto',
         'pixel_filter'       => 'nearest',
+        'integer_scale'      => false,
       }.freeze
 
       GAMEPAD_DEFAULTS = {
@@ -137,6 +138,14 @@ module Teek
 
       def pixel_filter=(val)
         global['pixel_filter'] = %w[nearest linear].include?(val.to_s) ? val.to_s : 'nearest'
+      end
+
+      def integer_scale?
+        global['integer_scale']
+      end
+
+      def integer_scale=(val)
+        global['integer_scale'] = !!val
       end
 
       # @return [Float] toast notification duration in seconds

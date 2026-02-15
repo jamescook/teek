@@ -65,6 +65,7 @@ module Teek
         @keep_aspect_ratio = @config.keep_aspect_ratio?
         @show_fps = @config.show_fps?
         @pixel_filter = @config.pixel_filter
+        @integer_scale = @config.integer_scale?
         @fast_forward = false
         @fullscreen = fullscreen
         @quick_save_slot = @config.quick_save_slot
@@ -107,6 +108,7 @@ module Teek
           on_aspect_ratio_change: method(:apply_aspect_ratio),
           on_show_fps_change:     method(:apply_show_fps),
           on_filter_change:       method(:apply_pixel_filter),
+          on_integer_scale_change: method(:apply_integer_scale),
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
           on_backup_change:       method(:apply_backup),
@@ -128,6 +130,7 @@ module Teek
         @app.set_variable(SettingsWindow::VAR_TOAST_DURATION, toast_label)
         filter_label = @pixel_filter == 'nearest' ? @settings_window.send(:translate, 'settings.filter_nearest') : @settings_window.send(:translate, 'settings.filter_linear')
         @app.set_variable(SettingsWindow::VAR_FILTER, filter_label)
+        @app.set_variable(SettingsWindow::VAR_INTEGER_SCALE, @integer_scale ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)
         @app.set_variable(SettingsWindow::VAR_SS_BACKUP, @save_state_backup ? '1' : '0')
 
@@ -359,6 +362,7 @@ module Teek
         @config.keep_aspect_ratio = @keep_aspect_ratio
         @config.show_fps = @show_fps
         @config.pixel_filter = @pixel_filter
+        @config.integer_scale = @integer_scale
         @config.quick_save_slot = @quick_save_slot
         @config.save_state_backup = @save_state_backup
 
@@ -386,6 +390,10 @@ module Teek
       def apply_pixel_filter(filter)
         @pixel_filter = filter
         @texture.scale_mode = filter.to_sym if @texture
+      end
+
+      def apply_integer_scale(enabled)
+        @integer_scale = !!enabled
       end
 
       # Returns the currently active input map based on settings window mode.
@@ -999,6 +1007,7 @@ module Teek
         scale_x = out_w.to_f / GBA_W
         scale_y = out_h.to_f / GBA_H
         scale = [scale_x, scale_y].min
+        scale = scale.floor if @integer_scale && scale >= 1.0
 
         dest_w = (GBA_W * scale).to_i
         dest_h = (GBA_H * scale).to_i
