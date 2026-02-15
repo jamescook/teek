@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require 'fileutils'
-require 'set'
 require_relative 'locale'
 
 module Teek
@@ -46,45 +45,7 @@ module Teek
         rom_info: 'menu.rom_info',
       }.freeze
 
-      # Default keyboard → GBA button bitmask (Tk keysym → bitmask)
-      DEFAULT_KEY_MAP = {
-        'z'         => KEY_A,
-        'x'         => KEY_B,
-        'BackSpace' => KEY_SELECT,
-        'Return'    => KEY_START,
-        'Right'     => KEY_RIGHT,
-        'Left'      => KEY_LEFT,
-        'Up'        => KEY_UP,
-        'Down'      => KEY_DOWN,
-        'a'         => KEY_L,
-        's'         => KEY_R,
-      }.freeze
-
-      # Default SDL gamepad → GBA button bitmask
-      DEFAULT_GAMEPAD_MAP = {
-        a:              KEY_A,
-        b:              KEY_B,
-        back:           KEY_SELECT,
-        start:          KEY_START,
-        dpad_up:        KEY_UP,
-        dpad_down:      KEY_DOWN,
-        dpad_left:      KEY_LEFT,
-        dpad_right:     KEY_RIGHT,
-        left_shoulder:  KEY_L,
-        right_shoulder: KEY_R,
-      }.freeze
-
-      # GBA button label → bitmask (for remapping)
-      GBA_BTN_BITS = {
-        a: KEY_A, b: KEY_B,
-        l: KEY_L, r: KEY_R,
-        up: KEY_UP, down: KEY_DOWN,
-        left: KEY_LEFT, right: KEY_RIGHT,
-        start: KEY_START, select: KEY_SELECT,
-      }.freeze
-
-
-      def initialize(rom_path = nil, sound: true)
+      def initialize(rom_path = nil, sound: true, fullscreen: false)
         @app = Teek::App.new
         @app.interp.thread_timer_ms = 1  # need fast event dispatch for emulation
         @app.show
@@ -94,19 +55,19 @@ module Teek
         @scale  = @config.scale
         @volume = @config.volume / 100.0
         @muted  = @config.muted?
-        @key_map = DEFAULT_KEY_MAP.dup
-        @gamepad_map = DEFAULT_GAMEPAD_MAP.dup
-        @dead_zone = Teek::SDL2::Gamepad::DEAD_ZONE
+        @kb_map  = KeyboardMap.new(@config)
+        @gp_map  = GamepadMap.new(@config)
+        @keyboard = VirtualKeyboard.new
+        @kb_map.device = @keyboard
         @turbo_speed = @config.turbo_speed
         @turbo_volume = @config.turbo_volume_pct / 100.0
         @keep_aspect_ratio = @config.keep_aspect_ratio?
         @show_fps = @config.show_fps?
         @fast_forward = false
-        @fullscreen = false
+        @fullscreen = fullscreen
         @quick_save_slot = @config.quick_save_slot
         @save_state_backup = @config.save_state_backup?
         @save_mgr = nil  # created when ROM loaded
-        load_keyboard_config
         check_writable_dirs
 
         win_w = GBA_W * @scale
@@ -129,11 +90,11 @@ module Teek
           on_scale_change:        method(:apply_scale),
           on_volume_change:       method(:apply_volume),
           on_mute_change:         method(:apply_mute),
-          on_gamepad_map_change:  method(:apply_gamepad_mapping),
-          on_keyboard_map_change: method(:apply_keyboard_mapping),
-          on_deadzone_change:     method(:apply_deadzone),
-          on_gamepad_reset:       method(:apply_gamepad_reset),
-          on_keyboard_reset:      method(:apply_keyboard_reset),
+          on_gamepad_map_change:  ->(btn, gp) { active_input.set(btn, gp) },
+          on_keyboard_map_change: ->(btn, key) { active_input.set(btn, key) },
+          on_deadzone_change:     ->(val) { active_input.set_dead_zone(val) },
+          on_gamepad_reset:       -> { active_input.reset! },
+          on_keyboard_reset:      -> { active_input.reset! },
           on_undo_gamepad:        method(:undo_mappings),
           on_turbo_speed_change:  method(:apply_turbo_speed),
           on_aspect_ratio_change: method(:apply_aspect_ratio),
@@ -146,7 +107,7 @@ module Teek
         })
 
         # Push loaded config into the settings UI
-        @settings_window.refresh_gamepad(build_kb_labels, 0)
+        @settings_window.refresh_gamepad(@kb_map.labels, @kb_map.dead_zone_pct)
         turbo_label = @turbo_speed == 0 ? 'Uncapped' : "#{@turbo_speed}x"
         @app.set_variable(SettingsWindow::VAR_TURBO, turbo_label)
         scale_label = "#{@scale}x"
@@ -159,7 +120,6 @@ module Teek
         @app.set_variable(SettingsWindow::VAR_SS_BACKUP, @save_state_backup ? '1' : '0')
 
         # Input/emulation state (initialized before SDL2)
-        @keys_held = Set.new
         @gamepad = nil
         @running = true
         @paused = false
@@ -189,14 +149,11 @@ module Teek
       # @return [Teek::MGBA::SaveStateManager, nil] nil until ROM loaded
       attr_reader :save_mgr
 
-      # @return [Hash] current keyboard keysym → GBA button mapping
-      attr_reader :key_map
+      # @return [Teek::MGBA::KeyboardMap]
+      attr_reader :kb_map
 
-      # @return [Hash] current gamepad → GBA button mapping
-      attr_reader :gamepad_map
-
-      # @return [Integer] current analog stick dead zone threshold
-      attr_reader :dead_zone
+      # @return [Teek::MGBA::GamepadMap]
+      attr_reader :gp_map
 
       def run
         @sdl2_init_started = false
@@ -282,13 +239,16 @@ module Teek
         # Initialize gamepad subsystem for hot-plug detection
         Teek::SDL2::Gamepad.init_subsystem
         Teek::SDL2::Gamepad.on_added { |_| refresh_gamepads }
-        Teek::SDL2::Gamepad.on_removed { |_| @gamepad = nil; refresh_gamepads }
+        Teek::SDL2::Gamepad.on_removed { |_| @gamepad = nil; @gp_map.device = nil; refresh_gamepads }
         refresh_gamepads
         start_gamepad_probe
 
         setup_input
 
         load_rom(@initial_rom) if @initial_rom
+
+        # Apply fullscreen before unblocking (set via CLI --fullscreen)
+        @app.command(:wm, 'attributes', '.', '-fullscreen', 1) if @fullscreen
 
         # Unblock interaction now that SDL2 is ready
         @app.command('tk', 'busy', 'forget', '.')
@@ -388,22 +348,8 @@ module Teek
         @config.quick_save_slot = @quick_save_slot
         @config.save_state_backup = @save_state_backup
 
-        # Save keyboard mappings under sentinel GUID
-        @key_map.each do |keysym, bit|
-          gba_btn = GBA_BTN_BITS.key(bit)
-          @config.set_mapping(Config::KEYBOARD_GUID, gba_btn, keysym) if gba_btn
-        end
-
-        # Save gamepad mappings under real GUID
-        if (guid = current_gamepad_guid)
-          @config.gamepad(guid, name: @gamepad.name)
-          pct = (@dead_zone.to_f / 32767 * 100).round
-          @config.set_dead_zone(guid, pct)
-          @gamepad_map.each do |gp_btn, bit|
-            gba_btn = GBA_BTN_BITS.key(bit)
-            @config.set_mapping(guid, gba_btn, gp_btn) if gba_btn
-          end
-        end
+        @kb_map.save_to_config
+        @gp_map.save_to_config
         @config.save!
       end
 
@@ -422,51 +368,18 @@ module Teek
         @muted = !!muted
       end
 
-      def apply_gamepad_mapping(gba_btn, gp_btn)
-        bit = GBA_BTN_BITS[gba_btn] or return
-        @gamepad_map.delete_if { |_, v| v == bit }
-        @gamepad_map[gp_btn] = bit
+      # Returns the currently active input map based on settings window mode.
+      def active_input
+        @settings_window.keyboard_mode? ? @kb_map : @gp_map
       end
 
-      def apply_deadzone(threshold)
-        @dead_zone = threshold.to_i
-      end
-
-      def apply_gamepad_reset
-        @gamepad_map = DEFAULT_GAMEPAD_MAP.dup
-        @dead_zone = Teek::SDL2::Gamepad::DEAD_ZONE
-      end
-
-      def apply_keyboard_mapping(gba_btn, keysym)
-        bit = GBA_BTN_BITS[gba_btn] or return
-        @key_map.delete_if { |_, v| v == bit }
-        @key_map[keysym.to_s] = bit
-      end
-
-      def apply_keyboard_reset
-        @key_map = DEFAULT_KEY_MAP.dup
-      end
-
-      # Undo: reload mappings from disk for the current settings mode
+      # Undo: reload mappings from disk for the active input device.
       def undo_mappings
-        @config.reload!
-        if @settings_window.keyboard_mode?
-          load_keyboard_config
-          labels = build_kb_labels
-          @settings_window.refresh_gamepad(labels, 0)
-        else
-          load_gamepad_config if @gamepad
-          labels = build_gp_labels
-          pct = (@dead_zone.to_f / 32767 * 100).round
-          @settings_window.refresh_gamepad(labels, pct)
-        end
+        input = active_input
+        input.reload!
+        @settings_window.refresh_gamepad(input.labels, input.dead_zone_pct)
       end
 
-      def current_gamepad_guid
-        @gamepad&.guid rescue nil
-      end
-
-      # Load stored keyboard config from the sentinel GUID
       # Verify config/saves/states directories are writable.
       # Shows a Tk dialog and aborts if any are not.
       def check_writable_dirs
@@ -497,55 +410,6 @@ module Teek
                      title: 'mGBA Player', message: msg)
         @app.destroy('.')
         exit 1
-      end
-
-      def load_keyboard_config
-        kb_cfg = @config.mappings(Config::KEYBOARD_GUID)
-        @key_map = {}
-        kb_cfg.each do |gba_str, keysym|
-          bit = GBA_BTN_BITS[gba_str.to_sym]
-          next unless bit
-          @key_map[keysym] = bit
-        end
-      end
-
-      # Load stored gamepad config for the current controller
-      def load_gamepad_config
-        return unless @gamepad
-        guid = @gamepad.guid rescue return
-        gp_cfg = @config.gamepad(guid, name: @gamepad.name)
-
-        # Apply stored mappings
-        @gamepad_map = {}
-        gp_cfg['mappings'].each do |gba_str, gp_str|
-          bit = GBA_BTN_BITS[gba_str.to_sym]
-          next unless bit
-          @gamepad_map[gp_str.to_sym] = bit
-        end
-
-        # Apply stored dead zone
-        pct = gp_cfg['dead_zone']
-        @dead_zone = (pct / 100.0 * 32767).round
-      end
-
-      # Build label hash from current @key_map (for settings window refresh)
-      def build_kb_labels
-        labels = {}
-        @key_map.each do |keysym, bit|
-          gba_btn = GBA_BTN_BITS.key(bit)
-          labels[gba_btn] = keysym if gba_btn
-        end
-        labels
-      end
-
-      # Build label hash from current @gamepad_map (for settings window refresh)
-      def build_gp_labels
-        labels = {}
-        @gamepad_map.each do |gp_btn, bit|
-          gba_btn = GBA_BTN_BITS.key(bit)
-          labels[gba_btn] = gp_btn.to_s if gba_btn
-        end
-        labels
       end
 
       def start_gamepad_probe
@@ -598,7 +462,10 @@ module Teek
         end
         @settings_window&.update_gamepad_list(names)
         update_status_label
-        load_gamepad_config if @gamepad && @gamepad != prev_gp
+        if @gamepad && @gamepad != prev_gp
+          @gp_map.device = @gamepad
+          @gp_map.load_config
+        end
       end
 
       def update_status_label
@@ -629,12 +496,12 @@ module Teek
           elsif k == 'F8'
             quick_load
           else
-            @keys_held.add(k)
+            @keyboard.press(k)
           end
         end
 
         @viewport.bind('KeyRelease', :keysym) do |k|
-          @keys_held.delete(k)
+          @keyboard.release(k)
         end
 
         @viewport.bind('FocusIn')  { @has_focus = true }
@@ -1009,20 +876,13 @@ module Teek
       # steals NSKeyDown events from Tk, making quit/escape unresponsive.
       # Hot-plug detection is handled separately by start_gamepad_probe.
       def poll_input
-        kb_mask = 0
-        @key_map.each { |key, bit| kb_mask |= bit if @keys_held.include?(key) }
-
-        gp_mask = 0
         begin
           Teek::SDL2::Gamepad.update_state
-          if @gamepad && !@gamepad.closed?
-            @gamepad_map.each { |btn, bit| gp_mask |= bit if @gamepad.button?(btn) }
-          end
         rescue StandardError
           @gamepad = nil
+          @gp_map.device = nil
         end
-
-        kb_mask | gp_mask
+        @kb_map.mask | @gp_map.mask
       end
 
       def run_one_frame

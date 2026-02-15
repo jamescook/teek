@@ -11,9 +11,11 @@ Gem::Specification.new do |spec|
   spec.homepage      = "https://github.com/jamescook/teek"
   spec.licenses      = ["MIT"]
 
-  spec.files         = Dir.glob("{lib,ext,test,assets}/**/*").select { |f|
+  spec.files         = Dir.glob("{lib,ext,test,assets,bin}/**/*").select { |f|
                          File.file?(f) && f !~ /\.(bundle|so|o|log)$/
                        } + %w[teek-mgba.gemspec THIRD_PARTY_NOTICES]
+  spec.bindir        = "bin"
+  spec.executables   = ["teek-mgba"]
   spec.require_paths = ["lib"]
   spec.extensions    = ["ext/teek_mgba/extconf.rb"]
   spec.required_ruby_version = ">= 3.2"
