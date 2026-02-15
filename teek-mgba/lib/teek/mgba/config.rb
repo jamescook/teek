@@ -324,6 +324,15 @@ module Teek
         File.join(config_dir, FILENAME)
       end
 
+      # Delete the settings file at the given path (or the default).
+      # @return [String, nil] the path deleted, or nil if no file existed
+      def self.reset!(path: default_path)
+        if File.exist?(path)
+          File.delete(path)
+          path
+        end
+      end
+
       def self.config_dir
         p = Teek.platform
         if p.darwin?

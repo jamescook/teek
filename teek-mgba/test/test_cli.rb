@@ -189,6 +189,16 @@ class TestCLI < Minitest::Test
 
   # -- invalid args --
 
+  def test_reset_config_flag
+    opts = parse(["--reset-config"])
+    assert opts[:reset_config]
+  end
+
+  def test_yes_flag
+    opts = parse(["-y"])
+    assert opts[:yes]
+  end
+
   def test_unknown_flag_raises
     assert_raises(OptionParser::InvalidOption) { parse(["--bogus"]) }
   end

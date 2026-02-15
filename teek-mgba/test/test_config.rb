@@ -584,4 +584,21 @@ class TestMGBAConfig < Minitest::Test
     c.reload!
     assert_equal 4, c.scale
   end
+
+  # -- reset! ---------------------------------------------------------------
+
+  def test_reset_deletes_settings_file
+    c = new_config
+    c.save!
+    assert File.exist?(@path)
+
+    deleted = Teek::MGBA::Config.reset!(path: @path)
+    assert_equal @path, deleted
+    refute File.exist?(@path)
+  end
+
+  def test_reset_returns_nil_when_no_file
+    refute File.exist?(@path)
+    assert_nil Teek::MGBA::Config.reset!(path: @path)
+  end
 end

@@ -51,6 +51,14 @@ module Teek
             options[:locale] = v
           end
 
+          o.on("--reset-config", "Delete settings file and exit (keeps saves)") do
+            options[:reset_config] = true
+          end
+
+          o.on("-y", "--yes", "Skip confirmation prompts") do
+            options[:yes] = true
+          end
+
           o.on("--version", "Show version") do
             options[:version] = true
           end
@@ -94,6 +102,21 @@ module Teek
         end
 
         require "teek/mgba"
+
+        if options[:reset_config]
+          path = Config.default_path
+          unless File.exist?(path)
+            puts "No config file found at #{path}"
+            return
+          end
+          unless options[:yes]
+            print "Delete #{path}? [y/N] "
+            return unless $stdin.gets&.strip&.downcase == 'y'
+          end
+          Config.reset!(path: path)
+          puts "Deleted #{path}"
+          return
+        end
 
         apply(Teek::MGBA.user_config, options)
         Teek::MGBA.load_locale if options[:locale]
