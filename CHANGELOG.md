@@ -7,9 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+### Added
+
+- Native file drop target support — `App#register_drop_target(widget)` enables OS-level drag-and-drop onto Tk windows. Generates `<<DropFile>>` virtual events with the file path in event data. macOS (Cocoa), Windows (OLE IDropTarget), and Linux (X11 XDND) supported.
+- `:data` bind substitution for virtual event data (Tk 8.6+)
+
 ### Changed
 
 - API docs "View source" now displays the actual C source for C-backed methods (previously showed nothing)
+
+### Fixed
+
+- Tcl interpreter bootstrap on Fedora and other distros that ship Tcl symbols in a separate shared library from the Tk combined library
 
 ## [0.1.3] - 2026-02-11
 
