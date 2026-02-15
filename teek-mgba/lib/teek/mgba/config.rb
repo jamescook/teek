@@ -43,6 +43,7 @@ module Teek
         'color_correction'   => false,
         'frame_blending'     => false,
         'per_game_settings'  => false,
+        'tip_dismiss_ms'     => 4000,
       }.freeze
 
       # Settings that can be overridden per ROM. Maps config key → locale key.
@@ -313,6 +314,15 @@ module Teek
 
       def states_dir=(val)
         global['states_dir'] = val.to_s
+      end
+
+      # @return [Integer] tooltip auto-dismiss delay in milliseconds (hidden setting)
+      def tip_dismiss_ms
+        global['tip_dismiss_ms']
+      end
+
+      def tip_dismiss_ms=(val)
+        global['tip_dismiss_ms'] = val.to_i.clamp(1000, 30_000)
       end
 
       # @return [Float] debounce interval in seconds between save state operations (hidden setting)

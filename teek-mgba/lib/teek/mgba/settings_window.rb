@@ -3,6 +3,7 @@
 require_relative "child_window"
 require_relative "hotkey_map"
 require_relative "locale"
+require_relative "tip_service"
 
 module Teek
   module MGBA
@@ -156,9 +157,10 @@ module Teek
         on_validate_kb_mapping: ->(_) { nil },
       }.freeze
 
-      def initialize(app, callbacks: {})
+      def initialize(app, callbacks: {}, tip_dismiss_ms: TipService::DEFAULT_DISMISS_MS)
         @app = app
         @callbacks = CALLBACK_DEFAULTS.merge(callbacks)
+        @tip_dismiss_ms = tip_dismiss_ms
         @listening_for = nil
         @listen_timer = nil
         @keyboard_mode = true
@@ -198,6 +200,7 @@ module Teek
       PER_GAME_TABS = Set.new(["#{NB}.video", "#{NB}.audio", SS_TAB]).freeze
 
       def hide
+        @tips&.hide
         hide_window
       end
 
@@ -251,6 +254,8 @@ module Teek
         # Bold button style for customized mappings
         @app.tcl_eval("ttk::style configure Bold.TButton -font [list {*}[font actual TkDefaultFont] -weight bold]")
 
+        @tips = TipService.new(@app, parent: TOP, dismiss_ms: @tip_dismiss_ms)
+
         # Per-game settings bar (above notebook, initially hidden)
         @app.command('ttk::frame', PER_GAME_BAR)
         @app.set_variable(VAR_PER_GAME, '0')
@@ -264,6 +269,11 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, PER_GAME_CHECK, side: :left, padx: 5)
+
+        per_game_tip = "#{PER_GAME_BAR}.tip"
+        @app.command('ttk::label', per_game_tip, text: '(?)')
+        @app.command(:pack, per_game_tip, side: :left)
+        @tips.register(per_game_tip, translate('settings.tip_per_game'))
 
         @app.command('ttk::notebook', NB)
         @app.command(:pack, NB, fill: :both, expand: 1, padx: 5, pady: [5, 0])
@@ -323,6 +333,7 @@ module Teek
 
         @app.command('ttk::label', "#{turbo_row}.lbl", text: translate('settings.turbo_speed'))
         @app.command(:pack, "#{turbo_row}.lbl", side: :left)
+        @tips.register("#{turbo_row}.lbl", translate('settings.tip_turbo_speed'))
 
         @app.set_variable(VAR_TURBO, '2x')
         @app.command('ttk::combobox', TURBO_COMBO,
@@ -379,6 +390,7 @@ module Teek
 
         @app.command('ttk::label', "#{toast_row}.lbl", text: translate('settings.toast_duration'))
         @app.command(:pack, "#{toast_row}.lbl", side: :left)
+        @tips.register("#{toast_row}.lbl", translate('settings.tip_toast_duration'))
 
         @app.set_variable(VAR_TOAST_DURATION, '1.5s')
         @app.command('ttk::combobox', TOAST_COMBO,
@@ -405,6 +417,7 @@ module Teek
 
         @app.command('ttk::label', "#{filter_row}.lbl", text: translate('settings.pixel_filter'))
         @app.command(:pack, "#{filter_row}.lbl", side: :left)
+        @tips.register("#{filter_row}.lbl", translate('settings.tip_pixel_filter'))
 
         @app.set_variable(VAR_FILTER, translate('settings.filter_nearest'))
         @app.command('ttk::combobox', FILTER_COMBO,
@@ -437,6 +450,10 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, INTEGER_SCALE_CHECK, side: :left)
+        intscale_tip = "#{intscale_row}.tip"
+        @app.command('ttk::label', intscale_tip, text: '(?)')
+        @app.command(:pack, intscale_tip, side: :left)
+        @tips.register(intscale_tip, translate('settings.tip_integer_scale'))
 
         # Color correction checkbox
         colorcorr_row = "#{frame}.colorcorr_row"
@@ -453,6 +470,10 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, COLOR_CORRECTION_CHECK, side: :left)
+        colorcorr_tip = "#{colorcorr_row}.tip"
+        @app.command('ttk::label', colorcorr_tip, text: '(?)')
+        @app.command(:pack, colorcorr_tip, side: :left)
+        @tips.register(colorcorr_tip, translate('settings.tip_color_correction'))
 
         # Frame blending checkbox
         frameblend_row = "#{frame}.frameblend_row"
@@ -469,6 +490,10 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, FRAME_BLENDING_CHECK, side: :left)
+        frameblend_tip = "#{frameblend_row}.tip"
+        @app.command('ttk::label', frameblend_tip, text: '(?)')
+        @app.command(:pack, frameblend_tip, side: :left)
+        @tips.register(frameblend_tip, translate('settings.tip_frame_blending'))
       end
 
       def setup_audio_tab
@@ -578,6 +603,7 @@ module Teek
 
         @app.command('ttk::label', "#{dz_row}.lbl", text: translate('settings.dead_zone'))
         @app.command(:pack, "#{dz_row}.lbl", side: :left)
+        @tips.register("#{dz_row}.lbl", translate('settings.tip_dead_zone'))
 
         @dz_val_label = "#{dz_row}.dz_label"
         @app.command('ttk::label', @dz_val_label, text: '25%', width: 5)
@@ -682,6 +708,10 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, SS_BACKUP_CHECK, side: :left)
+        backup_tip = "#{backup_row}.tip"
+        @app.command('ttk::label', backup_tip, text: '(?)')
+        @app.command(:pack, backup_tip, side: :left)
+        @tips.register(backup_tip, translate('settings.tip_keep_backup'))
 
         # Open Config Folder button
         dir_row = "#{frame}.dir_row"
@@ -980,6 +1010,7 @@ module Teek
         @app.command(HK_UNDO_BTN, 'configure', state: :disabled)
         @callbacks[:on_hotkey_reset]&.call
       end
+
     end
   end
 end

@@ -95,7 +95,7 @@ module Teek
           on_close: method(:on_child_window_close),
         })
 
-        @settings_window = SettingsWindow.new(@app, callbacks: {
+        @settings_window = SettingsWindow.new(@app, tip_dismiss_ms: @config.tip_dismiss_ms, callbacks: {
           on_scale_change:        method(:apply_scale),
           on_volume_change:       method(:apply_volume),
           on_mute_change:         method(:apply_mute),
