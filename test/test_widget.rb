@@ -133,4 +133,27 @@ class TestWidget < Minitest::Test
       assert_equal btn.path.hash, btn.hash
     end
   end
+
+  # Tcl brace quoting breaks when a string ends with a backslash (\}
+  # is treated as an escaped brace). Verify that configure -text works
+  # with backslash values.
+  def test_configure_text_with_backslash
+    assert_tk_app("configure text with backslash") do
+      btn = app.create_widget('ttk::button', text: 'Hi')
+      app.command(btn.path, 'configure', text: '\\')
+      app.update
+      result = app.command(btn.path, 'cget', '-text')
+      assert_equal '\\', result
+    end
+  end
+
+  def test_configure_text_with_trailing_backslash
+    assert_tk_app("configure text with trailing backslash") do
+      lbl = app.create_widget(:label, text: 'start')
+      app.command(lbl.path, 'configure', text: 'path\\to\\')
+      app.update
+      result = app.command(lbl.path, 'cget', '-text')
+      assert_equal 'path\\to\\', result
+    end
+  end
 end

@@ -778,7 +778,18 @@ module Teek
       when Array
         "{#{value.map { |v| tcl_value(v) }.join(' ')}}"
       else
-        "{#{value}}"
+        tcl_quote_string(value.to_s)
+      end
+    end
+
+    # Brace-quote a string for Tcl, falling back to double-quote quoting
+    # when the string ends with a backslash (Tcl treats \} as an escaped
+    # brace, preventing the closing brace from terminating the group).
+    def tcl_quote_string(s)
+      if s.end_with?('\\')
+        '"' + s.gsub(/[\\\[\]$"]/) { |c| "\\#{c}" } + '"'
+      else
+        "{#{s}}"
       end
     end
   end
