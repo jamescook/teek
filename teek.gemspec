@@ -12,7 +12,8 @@ Gem::Specification.new do |spec|
   spec.licenses      = ["MIT"]
 
   spec.files         = Dir.glob("{lib,ext,exe}/**/*").select { |f|
-                         File.file?(f) && f !~ /\.(bundle|so|o|log)$/
+                         File.file?(f) && f !~ /\.(bundle|so|o|log)$/ &&
+                           !f.include?('.dSYM/') && File.basename(f) != 'Makefile'
                        } + %w[Rakefile LICENSE README.md teek.gemspec Gemfile]
   spec.bindir        = "exe"
   spec.executables   = spec.files.grep(%r{^exe/}) { |f| File.basename(f) }

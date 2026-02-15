@@ -12,7 +12,9 @@ Gem::Specification.new do |spec|
   spec.licenses      = ["MIT"]
 
   spec.files         = Dir.glob("{lib,ext,test}/**/*").select { |f|
-                         File.file?(f) && f !~ /\.(bundle|so|o|log)$/
+                         File.file?(f) && f !~ /\.(bundle|so|o|log)$/ &&
+                           !f.include?('.dSYM/') && !f.end_with?('/Makefile') &&
+                           File.basename(f) != 'Makefile'
                        } + %w[teek-sdl2.gemspec]
   spec.require_paths = ["lib"]
   spec.extensions    = ["ext/teek_sdl2/extconf.rb"]

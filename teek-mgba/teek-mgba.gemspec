@@ -12,7 +12,8 @@ Gem::Specification.new do |spec|
   spec.licenses      = ["MIT"]
 
   spec.files         = Dir.glob("{lib,ext,test,assets,bin}/**/*").select { |f|
-                         File.file?(f) && f !~ /\.(bundle|so|o|log)$/
+                         File.file?(f) && f !~ /\.(bundle|so|o|log)$/ &&
+                           !f.include?('.dSYM/') && File.basename(f) != 'Makefile'
                        } + %w[teek-mgba.gemspec THIRD_PARTY_NOTICES]
   spec.bindir        = "bin"
   spec.executables   = ["teek-mgba"]
