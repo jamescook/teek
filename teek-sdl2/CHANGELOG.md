@@ -75,6 +75,4 @@ Initial release.
 - SDL2 demo sample
 
 [Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.2...HEAD
-[0.1.2]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.1...teek-sdl2-v0.1.2
-[0.1.1]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.0...teek-sdl2-v0.1.1
-[0.1.0]: https://github.com/jamescook/teek/releases/tag/teek-sdl2-v0.1.0
+[0.1.2]: https://github.com/jamescook/teek/releases/tag/teek-sdl2-v0.1.2
