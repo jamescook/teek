@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.1.2] - 2026-02-14
+
 ### Added
 
 - `Teek::SDL2::AudioStream` — push-based real-time PCM audio output for emulators, synthesizers, and procedural audio. Supports `:s16`, `:f32`, and `:u8` sample formats with configurable frequency and channels
@@ -72,6 +74,7 @@ Initial release.
 - Screenshot-based visual regression testing via `assert_sdl2_screenshot`
 - SDL2 demo sample
 
-[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.1...HEAD
+[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.2...HEAD
+[0.1.2]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.1...teek-sdl2-v0.1.2
 [0.1.1]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.0...teek-sdl2-v0.1.1
 [0.1.0]: https://github.com/jamescook/teek/releases/tag/teek-sdl2-v0.1.0
