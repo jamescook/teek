@@ -610,6 +610,7 @@ module Teek
       button: '%b',                        # mouse button number
       mouse_wheel: '%D',                   # mousewheel delta
       type: '%T',                          # event type
+      data: '%d',                          # virtual event data (Tk 8.6+)
     }.freeze
 
     def bind(widget, event, *subs, &block)
@@ -629,6 +630,22 @@ module Teek
     def unbind(widget, event)
       event_str = event.start_with?('<') ? event : "<#{event}>"
       @interp.tcl_eval("bind #{widget} #{event_str} {}")
+    end
+
+    # Register a widget as a file drop target.
+    # After registration, dropping files onto the widget generates a single
+    # +<<DropFile>>+ virtual event with all file paths as a Tcl list in the
+    # event data. Use {#split_list} to convert to a Ruby array.
+    # @param widget [String] Tk widget path (e.g., ".", ".frame")
+    # @return [void]
+    # @example
+    #   app.register_drop_target('.')
+    #   app.bind('.', '<<DropFile>>', :data) do |data|
+    #     paths = app.split_list(data)
+    #     puts "Dropped #{paths.length} file(s): #{paths.inspect}"
+    #   end
+    def register_drop_target(widget)
+      @interp.register_drop_target(widget.to_s)
     end
 
     # Get the macOS window appearance. No-op (returns +nil+) on non-macOS.

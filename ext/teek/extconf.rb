@@ -69,11 +69,29 @@ def find_tcltk
 
   abort "Tcl stub library not found" unless tcl_stub
   abort "Tk stub library not found" unless tk_stub
+
+  # Also link the real Tcl shared library so it's loaded at runtime.
+  # Some distros (e.g. Fedora) ship Tcl symbols in a separate .so that
+  # stubs alone don't pull in, causing dlsym() to fail at bootstrap.
+  have_library('tcl9.0') || have_library('tcl8.6') || have_library('tcl')
 end
 
 find_tcltk
 
 # Source files for the extension
-$srcs = ['tcltkbridge.c', 'tkphoto.c', 'tkfont.c', 'tkwin.c', 'tkeventsource.c']
+$srcs = ['tcltkbridge.c', 'tkphoto.c', 'tkfont.c', 'tkwin.c', 'tkeventsource.c', 'tkdrop.c']
+
+# Platform-specific file drop target
+case RbConfig::CONFIG['host_os']
+when /darwin/
+  $srcs << 'tkdrop_macos.m'
+  $LDFLAGS << ' -framework Cocoa'
+when /mingw|mswin|cygwin/
+  $srcs << 'tkdrop_win.c'
+  have_library('ole32')
+  have_library('shell32')
+else
+  $srcs << 'tkdrop_x11.c'
+end
 
 create_makefile('tcltklib')

@@ -59,6 +59,39 @@ static void *get_tcl_proc(const char *name)
 }
 #endif
 
+/* Try to dlopen the real Tcl shared library if it's not already loaded.
+ * Some distros (e.g. Fedora) ship Tcl/Tk in separate .so files and only
+ * the Tk combined library gets pulled in via stubs, leaving Tcl_CreateInterp
+ * unresolvable via RTLD_DEFAULT. */
+#ifndef _WIN32
+static void *tcl_dlhandle = NULL;
+
+static void *
+dlsym_tcl(const char *name)
+{
+    void *sym = dlsym(RTLD_DEFAULT, name);
+    if (sym) return sym;
+
+    /* Try loading the real Tcl library explicitly */
+    if (!tcl_dlhandle) {
+        static const char *lib_names[] = {
+            "libtcl9.0.so", "libtcl8.6.so",
+            "libtcl9.0.dylib", "libtcl8.6.dylib",
+            NULL
+        };
+        int i;
+        for (i = 0; lib_names[i]; i++) {
+            tcl_dlhandle = dlopen(lib_names[i], RTLD_NOW | RTLD_GLOBAL);
+            if (tcl_dlhandle) break;
+        }
+    }
+    if (tcl_dlhandle) {
+        sym = dlsym(tcl_dlhandle, name);
+    }
+    return sym;
+}
+#endif
+
 static void
 find_executable_bootstrap(const char *argv0)
 {
@@ -71,7 +104,7 @@ find_executable_bootstrap(const char *argv0)
 #ifdef _WIN32
     real_find_executable = (void (*)(const char *))get_tcl_proc("Tcl_FindExecutable");
 #else
-    real_find_executable = dlsym(RTLD_DEFAULT, "Tcl_FindExecutable");
+    real_find_executable = dlsym_tcl("Tcl_FindExecutable");
 #endif
     if (real_find_executable) {
         real_find_executable(argv0);
@@ -89,7 +122,7 @@ create_interp_bootstrap(void)
 #ifdef _WIN32
     real_create_interp = (Tcl_Interp *(*)(void))get_tcl_proc("Tcl_CreateInterp");
 #else
-    real_create_interp = dlsym(RTLD_DEFAULT, "Tcl_CreateInterp");
+    real_create_interp = dlsym_tcl("Tcl_CreateInterp");
 #endif
     if (!real_create_interp) {
         return NULL;
@@ -1489,6 +1522,9 @@ Init_tcltklib(void)
 
     /* External event source integration (tkeventsource.c) */
     Init_tkeventsource(mTeek);
+
+    /* File drop target support (tkdrop.c) */
+    Init_tkdrop(cInterp);
 
     /* Class methods for instance tracking */
     rb_define_singleton_method(cInterp, "instance_count", tcltkip_instance_count, 0);

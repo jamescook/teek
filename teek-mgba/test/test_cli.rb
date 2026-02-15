@@ -14,7 +14,12 @@ class TestCLI < Minitest::Test
 
   def test_rom_path
     opts = parse(["game.gba"])
-    assert_equal "game.gba", opts[:rom]
+    assert_equal File.expand_path("game.gba"), opts[:rom]
+  end
+
+  def test_rom_path_expands_tilde
+    opts = parse(["~/game.gba"])
+    assert_equal File.join(Dir.home, "game.gba"), opts[:rom]
   end
 
   def test_no_rom
@@ -120,12 +125,12 @@ class TestCLI < Minitest::Test
     opts = parse(["-s", "2", "--mute", "pokemon.gba"])
     assert_equal 2, opts[:scale]
     assert opts[:mute]
-    assert_equal "pokemon.gba", opts[:rom]
+    assert_equal File.expand_path("pokemon.gba"), opts[:rom]
   end
 
   def test_rom_before_flags
     opts = parse(["game.gba", "--scale", "4"])
-    assert_equal "game.gba", opts[:rom]
+    assert_equal File.expand_path("game.gba"), opts[:rom]
     assert_equal 4, opts[:scale]
   end
 
@@ -197,6 +202,21 @@ class TestCLI < Minitest::Test
   def test_yes_flag
     opts = parse(["-y"])
     assert opts[:yes]
+  end
+
+  def test_frames
+    opts = parse(["--frames", "100", "game.gba"])
+    assert_equal 100, opts[:frames]
+  end
+
+  def test_frames_without_value_raises
+    assert_raises(OptionParser::MissingArgument) { parse(["--frames"]) }
+  end
+
+  def test_frames_without_rom_exits
+    assert_raises(SystemExit) do
+      Teek::MGBA::CLI.run(["--frames", "100"])
+    end
   end
 
   def test_unknown_flag_raises

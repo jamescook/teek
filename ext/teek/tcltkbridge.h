@@ -42,4 +42,7 @@ void Init_tkwin(VALUE cInterp);
 /* External event source integration - defined in tkeventsource.c */
 void Init_tkeventsource(VALUE mTeek);
 
+/* File drop target support - defined in tkdrop.c */
+void Init_tkdrop(VALUE cInterp);
+
 #endif /* TCLTKBRIDGE_H */
