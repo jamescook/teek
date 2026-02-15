@@ -39,16 +39,16 @@ module Teek
       GP_UNDO_BTN    = "#{GAMEPAD_TAB}.btn_bar.undo_btn"
 
       # GBA button widget paths (for remapping)
-      GP_BTN_A      = "#{GAMEPAD_TAB}.buttons.right.btn_a"
-      GP_BTN_B      = "#{GAMEPAD_TAB}.buttons.right.btn_b"
-      GP_BTN_L      = "#{GAMEPAD_TAB}.buttons.shoulders.btn_l"
-      GP_BTN_R      = "#{GAMEPAD_TAB}.buttons.shoulders.btn_r"
-      GP_BTN_UP     = "#{GAMEPAD_TAB}.buttons.left.btn_up"
-      GP_BTN_DOWN   = "#{GAMEPAD_TAB}.buttons.left.btn_down"
-      GP_BTN_LEFT   = "#{GAMEPAD_TAB}.buttons.left.btn_left"
-      GP_BTN_RIGHT  = "#{GAMEPAD_TAB}.buttons.left.btn_right"
-      GP_BTN_START  = "#{GAMEPAD_TAB}.buttons.center.btn_start"
-      GP_BTN_SELECT = "#{GAMEPAD_TAB}.buttons.center.btn_select"
+      GP_BTN_A      = "#{GAMEPAD_TAB}.row_a.btn"
+      GP_BTN_B      = "#{GAMEPAD_TAB}.row_b.btn"
+      GP_BTN_L      = "#{GAMEPAD_TAB}.row_l.btn"
+      GP_BTN_R      = "#{GAMEPAD_TAB}.row_r.btn"
+      GP_BTN_UP     = "#{GAMEPAD_TAB}.row_up.btn"
+      GP_BTN_DOWN   = "#{GAMEPAD_TAB}.row_down.btn"
+      GP_BTN_LEFT   = "#{GAMEPAD_TAB}.row_left.btn"
+      GP_BTN_RIGHT  = "#{GAMEPAD_TAB}.row_right.btn"
+      GP_BTN_START  = "#{GAMEPAD_TAB}.row_start.btn"
+      GP_BTN_SELECT = "#{GAMEPAD_TAB}.row_select.btn"
 
       # Hotkeys tab widget paths
       HK_TAB         = "#{NB}.hotkeys"
@@ -75,6 +75,15 @@ module Teek
         show_fps: 'settings.hk_show_fps', quick_save: 'settings.hk_quick_save',
         quick_load: 'settings.hk_quick_load', save_states: 'settings.hk_save_states',
         screenshot: 'settings.hk_screenshot',
+      }.freeze
+
+      # GBA button → locale key mapping
+      GP_LOCALE_KEYS = {
+        a: 'settings.gp_a', b: 'settings.gp_b',
+        l: 'settings.gp_l', r: 'settings.gp_r',
+        up: 'settings.gp_up', down: 'settings.gp_down',
+        left: 'settings.gp_left', right: 'settings.gp_right',
+        start: 'settings.gp_start', select: 'settings.gp_select',
       }.freeze
 
       # Save States tab widget paths
@@ -145,7 +154,7 @@ module Teek
         @hk_listen_timer = nil
         @hk_labels = HotkeyMap::DEFAULTS.dup
 
-        build_toplevel(translate('menu.settings'), geometry: '700x460') { setup_ui }
+        build_toplevel(translate('menu.settings'), geometry: '700x560') { setup_ui }
       end
 
       # @return [Symbol, nil] the GBA button currently listening for remap, or nil
@@ -397,54 +406,21 @@ module Teek
         @app.command(:bind, GAMEPAD_COMBO, '<<ComboboxSelected>>',
           proc { |*| switch_input_mode })
 
-        # GBA button layout
-        buttons_frame = "#{frame}.buttons"
-        @app.command('ttk::frame', buttons_frame)
-        @app.command(:pack, buttons_frame, fill: :both, expand: 1, padx: 10, pady: 4)
+        # GBA button rows (vertical list, matching hotkeys tab style)
+        GBA_BUTTONS.each do |gba_btn, btn_path|
+          row = "#{frame}.row_#{gba_btn}"
+          @app.command('ttk::frame', row)
+          @app.command(:pack, row, fill: :x, padx: 10, pady: 2)
 
-        # Shoulders: L and R at top
-        shoulders = "#{buttons_frame}.shoulders"
-        @app.command('ttk::frame', shoulders)
-        @app.command(:pack, shoulders, fill: :x, pady: [0, 8])
-        make_gba_button(GP_BTN_L, shoulders, :l, side: :left)
-        make_gba_button(GP_BTN_R, shoulders, :r, side: :right)
+          lbl_path = "#{row}.lbl"
+          @app.command('ttk::label', lbl_path, text: translate(GP_LOCALE_KEYS[gba_btn]), width: 14, anchor: :w)
+          @app.command(:pack, lbl_path, side: :left)
 
-        # Middle: three columns — D-pad | Select/Start | A/B
-        mid = "#{buttons_frame}.mid"
-        @app.command('ttk::frame', mid)
-        @app.command(:pack, mid, fill: :both, expand: 1)
-
-        # D-pad (left column)
-        left = "#{buttons_frame}.left"
-        @app.command('ttk::frame', left)
-        @app.command(:pack, left, side: :left, padx: [0, 20])
-        dpad_top = "#{left}.top"
-        @app.command('ttk::frame', dpad_top)
-        @app.command(:pack, dpad_top)
-        make_gba_button(GP_BTN_UP, dpad_top, :up, side: :top)
-        dpad_mid = "#{left}.mid"
-        @app.command('ttk::frame', dpad_mid)
-        @app.command(:pack, dpad_mid)
-        make_gba_button(GP_BTN_LEFT, dpad_mid, :left, side: :left)
-        make_gba_button(GP_BTN_RIGHT, dpad_mid, :right, side: :left)
-        dpad_bot = "#{left}.bot"
-        @app.command('ttk::frame', dpad_bot)
-        @app.command(:pack, dpad_bot)
-        make_gba_button(GP_BTN_DOWN, dpad_bot, :down, side: :top)
-
-        # A/B (right column)
-        right = "#{buttons_frame}.right"
-        @app.command('ttk::frame', right)
-        @app.command(:pack, right, side: :right, padx: [20, 0], pady: [15, 0])
-        make_gba_button(GP_BTN_B, right, :b, side: :left)
-        make_gba_button(GP_BTN_A, right, :a, side: :left)
-
-        # Start/Select (center column)
-        center = "#{buttons_frame}.center"
-        @app.command('ttk::frame', center)
-        @app.command(:pack, center, side: :left, expand: 1, pady: [30, 0])
-        make_gba_button(GP_BTN_SELECT, center, :select, side: :left)
-        make_gba_button(GP_BTN_START, center, :start, side: :left)
+          label = btn_display(gba_btn)
+          @app.command('ttk::button', btn_path, text: label, width: 12,
+            command: proc { start_listening(gba_btn) })
+          @app.command(:pack, btn_path, side: :right)
+        end
 
         # Bottom bar: Undo (left) | Reset to Defaults (right)
         btn_bar = "#{frame}.btn_bar"
@@ -581,16 +557,8 @@ module Teek
         @app.command(:pack, SS_OPEN_DIR_BTN, side: :left)
       end
 
-      def make_gba_button(path, parent, gba_btn, side: :left)
-        label = btn_display(gba_btn)
-        @app.command('ttk::button', path, text: label, width: 16,
-          command: proc { start_listening(gba_btn) })
-        @app.command(:pack, path, side: side, padx: 2, pady: 2)
-      end
-
       def btn_display(gba_btn)
-        gp = @gp_labels[gba_btn] || '?'
-        "#{gba_btn.upcase}: #{gp}"
+        @gp_labels[gba_btn] || '?'
       end
 
       def confirm_reset_gamepad
@@ -656,7 +624,7 @@ module Teek
         cancel_listening
         @listening_for = gba_btn
         widget = GBA_BUTTONS[gba_btn]
-        @app.command(widget, 'configure', text: "#{gba_btn.upcase}: #{translate('settings.press')}")
+        @app.command(widget, 'configure', text: translate('settings.press'))
         @listen_timer = @app.after(LISTEN_TIMEOUT_MS) { cancel_listening }
 
         if @keyboard_mode

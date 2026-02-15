@@ -70,6 +70,16 @@ settings:
   hk_save_states: "Save States"
   hk_screenshot: "Screenshot"
   hk_reset_defaults: "Reset to Defaults"
+  gp_a: "A"
+  gp_b: "B"
+  gp_l: "L"
+  gp_r: "R"
+  gp_up: "Up"
+  gp_down: "Down"
+  gp_left: "Left"
+  gp_right: "Right"
+  gp_start: "Start"
+  gp_select: "Select"
 
 picker:
   title: "Save States"

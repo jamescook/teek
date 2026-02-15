@@ -247,7 +247,7 @@ class TestMGBASettingsWindow < Minitest::Test
 
       assert_equal :a, sw.listening_for
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal "A: Press\u2026", text
+      assert_equal "Press\u2026", text
     end
   end
 
@@ -274,7 +274,7 @@ class TestMGBASettingsWindow < Minitest::Test
       assert_equal :a, received_gba
       assert_equal 'q', received_key
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal 'A: q', text
+      assert_equal 'q', text
     end
   end
 
@@ -368,7 +368,7 @@ class TestMGBASettingsWindow < Minitest::Test
 
       # Verify labels restored
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal 'A: a', text
+      assert_equal 'a', text
     end
   end
 
@@ -474,9 +474,9 @@ class TestMGBASettingsWindow < Minitest::Test
       app.update
 
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal 'A: z', text
+      assert_equal 'z', text
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_START, 'cget', '-text')
-      assert_equal 'START: Return', text
+      assert_equal 'Return', text
     end
   end
 
@@ -494,9 +494,9 @@ class TestMGBASettingsWindow < Minitest::Test
 
       refute sw.keyboard_mode?
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal 'A: a', text
+      assert_equal 'a', text
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_START, 'cget', '-text')
-      assert_equal 'START: start', text
+      assert_equal 'start', text
     end
   end
 
@@ -570,7 +570,7 @@ class TestMGBASettingsWindow < Minitest::Test
 
       assert_nil sw.listening_for
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal 'A: a', text  # reverted to gamepad default (not "Press...")
+      assert_equal 'a', text  # reverted to gamepad default (not "Press...")
     end
   end
 
@@ -624,7 +624,7 @@ class TestMGBASettingsWindow < Minitest::Test
       assert_equal :x, received_gp
 
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_B, 'cget', '-text')
-      assert_equal 'B: x', text
+      assert_equal 'x', text
 
       gp.set_virtual_button(:x, false)
       gp.close
@@ -662,7 +662,7 @@ class TestMGBASettingsWindow < Minitest::Test
       assert_equal '"F5" is assigned to hotkey: Quick save', conflict_msg
       # Label should revert to original default
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal 'A: z', text
+      assert_equal 'z', text
       assert_nil sw.listening_for
     end
   end
@@ -686,7 +686,7 @@ class TestMGBASettingsWindow < Minitest::Test
 
       assert_equal :a, received_gba
       text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
-      assert_equal 'A: m', text
+      assert_equal 'm', text
     end
   end
 

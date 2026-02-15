@@ -70,6 +70,16 @@ settings:
   hk_save_states: "ステートセーブ"
   hk_screenshot: "スクリーンショット"
   hk_reset_defaults: "デフォルトに戻す"
+  gp_a: "A"
+  gp_b: "B"
+  gp_l: "L"
+  gp_r: "R"
+  gp_up: "上"
+  gp_down: "下"
+  gp_left: "左"
+  gp_right: "右"
+  gp_start: "スタート"
+  gp_select: "セレクト"
 
 picker:
   title: "ステートセーブ"
