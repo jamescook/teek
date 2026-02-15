@@ -34,6 +34,8 @@ dialog:
   rom_not_found_msg: "The ROM file no longer exists:\n{path}"
   reset_gamepad_title: "Reset Gamepad"
   reset_gamepad_msg: "Reset all gamepad mappings and dead zone to defaults?"
+  reset_hotkeys_title: "Reset Hotkeys"
+  reset_hotkeys_msg: "Reset all hotkey bindings to defaults?"
   key_conflict_title: "Key Conflict"
 
 settings:
@@ -54,6 +56,10 @@ settings:
   quick_save_slot: "Quick Save Slot:"
   keep_backup: "Keep backup of previous save state"
   save: "Save"
+  key_up: "↑ Up"
+  key_down: "↓ Down"
+  key_left: "← Left"
+  key_right: "→ Right"
   keyboard_only: "Keyboard Only"
   no_gamepad: "No gamepad detected"
   uncapped: "Uncapped"

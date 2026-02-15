@@ -139,7 +139,8 @@ class TestMGBASettingsHotkeys < Minitest::Test
       require "teek/mgba/hotkey_map"
       reset_called = false
       sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
-        on_hotkey_reset: proc { reset_called = true }
+        on_hotkey_reset: proc { reset_called = true },
+        on_confirm_reset_hotkeys: -> { true },
       })
       sw.show
       app.update

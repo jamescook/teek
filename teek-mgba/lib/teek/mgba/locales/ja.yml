@@ -34,6 +34,8 @@ dialog:
   rom_not_found_msg: "ROMファイルが存在しません:\n{path}"
   reset_gamepad_title: "ゲームパッドをリセット"
   reset_gamepad_msg: "すべてのゲームパッド設定をデフォルトに戻しますか？"
+  reset_hotkeys_title: "ホットキーをリセット"
+  reset_hotkeys_msg: "すべてのホットキー設定をデフォルトに戻しますか？"
   key_conflict_title: "キーの競合"
 
 settings:
@@ -54,6 +56,10 @@ settings:
   quick_save_slot: "クイックセーブスロット:"
   keep_backup: "ステートセーブのバックアップを保持"
   save: "保存"
+  key_up: "↑ 上"
+  key_down: "↓ 下"
+  key_left: "← 左"
+  key_right: "→ 右"
   keyboard_only: "キーボードのみ"
   no_gamepad: "ゲームパッドが検出されません"
   uncapped: "無制限"

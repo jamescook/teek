@@ -210,6 +210,9 @@ module Teek
       end
 
       def setup_ui
+        # Bold button style for customized mappings
+        @app.tcl_eval("ttk::style configure Bold.TButton -font [list {*}[font actual TkDefaultFont] -weight bold]")
+
         @app.command('ttk::notebook', NB)
         @app.command(:pack, NB, fill: :both, expand: 1, padx: 5, pady: [5, 0])
 
@@ -460,8 +463,8 @@ module Teek
           @app.command('ttk::label', lbl_path, text: translate(GP_LOCALE_KEYS[gba_btn]), width: 14, anchor: :w)
           @app.command(:pack, lbl_path, side: :left)
 
-          label = btn_display(gba_btn)
-          @app.command('ttk::button', btn_path, text: label, width: 12,
+          @app.command('ttk::button', btn_path, text: btn_display(gba_btn), width: 12,
+            style: gp_customized?(gba_btn) ? 'Bold.TButton' : 'TButton',
             command: proc { start_listening(gba_btn) })
           @app.command(:pack, btn_path, side: :right)
         end
@@ -525,6 +528,7 @@ module Teek
 
           keysym = @hk_labels[action] || '?'
           @app.command('ttk::button', btn_path, text: keysym, width: 12,
+            style: hk_customized?(action) ? 'Bold.TButton' : 'TButton',
             command: proc { start_hk_listening(action) })
           @app.command(:pack, btn_path, side: :right)
         end
@@ -539,7 +543,7 @@ module Teek
         @app.command(:pack, HK_UNDO_BTN, side: :left)
 
         @app.command('ttk::button', HK_RESET_BTN, text: translate('settings.hk_reset_defaults'),
-          command: proc { reset_hotkey_defaults })
+          command: proc { confirm_reset_hotkeys })
         @app.command(:pack, HK_RESET_BTN, side: :right)
       end
 
@@ -601,25 +605,53 @@ module Teek
         @app.command(:pack, SS_OPEN_DIR_BTN, side: :left)
       end
 
+      KEY_DISPLAY_LOCALE = {
+        'Up' => 'settings.key_up', 'Down' => 'settings.key_down',
+        'Left' => 'settings.key_left', 'Right' => 'settings.key_right',
+      }.freeze
+
       def btn_display(gba_btn)
-        @gp_labels[gba_btn] || '?'
+        label = @gp_labels[gba_btn] || '?'
+        locale_key = KEY_DISPLAY_LOCALE[label]
+        locale_key ? translate(locale_key) : label
+      end
+
+      def gp_customized?(gba_btn)
+        defaults = @keyboard_mode ? DEFAULT_KB_LABELS : DEFAULT_GP_LABELS
+        @gp_labels[gba_btn] != defaults[gba_btn]
+      end
+
+      def hk_customized?(action)
+        @hk_labels[action] != HotkeyMap::DEFAULTS[action]
+      end
+
+      # Update a mapping button's text and bold style.
+      def style_btn(widget, text, bold)
+        @app.command(widget, 'configure', text: text, style: bold ? 'Bold.TButton' : 'TButton')
       end
 
       def confirm_reset_gamepad
         cancel_listening
-        result = @app.command('tk_messageBox',
-          parent: TOP,
-          title: translate('dialog.reset_gamepad_title'),
-          message: translate('dialog.reset_gamepad_msg'),
-          type: :yesno,
-          icon: :question)
-        reset_gamepad_defaults if result == 'yes'
+        confirmed = if @callbacks[:on_confirm_reset_gamepad]
+          @callbacks[:on_confirm_reset_gamepad].call
+        else
+          @app.command('tk_messageBox',
+            parent: TOP,
+            title: translate('dialog.reset_gamepad_title'),
+            message: translate('dialog.reset_gamepad_msg'),
+            type: :yesno,
+            icon: :question) == 'yes'
+        end
+        if confirmed
+          reset_gamepad_defaults
+          do_save
+        end
       end
 
       def reset_gamepad_defaults
         @gp_labels = (@keyboard_mode ? DEFAULT_KB_LABELS : DEFAULT_GP_LABELS).dup
         GBA_BUTTONS.each do |gba_btn, widget|
-          @app.command(widget, 'configure', text: btn_display(gba_btn))
+          style_btn(widget, btn_display(gba_btn), false)
         end
         @app.command(DEADZONE_SCALE, 'set', 25) unless @keyboard_mode
         @app.command(GP_UNDO_BTN, 'configure', state: :disabled)
@@ -628,7 +660,6 @@ module Teek
         else
           @callbacks[:on_gamepad_reset]&.call
         end
-        mark_dirty
       end
 
       def do_undo_gamepad
@@ -650,7 +681,7 @@ module Teek
         end
 
         GBA_BUTTONS.each do |gba_btn, widget|
-          @app.command(widget, 'configure', text: btn_display(gba_btn))
+          style_btn(widget, btn_display(gba_btn), false)
         end
 
         @app.command(GP_UNDO_BTN, 'configure', state: :disabled)
@@ -688,7 +719,7 @@ module Teek
         if @listening_for
           unbind_keyboard_listen
           widget = GBA_BUTTONS[@listening_for]
-          @app.command(widget, 'configure', text: btn_display(@listening_for))
+          style_btn(widget, btn_display(@listening_for), gp_customized?(@listening_for))
           @listening_for = nil
         end
       end
@@ -707,7 +738,7 @@ module Teek
       def refresh_gamepad(labels, dead_zone)
         @gp_labels = labels.dup
         GBA_BUTTONS.each do |gba_btn, widget|
-          @app.command(widget, 'configure', text: btn_display(gba_btn))
+          style_btn(widget, btn_display(gba_btn), gp_customized?(gba_btn))
         end
         @app.command(DEADZONE_SCALE, 'set', dead_zone)
       end
@@ -734,7 +765,7 @@ module Teek
         gba_btn = @listening_for
         @gp_labels[gba_btn] = button.to_s
         widget = GBA_BUTTONS[gba_btn]
-        @app.command(widget, 'configure', text: btn_display(gba_btn))
+        style_btn(widget, btn_display(gba_btn), gp_customized?(gba_btn))
         @listening_for = nil
 
         if @keyboard_mode
@@ -751,7 +782,7 @@ module Teek
       def refresh_hotkeys(labels)
         @hk_labels = labels.dup
         HK_ACTIONS.each do |action, widget|
-          @app.command(widget, 'configure', text: @hk_labels[action] || '?')
+          style_btn(widget, @hk_labels[action] || '?', hk_customized?(action))
         end
       end
 
@@ -780,7 +811,7 @@ module Teek
         action = @hk_listening_for
         @hk_labels[action] = keysym.to_s
         widget = HK_ACTIONS[action]
-        @app.command(widget, 'configure', text: keysym.to_s)
+        style_btn(widget, keysym.to_s, hk_customized?(action))
         @hk_listening_for = nil
 
         @callbacks[:on_hotkey_change]&.call(action, keysym)
@@ -810,7 +841,7 @@ module Teek
         if @hk_listening_for
           unbind_keyboard_listen
           widget = HK_ACTIONS[@hk_listening_for]
-          @app.command(widget, 'configure', text: @hk_labels[@hk_listening_for] || '?')
+          style_btn(widget, @hk_labels[@hk_listening_for] || '?', hk_customized?(@hk_listening_for))
           @hk_listening_for = nil
         end
       end
@@ -833,15 +864,32 @@ module Teek
         @app.command(HK_UNDO_BTN, 'configure', state: :disabled)
       end
 
+      def confirm_reset_hotkeys
+        cancel_hk_listening
+        confirmed = if @callbacks[:on_confirm_reset_hotkeys]
+          @callbacks[:on_confirm_reset_hotkeys].call
+        else
+          @app.command('tk_messageBox',
+            parent: TOP,
+            title: translate('dialog.reset_hotkeys_title'),
+            message: translate('dialog.reset_hotkeys_msg'),
+            type: :yesno,
+            icon: :question) == 'yes'
+        end
+        if confirmed
+          reset_hotkey_defaults
+          do_save
+        end
+      end
+
       def reset_hotkey_defaults
         cancel_hk_listening
         @hk_labels = HotkeyMap::DEFAULTS.dup
         HK_ACTIONS.each do |action, widget|
-          @app.command(widget, 'configure', text: @hk_labels[action])
+          style_btn(widget, @hk_labels[action], false)
         end
         @app.command(HK_UNDO_BTN, 'configure', state: :disabled)
         @callbacks[:on_hotkey_reset]&.call
-        mark_dirty
       end
     end
   end
