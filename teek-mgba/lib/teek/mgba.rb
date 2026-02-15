@@ -11,6 +11,8 @@ require_relative "mgba/child_window"
 require_relative "mgba/settings_window"
 require_relative "mgba/rom_info_window"
 require_relative "mgba/save_state_picker"
+require_relative "mgba/save_state_manager"
+require_relative "mgba/toast_overlay"
 require_relative "mgba/player"
 
 module Teek

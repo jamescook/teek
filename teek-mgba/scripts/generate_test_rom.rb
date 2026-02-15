@@ -8,6 +8,9 @@
 # emulate frames, and produce video/audio output — enough to exercise
 # every Core method without needing a real game.
 #
+# GBA cartridge header reference (all offsets below):
+#   https://problemkaputt.de/gbatek-gba-cartridge-header.htm
+#
 # Usage:
 #   ruby teek-mgba/scripts/generate_test_rom.rb
 #
@@ -16,25 +19,26 @@
 
 rom = ("\x00".b) * 512
 
-# ARM entry: branch to 0x08000020 (6 words forward, accounting for PC+8)
+# 0x00: ARM entry point — branch to 0x08000020 (6 words forward, PC+8 pipeline)
 rom[0, 4] = [0xEA000006].pack("V")
 
-# Infinite loop at 0x20: ARM `b .` (branch to self)
+# 0x20: ARM `b .` (branch to self — infinite loop)
 rom[0x20, 4] = [0xEAFFFFFE].pack("V")
 
-# Game title (12 bytes at 0xA0)
+# 0xA0..0xAB: Game title (12 bytes, padded with NUL)
 rom[0xA0, 12] = "TEEKTEST".ljust(12, "\x00")
 
-# Game code (4 bytes at 0xAC): "BTKE" (B=GBA, TK=Teek, E=English)
+# 0xAC..0xAF: Game code (B=GBA, TK=Teek, E=English)
 rom[0xAC, 4] = "BTKE"
 
-# Maker code (2 bytes at 0xB0): "01" (Nintendo, for testing)
+# 0xB0..0xB1: Maker code
 rom[0xB0, 2] = "01"
 
-# Fixed value required by GBA header
+# 0xB2: Fixed value — BIOS rejects the ROM if this isn't 0x96
 rom.setbyte(0xB2, 0x96)
 
-# Header complement checksum (sum bytes 0xA0..0xBC)
+# 0xBD: Header complement checksum — sum of bytes 0xA0..0xBC,
+# then chk = -(sum + 0x19) & 0xFF. BIOS verifies this on boot.
 sum = (0xA0..0xBC).sum { |i| rom.getbyte(i) }
 rom.setbyte(0xBD, (-(sum + 0x19)) & 0xFF)
 

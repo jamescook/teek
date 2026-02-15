@@ -24,7 +24,7 @@ class TestMGBAPlayer < Minitest::Test
       player.run
     RUBY
 
-    success, stdout, stderr, _status = tk_subprocess(code, timeout: 15)
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
 
     output = []
     output << "STDOUT:\n#{stdout}" unless stdout.empty?
@@ -67,7 +67,7 @@ class TestMGBAPlayer < Minitest::Test
       player.run
     RUBY
 
-    success, stdout, stderr, _status = tk_subprocess(code, timeout: 15)
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
 
     output = []
     output << "STDOUT:\n#{stdout}" unless stdout.empty?
@@ -105,7 +105,7 @@ class TestMGBAPlayer < Minitest::Test
       player.run
     RUBY
 
-    success, stdout, stderr, _status = tk_subprocess(code, timeout: 15)
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
 
     output = []
     output << "STDOUT:\n#{stdout}" unless stdout.empty?
@@ -138,8 +138,8 @@ class TestMGBAPlayer < Minitest::Test
       config.save_state_debounce = 0.1
 
       poll_until_ready(app) do
-        core = player.instance_variable_get(:@core)
-        state_dir = player.send(:state_dir_for_rom, core)
+        core = player.save_mgr.core
+        state_dir = player.save_mgr.state_dir
         vp = player.instance_variable_get(:@viewport)
         frame_path = vp.frame.path
 
@@ -219,7 +219,7 @@ class TestMGBAPlayer < Minitest::Test
       player.run
     RUBY
 
-    success, stdout, stderr, _status = tk_subprocess(code, timeout: 20)
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 10)
 
     output = []
     output << "STDOUT:\n#{stdout}" unless stdout.empty?
@@ -267,8 +267,7 @@ class TestMGBAPlayer < Minitest::Test
         app.update
 
         app.after(200) do
-          core = player.instance_variable_get(:@core)
-          state_dir = player.send(:state_dir_for_rom, core)
+          state_dir = player.save_mgr.state_dir
           ss_path = File.join(state_dir, "state1.ss")
 
           first_exists = File.exist?(ss_path)
@@ -301,7 +300,7 @@ class TestMGBAPlayer < Minitest::Test
       player.run
     RUBY
 
-    success, stdout, stderr, _status = tk_subprocess(code, timeout: 15)
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 10)
 
     output = []
     output << "STDOUT:\n#{stdout}" unless stdout.empty?
@@ -384,7 +383,7 @@ class TestMGBAPlayer < Minitest::Test
       player.run
     RUBY
 
-    success, stdout, stderr, _status = tk_subprocess(code, timeout: 15)
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
 
     output = []
     output << "STDOUT:\n#{stdout}" unless stdout.empty?
@@ -490,7 +489,7 @@ class TestMGBAPlayer < Minitest::Test
       player.run
     RUBY
 
-    success, stdout, stderr, _status = tk_subprocess(code, timeout: 15)
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
 
     output = []
     output << "STDOUT:\n#{stdout}" unless stdout.empty?

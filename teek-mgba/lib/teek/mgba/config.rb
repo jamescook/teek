@@ -48,6 +48,8 @@ module Teek
       # Sentinel GUID for keyboard bindings — stored alongside real gamepad GUIDs.
       KEYBOARD_GUID = 'keyboard'
 
+      MAX_RECENT_ROMS = 5
+
       KEYBOARD_DEFAULTS = {
         'dead_zone' => 0,
         'mappings'  => {
@@ -194,8 +196,6 @@ module Teek
 
       # -- Recent ROMs -------------------------------------------------------
 
-      MAX_RECENT_ROMS = 5
-
       # @return [Array<String>] ROM paths, newest first
       def recent_roms
         @data['recent_roms'] ||= []
@@ -329,7 +329,8 @@ module Teek
         data['gamepads'] ||= {}
         data['recent_roms'] ||= []
         data
-      rescue JSON::ParserError
+      rescue JSON::ParserError => e
+        warn "teek-mgba: corrupt config file #{@path}: #{e.message} — using defaults"
         default_data
       end
 

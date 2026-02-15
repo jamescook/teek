@@ -34,9 +34,10 @@ module Teek
       AUDIO_BUF_CAPACITY = (AUDIO_FREQ / GBA_FPS * 6).to_i  # ~6 frames (~100ms)
       MAX_DELTA          = 0.005                              # ±0.5% max adjustment
       FF_MAX_FRAMES      = 10  # cap for uncapped turbo to avoid locking event loop
-      TOAST_DURATION     = 1.5 # seconds (fallback; overridden by config)
       SAVE_STATE_DEBOUNCE_DEFAULT = 3.0 # seconds; overridden by config
       SAVE_STATE_SLOTS    = 10
+      GAMEPAD_PROBE_MS   = 2000
+      GAMEPAD_LISTEN_MS  = 50
 
       # Modal child window types → locale keys for the window title overlay
       MODAL_LABELS = {
@@ -104,8 +105,7 @@ module Teek
         @fullscreen = false
         @quick_save_slot = @config.quick_save_slot
         @save_state_backup = @config.save_state_backup?
-        @last_save_time = 0
-        @state_dir = nil  # set when ROM loaded
+        @save_mgr = nil  # created when ROM loaded
         load_keyboard_config
         check_writable_dirs
 
@@ -186,6 +186,9 @@ module Teek
       # @return [Teek::MGBA::SettingsWindow]
       attr_reader :settings_window
 
+      # @return [Teek::MGBA::SaveStateManager, nil] nil until ROM loaded
+      attr_reader :save_mgr
+
       # @return [Hash] current keyboard keysym → GBA button mapping
       attr_reader :key_map
 
@@ -242,17 +245,20 @@ module Teek
 
         # CJK-capable font for toast notifications and translated UI text
         toast_font_path = File.join(ASSETS_DIR, 'ark-pixel-12px-monospaced-ja.ttf')
-        @toast_font = File.exist?(toast_font_path) ? @viewport.renderer.load_font(toast_font_path, 12) : @overlay_font
+        toast_font = File.exist?(toast_font_path) ? @viewport.renderer.load_font(toast_font_path, 12) : @overlay_font
+
+        @toast = ToastOverlay.new(
+          renderer: @viewport.renderer,
+          font: toast_font || @overlay_font,
+          duration: @config.toast_duration
+        )
 
         # Crop heights: ascent + partial descender. Excludes the very bottom
         # rows where TTF anti-alias residue causes visible white-line artifacts.
         @overlay_crop_h = compute_crop_h(@overlay_font)
-        @toast_crop_h   = compute_crop_h(@toast_font)
         @ff_label_tex = nil
         @fps_tex = nil
         @fps_shadow_tex = nil
-        @toast_tex = nil
-        @toast_expires = 0
 
         # Custom blend mode: white text inverts the background behind it.
         # dstRGB = (1 - dstRGB) * srcRGB + dstRGB * (1 - srcA)
@@ -317,93 +323,30 @@ module Teek
         @rom_info_window.show(@core, rom_path: @rom_path, save_path: sav_path)
       end
 
-      # -- Save states ---------------------------------------------------------
-
-      # Build per-ROM state directory path using game code + CRC32.
-      # e.g. states/AGB-BTKE-A1B2C3D4/
-      def state_dir_for_rom(core)
-        code = core.game_code.gsub(/[^a-zA-Z0-9_.-]/, '_')
-        crc  = format('%08X', core.checksum)
-        File.join(@config.states_dir, "#{code}-#{crc}")
-      end
-
-      def state_path(slot)
-        File.join(@state_dir, "state#{slot}.ss")
-      end
-
-      def screenshot_path(slot)
-        File.join(@state_dir, "state#{slot}.png")
-      end
+      # -- Save states (delegated to SaveStateManager) -------------------------
 
       def save_state(slot)
-        return unless @core && !@core.destroyed?
-
-        now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        if now - @last_save_time < @config.save_state_debounce
-          show_toast(translate('toast.save_blocked'))
-          return
-        end
-
-        FileUtils.mkdir_p(@state_dir) unless File.directory?(@state_dir)
-
-        # Backup rotation: existing files → .bak (if enabled)
-        ss = state_path(slot)
-        png = screenshot_path(slot)
-        if @save_state_backup
-          File.rename(ss, "#{ss}.bak") if File.exist?(ss)
-          File.rename(png, "#{png}.bak") if File.exist?(png)
-        end
-
-        if @core.save_state_to_file(ss)
-          @last_save_time = now
-          save_screenshot(png)
-          show_toast(translate('toast.state_saved', slot: slot))
-        else
-          show_toast(translate('toast.save_failed'))
-        end
+        return unless @save_mgr
+        _ok, msg = @save_mgr.save_state(slot)
+        @toast&.show(msg) if msg
       end
 
       def load_state(slot)
-        return unless @core && !@core.destroyed?
-
-        ss = state_path(slot)
-        unless File.exist?(ss)
-          show_toast(translate('toast.no_state', slot: slot))
-          return
-        end
-
-        if @core.load_state_from_file(ss)
-          show_toast(translate('toast.state_loaded', slot: slot))
-        else
-          show_toast(translate('toast.load_failed'))
-        end
-      end
-
-      # Save a PNG screenshot of the current frame via Tk photo image.
-      # Creates a temporary photo, writes ARGB pixels via C, then
-      # uses Tk's built-in PNG format handler to write the file.
-      def save_screenshot(path)
-        return unless @core && !@core.destroyed?
-
-        pixels = @core.video_buffer_argb
-        photo_name = "__teek_ss_#{object_id}"
-
-        @app.tcl_eval("image create photo #{photo_name} -width #{GBA_W} -height #{GBA_H}")
-        @app.interp.photo_put_block(photo_name, pixels, GBA_W, GBA_H, format: :argb)
-        @app.tcl_eval("#{photo_name} write {#{path}} -format png")
-        @app.tcl_eval("image delete #{photo_name}")
-      rescue StandardError => e
-        # Screenshot is optional — don't fail the save state
-        warn "teek-mgba: screenshot failed for #{path}: #{e.message} (#{e.class})"
-        @app.tcl_eval("image delete #{photo_name}") rescue nil
+        return unless @save_mgr
+        _ok, msg = @save_mgr.load_state(slot)
+        @toast&.show(msg) if msg
       end
 
       def quick_save
-        save_state(@quick_save_slot)
+        return unless @save_mgr
+        _ok, msg = @save_mgr.quick_save
+        @toast&.show(msg) if msg
       end
 
       def quick_load
-        load_state(@quick_save_slot)
+        return unless @save_mgr
+        _ok, msg = @save_mgr.quick_load
+        @toast&.show(msg) if msg
       end
 
       def show_settings(tab: nil)
@@ -414,15 +357,15 @@ module Teek
       end
 
       def show_state_picker
-        return unless @core && !@core.destroyed? && @state_dir
+        return unless @save_mgr&.state_dir
         return bell if @modal_child
         @modal_child = :picker
         enter_modal
-        @state_picker.show(state_dir: @state_dir, quick_slot: @quick_save_slot)
+        @state_picker.show(state_dir: @save_mgr.state_dir, quick_slot: @quick_save_slot)
       end
 
       def on_child_window_close
-        destroy_toast
+        @toast&.destroy
         toggle_pause if @core && !@was_paused_before_modal
         @modal_child = nil
       end
@@ -433,7 +376,7 @@ module Teek
         toggle_pause if @core && !@paused
         locale_key = MODAL_LABELS[@modal_child] || @modal_child.to_s
         label = translate(locale_key)
-        show_toast(translate('toast.waiting_for', label: label), permanent: true)
+        @toast&.show(translate('toast.waiting_for', label: label), permanent: true)
       end
 
       def bell
@@ -609,9 +552,6 @@ module Teek
         end
         labels
       end
-
-      GAMEPAD_PROBE_MS  = 2000
-      GAMEPAD_LISTEN_MS = 50
 
       def start_gamepad_probe
         @app.after(GAMEPAD_PROBE_MS) { gamepad_probe_tick }
@@ -835,14 +775,17 @@ module Teek
 
       def apply_toast_duration(secs)
         @config.toast_duration = secs
+        @toast.duration = secs
       end
 
       def apply_quick_slot(slot)
         @quick_save_slot = slot.to_i.clamp(1, 10)
+        @save_mgr.quick_save_slot = @quick_save_slot if @save_mgr
       end
 
       def apply_backup(enabled)
         @save_state_backup = !!enabled
+        @save_mgr.backup = @save_state_backup if @save_mgr
       end
 
       def toggle_show_fps
@@ -875,83 +818,6 @@ module Teek
         tw = tex.width
         th = @overlay_crop_h || tex.height
         r.copy(tex, [0, 0, tw, th], [x, y, tw, th])
-      end
-
-      # -- Toast notifications --------------------------------------------------
-
-      TOAST_PAD_X = 14
-      TOAST_PAD_Y = 8
-      TOAST_RADIUS = 8
-
-      # Show a GBA-style dialog box notification at the bottom of the
-      # game viewport. One toast at a time; new toasts replace the old one.
-      # The background is pre-rendered in C with anti-aliased rounded corners.
-      #
-      # @param message [String]
-      # @param duration [Float, nil] seconds to display; nil = use config default
-      # @param permanent [Boolean] if true, stays until explicitly destroyed
-      def show_toast(message, duration: nil, permanent: false)
-        destroy_toast
-        font = @toast_font || @overlay_font
-        return unless font
-
-        @toast_text_tex = font.render_text(message, 255, 255, 255)
-        tw = @toast_text_tex.width
-        th = @toast_crop_h || @toast_text_tex.height
-
-        box_w = tw + TOAST_PAD_X * 2
-        box_h = th + TOAST_PAD_Y * 2
-
-        # Generate AA rounded-rect background as ARGB pixels in C
-        bg_pixels = Teek::MGBA.toast_background(box_w, box_h, TOAST_RADIUS)
-        @toast_bg_tex = @viewport.renderer.create_texture(box_w, box_h, :streaming)
-        @toast_bg_tex.update(bg_pixels)
-        @toast_bg_tex.blend_mode = :blend
-
-        @toast_box_w = box_w
-        @toast_box_h = box_h
-        @toast_text_w = tw
-        @toast_text_h = th
-        @toast_permanent = permanent
-        @toast_expires = permanent ? nil : Process.clock_gettime(Process::CLOCK_MONOTONIC) + (duration || @config.toast_duration)
-      end
-
-      # Draw the current toast centered at the bottom of the game area.
-      def draw_toast(r, dest)
-        return unless @toast_bg_tex
-        unless @toast_permanent
-          now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-          if now >= @toast_expires
-            destroy_toast
-            return
-          end
-        end
-
-        # Position: bottom-center of game area, 12px from bottom
-        if dest
-          cx = dest[0] + dest[2] / 2
-          by = dest[1] + dest[3] - 12 - @toast_box_h
-        else
-          out_w, out_h = r.output_size
-          cx = out_w / 2
-          by = out_h - 12 - @toast_box_h
-        end
-        bx = cx - @toast_box_w / 2
-
-        # Background (pre-rendered with AA rounded corners)
-        r.copy(@toast_bg_tex, nil, [bx, by, @toast_box_w, @toast_box_h])
-        # White text centered in the box
-        tx = bx + (@toast_box_w - @toast_text_w) / 2
-        ty = by + (@toast_box_h - @toast_text_h) / 2
-        r.copy(@toast_text_tex, [0, 0, @toast_text_w, @toast_text_h],
-               [tx, ty, @toast_text_w, @toast_text_h])
-      end
-
-      def destroy_toast
-        @toast_bg_tex&.destroy
-        @toast_bg_tex = nil
-        @toast_text_tex&.destroy
-        @toast_text_tex = nil
       end
 
       # -----------------------------------------------------------------------
@@ -1006,6 +872,10 @@ module Teek
       end
 
       def load_rom(path)
+        # Menu callbacks (Open ROM, Recent) can fire before init_sdl2 because
+        # macOS renders the menu bar at the OS level, outside tk busy's reach.
+        # @stream is nil until init_sdl2; the ROM will load via @initial_rom.
+        return unless @stream
         if @core && !@core.destroyed?
           @core.destroy
         end
@@ -1015,7 +885,10 @@ module Teek
         FileUtils.mkdir_p(saves) unless File.directory?(saves)
         @core = Core.new(path, saves)
         @rom_path = path
-        @state_dir = state_dir_for_rom(@core)
+        @save_mgr = SaveStateManager.new(core: @core, config: @config, app: @app)
+        @save_mgr.state_dir = @save_mgr.state_dir_for_rom(@core)
+        @save_mgr.quick_save_slot = @quick_save_slot
+        @save_mgr.backup = @save_state_backup
         @paused = false
         @stream.resume
         @app.command(:place, :forget, @status_label) rescue nil
@@ -1035,9 +908,9 @@ module Teek
         sav_name = File.basename(path, File.extname(path)) + '.sav'
         sav_path = File.join(saves, sav_name)
         if File.exist?(sav_path)
-          show_toast(translate('toast.loaded_sav', name: sav_name))
+          @toast&.show(translate('toast.loaded_sav', name: sav_name))
         else
-          show_toast(translate('toast.created_sav', name: sav_name))
+          @toast&.show(translate('toast.created_sav', name: sav_name))
         end
       end
 
@@ -1099,7 +972,7 @@ module Teek
             r.clear(0, 0, 0)
             r.copy(@texture, nil, dest)
             draw_fps_overlay(r, dest)
-            draw_toast(r, dest)
+            @toast&.draw(r, dest)
           end
           return
         end
@@ -1235,7 +1108,7 @@ module Teek
           oy = dest ? dest[1] : 0
           draw_inverse_tex(r, @ff_label_tex, ox + 4, oy + 4) if ff_indicator
           draw_fps_overlay(r, dest)
-          draw_toast(r, dest)
+          @toast&.draw(r, dest)
         end
       end
 
@@ -1314,8 +1187,7 @@ module Teek
         @stream&.pause unless @stream&.destroyed?
         destroy_ff_label
         destroy_fps_overlay
-        destroy_toast
-        @toast_font&.destroy unless @toast_font&.destroyed? || @toast_font == @overlay_font
+        @toast&.destroy
         @overlay_font&.destroy unless @overlay_font&.destroyed?
         @stream&.destroy unless @stream&.destroyed?
         @texture&.destroy unless @texture&.destroyed?
