@@ -81,6 +81,7 @@ settings:
   filter_linear: "バイリニア"
   integer_scale: "整数スケーリング（端数ピクセルなし）"
   color_correction: "GBA色補正"
+  per_game: "ゲーム別設定"
   gp_a: "A"
   gp_b: "B"
   gp_l: "L"

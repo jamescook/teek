@@ -394,6 +394,43 @@ class TestMGBAPlayer < Minitest::Test
     assert_match(/saved_slot=10/, stdout)
   end
 
+  # -- Audio fade ramp (pure function, no Tk/SDL2 needed) --------------------
+
+  def test_fade_ramp_attenuates_first_samples
+    require "teek/mgba/player"
+    # 10 stereo frames of max-amplitude int16
+    pcm = ([32767, 32767] * 10).pack('s*')
+    total = 10
+    result, remaining = Teek::MGBA::Player.apply_fade_ramp(pcm, total, total)
+    samples = result.unpack('s*')
+
+    # First stereo pair: gain = 1 - 10/10 = 0.0 → should be 0
+    assert_equal 0, samples[0], "first L sample should be silent"
+    assert_equal 0, samples[1], "first R sample should be silent"
+
+    # Last stereo pair: gain = 1 - 1/10 = 0.9 → should be ~29490
+    assert_in_delta 29490, samples[18], 1, "last L sample should be ~90% volume"
+    assert_in_delta 29490, samples[19], 1, "last R sample should be ~90% volume"
+
+    assert_equal 0, remaining, "counter should be fully consumed"
+  end
+
+  def test_fade_ramp_returns_remaining_when_pcm_shorter_than_fade
+    require "teek/mgba/player"
+    # Only 2 stereo frames but fade wants 10
+    pcm = ([20000, 20000] * 2).pack('s*')
+    _result, remaining = Teek::MGBA::Player.apply_fade_ramp(pcm, 10, 10)
+    assert_equal 8, remaining, "should have 8 fade samples remaining"
+  end
+
+  def test_fade_ramp_noop_when_remaining_zero
+    require "teek/mgba/player"
+    pcm = ([10000, -10000] * 4).pack('s*')
+    result, remaining = Teek::MGBA::Player.apply_fade_ramp(pcm, 0, 10)
+    assert_equal pcm, result, "should not modify samples when remaining is 0"
+    assert_equal 0, remaining
+  end
+
   # E2E: verify child windows are modal — only one can be open at a time.
   # Opens Settings via menu, tries F6 for picker (should be blocked),
   # closes Settings, opens picker via F6, tries Settings menu (blocked),

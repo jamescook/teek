@@ -547,6 +547,186 @@ class TestMGBAConfig < Minitest::Test
     assert_equal 'ja', c2.locale
   end
 
+  # -- Per-game settings ---------------------------------------------------
+
+  def test_per_game_settings_default_false
+    refute new_config.per_game_settings?
+  end
+
+  def test_set_per_game_settings
+    c = new_config
+    c.per_game_settings = true
+    assert c.per_game_settings?
+    c.per_game_settings = false
+    refute c.per_game_settings?
+  end
+
+  def test_rom_id
+    assert_equal "AGB-BTKE-DEADBEEF",
+      Teek::MGBA::Config.rom_id("AGB-BTKE", 0xDEADBEEF)
+  end
+
+  def test_rom_id_sanitizes_special_chars
+    # Spaces and slashes get replaced; hyphens, dots, underscores are kept
+    assert_equal "AGB_BTKE-0000CAFE",
+      Teek::MGBA::Config.rom_id("AGB BTKE", 0xCAFE)
+  end
+
+  def test_game_config_path
+    path = Teek::MGBA::Config.game_config_path("AGB_BTKE-DEADBEEF")
+    assert path.end_with?("games/AGB_BTKE-DEADBEEF/settings.json")
+  end
+
+  def test_activate_game_without_per_game_reads_global
+    c = new_config
+    c.scale = 2
+    c.activate_game("TESTROM-00000001")
+    assert_equal 2, c.scale  # still reads from global
+  end
+
+  def test_enable_per_game_seeds_game_data
+    c = new_config
+    c.scale = 2
+    c.activate_game("TESTROM-00000001")
+    c.enable_per_game
+    assert_equal 2, c.scale  # seeded from global
+  end
+
+  def test_per_game_write_goes_to_overlay
+    c = new_config
+    c.scale = 3
+    c.activate_game("TESTROM-00000001")
+    c.enable_per_game
+    c.scale = 1
+    assert_equal 1, c.scale  # reads from overlay
+    # Disable — should revert to global value
+    c.disable_per_game
+    assert_equal 3, c.scale
+  end
+
+  def test_global_key_bypasses_overlay
+    c = new_config
+    c.activate_game("TESTROM-00000001")
+    c.enable_per_game
+    c.keep_aspect_ratio = false
+    refute c.keep_aspect_ratio?
+    # This key is NOT in PER_GAME_KEYS, so it went to global
+    c.disable_per_game
+    refute c.keep_aspect_ratio?  # still false (it was written to global)
+  end
+
+  def test_save_writes_both_files
+    c = new_config
+    c.activate_game("TESTROM-00000001")
+    c.enable_per_game
+    c.scale = 1
+    c.save!
+
+    assert File.exist?(@path), "Global config should exist"
+    game_path = Teek::MGBA::Config.game_config_path("TESTROM-00000001")
+    assert File.exist?(game_path), "Game config should exist"
+
+    game_data = JSON.parse(File.read(game_path))
+    assert_equal 1, game_data['scale']
+  ensure
+    game_path = Teek::MGBA::Config.game_config_path("TESTROM-00000001")
+    FileUtils.rm_rf(File.dirname(game_path)) if game_path
+  end
+
+  def test_round_trip_per_game
+    c = new_config
+    c.activate_game("TESTROM-00000001")
+    c.enable_per_game
+    c.scale = 1
+    c.volume = 42
+    c.save!
+
+    c2 = Teek::MGBA::Config.new(path: @path)
+    c2.activate_game("TESTROM-00000001")
+    assert_equal 1, c2.scale
+    assert_equal 42, c2.volume
+  ensure
+    game_path = Teek::MGBA::Config.game_config_path("TESTROM-00000001")
+    FileUtils.rm_rf(File.dirname(game_path)) if game_path
+  end
+
+  def test_activate_different_rom_uses_global
+    c = new_config
+    c.scale = 3
+    c.activate_game("ROM_A-00000001")
+    c.enable_per_game
+    c.scale = 1
+    c.save!
+
+    # Switch to a different ROM — no game file exists
+    c.activate_game("ROM_B-00000002")
+    assert_equal 3, c.scale  # falls through to global
+  ensure
+    %w[ROM_A-00000001 ROM_B-00000002].each do |id|
+      p = Teek::MGBA::Config.game_config_path(id)
+      FileUtils.rm_rf(File.dirname(p)) if p
+    end
+  end
+
+  def test_disable_per_game_preserves_file
+    c = new_config
+    c.activate_game("TESTROM-00000001")
+    c.enable_per_game
+    c.scale = 1
+    c.save!
+
+    game_path = Teek::MGBA::Config.game_config_path("TESTROM-00000001")
+    assert File.exist?(game_path)
+
+    c.disable_per_game
+    c.save!
+    assert File.exist?(game_path), "Game file should NOT be deleted on disable"
+  ensure
+    FileUtils.rm_rf(File.dirname(game_path)) if game_path
+  end
+
+  def test_corrupt_game_file_falls_back_to_global
+    c = new_config
+    c.per_game_settings = true
+    c.scale = 3
+    c.save!
+
+    # Write corrupt game file
+    game_path = Teek::MGBA::Config.game_config_path("TESTROM-00000001")
+    FileUtils.mkdir_p(File.dirname(game_path))
+    File.write(game_path, "NOT VALID JSON {{{")
+
+    c.activate_game("TESTROM-00000001")
+    assert_equal 3, c.scale  # falls back to global
+  ensure
+    FileUtils.rm_rf(File.dirname(game_path)) if game_path
+  end
+
+  def test_reload_with_active_game
+    c = new_config
+    c.activate_game("TESTROM-00000001")
+    c.enable_per_game
+    c.scale = 1
+    c.save!
+
+    # Externally modify the game file
+    game_path = Teek::MGBA::Config.game_config_path("TESTROM-00000001")
+    game_data = JSON.parse(File.read(game_path))
+    game_data['scale'] = 4
+    File.write(game_path, JSON.generate(game_data))
+
+    c.reload!
+    assert_equal 4, c.scale
+  ensure
+    FileUtils.rm_rf(File.dirname(game_path)) if game_path
+  end
+
+  def test_per_game_settings_constant_keys
+    expected = %w[scale pixel_filter integer_scale color_correction
+                  volume muted turbo_speed quick_save_slot save_state_backup]
+    assert_equal expected.sort, Teek::MGBA::Config::PER_GAME_SETTINGS.keys.sort
+  end
+
   # -- Edge cases -----------------------------------------------------------
 
   def test_corrupt_json_falls_back_to_defaults

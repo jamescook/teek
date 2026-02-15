@@ -89,6 +89,10 @@ module Teek
         start: 'settings.gp_start', select: 'settings.gp_select',
       }.freeze
 
+      # Per-game settings bar (above notebook, shown/hidden based on active tab)
+      PER_GAME_BAR   = "#{TOP}.per_game_bar"
+      PER_GAME_CHECK = "#{PER_GAME_BAR}.check"
+
       # Save States tab widget paths
       SS_TAB         = "#{NB}.savestates"
       SS_SLOT_COMBO  = "#{SS_TAB}.slot_row.slot_combo"
@@ -99,6 +103,7 @@ module Teek
       SAVE_BTN = "#{TOP}.save_btn"
 
       # Tcl variable names
+      VAR_PER_GAME = '::mgba_per_game'
       VAR_SCALE    = '::mgba_scale'
       VAR_TURBO    = '::mgba_turbo'
       VAR_VOLUME   = '::mgba_volume'
@@ -155,6 +160,7 @@ module Teek
         @listening_for = nil
         @listen_timer = nil
         @keyboard_mode = true
+        @per_game_enabled = false
         @gp_labels = DEFAULT_KB_LABELS.dup
         @hk_listening_for = nil
         @hk_listen_timer = nil
@@ -186,6 +192,9 @@ module Teek
         'settings.save_states' => SS_TAB,
       }.freeze
 
+      # Tabs that show the per-game settings checkbox
+      PER_GAME_TABS = Set.new(["#{NB}.video", "#{NB}.audio", SS_TAB]).freeze
+
       def hide
         hide_window
       end
@@ -204,6 +213,22 @@ module Teek
         @app.command(SAVE_BTN, 'configure', state: :normal)
       end
 
+      # Enable/disable the per-game checkbox (called when ROM loads/unloads).
+      def set_per_game_available(enabled)
+        @per_game_enabled = enabled
+        current = @app.command(NB, 'select') rescue nil
+        if enabled && PER_GAME_TABS.include?(current)
+          @app.command(PER_GAME_CHECK, 'configure', state: :normal)
+        else
+          @app.command(PER_GAME_CHECK, 'configure', state: :disabled)
+        end
+      end
+
+      # Sync the per-game checkbox to the current config state.
+      def set_per_game_active(active)
+        @app.set_variable(VAR_PER_GAME, active ? '1' : '0')
+      end
+
       private
 
       def do_save
@@ -211,9 +236,32 @@ module Teek
         @app.command(SAVE_BTN, 'configure', state: :disabled)
       end
 
+      def update_per_game_bar
+        current = @app.command(NB, 'select')
+        if PER_GAME_TABS.include?(current)
+          @app.command(PER_GAME_CHECK, 'configure', state: @per_game_enabled ? :normal : :disabled)
+        else
+          @app.command(PER_GAME_CHECK, 'configure', state: :disabled)
+        end
+      end
+
       def setup_ui
         # Bold button style for customized mappings
         @app.tcl_eval("ttk::style configure Bold.TButton -font [list {*}[font actual TkDefaultFont] -weight bold]")
+
+        # Per-game settings bar (above notebook, initially hidden)
+        @app.command('ttk::frame', PER_GAME_BAR)
+        @app.set_variable(VAR_PER_GAME, '0')
+        @app.command('ttk::checkbutton', PER_GAME_CHECK,
+          text: translate('settings.per_game'),
+          variable: VAR_PER_GAME,
+          state: :disabled,
+          command: proc { |*|
+            enabled = @app.get_variable(VAR_PER_GAME) == '1'
+            @callbacks[:on_per_game_toggle]&.call(enabled)
+            mark_dirty
+          })
+        @app.command(:pack, PER_GAME_CHECK, side: :left, padx: 5)
 
         @app.command('ttk::notebook', NB)
         @app.command(:pack, NB, fill: :both, expand: 1, padx: 5, pady: [5, 0])
@@ -223,6 +271,11 @@ module Teek
         setup_gamepad_tab
         setup_hotkeys_tab
         setup_save_states_tab
+
+        # Show/hide per-game bar based on active tab
+        @app.command(:bind, NB, '<<NotebookTabChanged>>', proc { update_per_game_bar })
+        # Show bar initially (video tab is default)
+        @app.command(:pack, PER_GAME_BAR, fill: :x, padx: 5, pady: [5, 0], before: NB)
 
         # Save button — disabled until a setting changes
         @app.command('ttk::button', SAVE_BTN, text: translate('settings.save'), state: :disabled,

@@ -2,6 +2,7 @@
 
 require 'json'
 require 'fileutils'
+require 'set'
 
 module Teek
   module MGBA
@@ -15,6 +16,11 @@ module Teek
     #
     # Gamepad mappings are keyed by SDL GUID (identifies controller model/type),
     # so different controller types keep separate configs.
+    #
+    # Per-game settings: when enabled, a subset of settings (video, audio,
+    # save state) can be overridden per ROM. Game-specific files are stored
+    # under config_dir/games/<rom_id>/settings.json. The PerGameProxy class
+    # transparently routes reads/writes so callers don't need conditionals.
     class Config
       APP_NAME = 'teek-mgba'
       FILENAME = 'settings.json'
@@ -35,7 +41,52 @@ module Teek
         'pixel_filter'       => 'nearest',
         'integer_scale'      => false,
         'color_correction'   => false,
+        'per_game_settings'  => false,
       }.freeze
+
+      # Settings that can be overridden per ROM. Maps config key → locale key.
+      # This is the single source of truth for which keys are per-game eligible.
+      PER_GAME_SETTINGS = {
+        'scale'             => 'settings.window_scale',
+        'pixel_filter'      => 'settings.pixel_filter',
+        'integer_scale'     => 'settings.integer_scale',
+        'color_correction'  => 'settings.color_correction',
+        'volume'            => 'settings.volume',
+        'muted'             => 'settings.mute',
+        'turbo_speed'       => 'settings.turbo_speed',
+        'quick_save_slot'   => 'settings.quick_save_slot',
+        'save_state_backup' => 'settings.keep_backup',
+      }.freeze
+
+      PER_GAME_KEYS = PER_GAME_SETTINGS.keys.to_set.freeze
+
+      # Transparent proxy that routes per-game keys to a game-specific hash
+      # and everything else to the base (global) hash. Config getters/setters
+      # call global['key'] — this intercepts those calls so no other code
+      # needs to know whether per-game settings are active.
+      class PerGameProxy
+        def initialize(base, game_data, per_game_keys)
+          @base = base
+          @game_data = game_data
+          @per_game_keys = per_game_keys
+        end
+
+        def [](key)
+          if @per_game_keys.include?(key) && @game_data.key?(key)
+            @game_data[key]
+          else
+            @base[key]
+          end
+        end
+
+        def []=(key, val)
+          if @per_game_keys.include?(key)
+            @game_data[key] = val
+          else
+            @base[key] = val
+          end
+        end
+      end
 
       GAMEPAD_DEFAULTS = {
         'dead_zone' => 25,
@@ -155,6 +206,74 @@ module Teek
 
       def color_correction=(val)
         global['color_correction'] = !!val
+      end
+
+      # -- Per-game settings ---------------------------------------------------
+
+      # @return [Boolean] whether per-game settings are enabled
+      def per_game_settings?
+        !!global_base['per_game_settings']
+      end
+
+      def per_game_settings=(val)
+        global_base['per_game_settings'] = !!val
+      end
+
+      # @return [String, nil] the active ROM ID, or nil if no ROM loaded
+      attr_reader :active_rom_id
+
+      # Activate per-game config for the given ROM. If per_game_settings? is
+      # true, reads/writes to PER_GAME_KEYS will go through the game file.
+      # @param rom_id [String] e.g. "AGB_BTKE-DEADBEEF"
+      def activate_game(rom_id)
+        @active_rom_id = rom_id
+        if per_game_settings?
+          @game_data = load_game_file(rom_id)
+          @proxy = PerGameProxy.new(global_base, @game_data, PER_GAME_KEYS)
+        else
+          @game_data = nil
+          @proxy = nil
+        end
+      end
+
+      # Deactivate per-game settings (e.g. when ROM is unloaded).
+      def deactivate_game
+        @active_rom_id = nil
+        @game_data = nil
+        @proxy = nil
+      end
+
+      # Enable per-game settings for the currently loaded ROM.
+      # Copies current global values to game file on first enable.
+      def enable_per_game
+        raise "No ROM loaded" unless @active_rom_id
+        self.per_game_settings = true
+        @game_data = load_game_file(@active_rom_id)
+        if @game_data.empty?
+          PER_GAME_KEYS.each { |key| @game_data[key] = global_base[key] }
+        end
+        @proxy = PerGameProxy.new(global_base, @game_data, PER_GAME_KEYS)
+      end
+
+      # Disable per-game settings. Reverts to global values.
+      # Does NOT delete the game-specific file on disk.
+      def disable_per_game
+        self.per_game_settings = false
+        @proxy = nil
+      end
+
+      # Build a ROM identifier from game code and CRC32 checksum.
+      # Uses the same sanitization as SaveStateManager#state_dir_for_rom.
+      # @return [String] e.g. "AGB_BTKE-DEADBEEF"
+      def self.rom_id(game_code, checksum)
+        code = game_code.gsub(/[^a-zA-Z0-9_.-]/, '_')
+        crc  = format('%08X', checksum)
+        "#{code}-#{crc}"
+      end
+
+      # @return [String] path to the per-game settings file
+      def self.game_config_path(rom_id)
+        File.join(config_dir, 'games', rom_id, 'settings.json')
       end
 
       # @return [Float] toast notification duration in seconds
@@ -321,10 +440,13 @@ module Teek
         dir = File.dirname(@path)
         FileUtils.mkdir_p(dir) unless File.directory?(dir)
         File.write(@path, JSON.pretty_generate(@data))
+
+        save_game_file! if @game_data && @active_rom_id
       end
 
       def reload!
         @data = load_file
+        activate_game(@active_rom_id) if @active_rom_id
       end
 
       # -- Platform paths ----------------------------------------------------
@@ -368,6 +490,10 @@ module Teek
       private
 
       def global
+        @proxy || global_base
+      end
+
+      def global_base
         @data['global'] ||= deep_dup(GLOBAL_DEFAULTS)
       end
 
@@ -394,6 +520,22 @@ module Teek
 
       def deep_dup(hash)
         JSON.parse(JSON.generate(hash))
+      end
+
+      def load_game_file(rom_id)
+        path = self.class.game_config_path(rom_id)
+        return {} unless File.exist?(path)
+        JSON.parse(File.read(path))
+      rescue JSON::ParserError => e
+        warn "teek-mgba: corrupt game config #{path}: #{e.message} — using global"
+        {}
+      end
+
+      def save_game_file!
+        path = self.class.game_config_path(@active_rom_id)
+        dir = File.dirname(path)
+        FileUtils.mkdir_p(dir) unless File.directory?(dir)
+        File.write(path, JSON.pretty_generate(@game_data))
       end
     end
   end

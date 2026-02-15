@@ -839,4 +839,108 @@ class TestMGBASettingsWindow < Minitest::Test
     end
   end
 
+  # -- Per-game settings checkbox -------------------------------------------
+
+  def test_per_game_checkbox_defaults_disabled
+    assert_tk_app("per-game checkbox defaults disabled") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      state = app.command(Teek::MGBA::SettingsWindow::PER_GAME_CHECK, 'state')
+      assert_includes state, 'disabled'
+    end
+  end
+
+  def test_set_per_game_available_enables_checkbox
+    assert_tk_app("set_per_game_available enables checkbox") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      sw.set_per_game_available(true)
+      app.update
+
+      state = app.command(Teek::MGBA::SettingsWindow::PER_GAME_CHECK, 'state')
+      refute_includes state, 'disabled'
+    end
+  end
+
+  def test_per_game_toggle_fires_callback
+    assert_tk_app("per-game toggle fires on_per_game_toggle") do
+      require "teek/mgba/settings_window"
+      received = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_per_game_toggle: proc { |v| received = v }
+      })
+      sw.show
+      app.update
+
+      sw.set_per_game_available(true)
+      app.update
+      app.command(Teek::MGBA::SettingsWindow::PER_GAME_CHECK, 'invoke')
+      app.update
+
+      assert_equal true, received
+    end
+  end
+
+  def test_set_per_game_active_syncs_variable
+    assert_tk_app("set_per_game_active syncs variable") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      sw.set_per_game_active(true)
+      assert_equal '1', app.get_variable(Teek::MGBA::SettingsWindow::VAR_PER_GAME)
+
+      sw.set_per_game_active(false)
+      assert_equal '0', app.get_variable(Teek::MGBA::SettingsWindow::VAR_PER_GAME)
+    end
+  end
+
+  def test_per_game_disabled_on_gamepad_tab
+    assert_tk_app("per-game disabled on gamepad tab") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      # Enable per-game (simulating ROM loaded)
+      sw.set_per_game_available(true)
+      app.update
+
+      # Switch to gamepad tab — checkbox should become disabled
+      app.command(Teek::MGBA::SettingsWindow::NB, 'select', Teek::MGBA::SettingsWindow::GAMEPAD_TAB)
+      app.update
+
+      state = app.command(Teek::MGBA::SettingsWindow::PER_GAME_CHECK, 'state')
+      assert_includes state, 'disabled', "Per-game checkbox should be disabled on gamepad tab"
+    end
+  end
+
+  def test_per_game_re_enabled_on_video_tab
+    assert_tk_app("per-game re-enabled on video tab") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      sw.set_per_game_available(true)
+      app.update
+
+      # Switch to gamepad (disables), then back to video (re-enables)
+      app.command(Teek::MGBA::SettingsWindow::NB, 'select', Teek::MGBA::SettingsWindow::GAMEPAD_TAB)
+      app.update
+      app.command(Teek::MGBA::SettingsWindow::NB, 'select', "#{Teek::MGBA::SettingsWindow::NB}.video")
+      app.update
+
+      state = app.command(Teek::MGBA::SettingsWindow::PER_GAME_CHECK, 'state')
+      refute_includes state, 'disabled', "Per-game checkbox should be enabled on video tab"
+    end
+  end
+
 end

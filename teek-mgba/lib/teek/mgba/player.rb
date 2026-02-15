@@ -35,6 +35,7 @@ module Teek
       FF_MAX_FRAMES      = 10  # cap for uncapped turbo to avoid locking event loop
       SAVE_STATE_DEBOUNCE_DEFAULT = 3.0 # seconds; overridden by config
       SAVE_STATE_SLOTS    = 10
+      FADE_IN_FRAMES     = (AUDIO_FREQ * 0.02).to_i  # ~20ms = 882 samples
       GAMEPAD_PROBE_MS   = 2000
       GAMEPAD_LISTEN_MS  = 50
 
@@ -67,6 +68,7 @@ module Teek
         @pixel_filter = @config.pixel_filter
         @integer_scale = @config.integer_scale?
         @color_correction = @config.color_correction?
+        @audio_fade_in = 0
         @fast_forward = false
         @fullscreen = fullscreen
         @quick_save_slot = @config.quick_save_slot
@@ -111,6 +113,7 @@ module Teek
           on_filter_change:       method(:apply_pixel_filter),
           on_integer_scale_change: method(:apply_integer_scale),
           on_color_correction_change: method(:apply_color_correction),
+          on_per_game_toggle:        method(:toggle_per_game),
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
           on_backup_change:       method(:apply_backup),
@@ -122,20 +125,7 @@ module Teek
         # Push loaded config into the settings UI
         @settings_window.refresh_gamepad(@kb_map.labels, @kb_map.dead_zone_pct)
         @settings_window.refresh_hotkeys(@hotkeys.labels)
-        turbo_label = @turbo_speed == 0 ? 'Uncapped' : "#{@turbo_speed}x"
-        @app.set_variable(SettingsWindow::VAR_TURBO, turbo_label)
-        scale_label = "#{@scale}x"
-        @app.set_variable(SettingsWindow::VAR_SCALE, scale_label)
-        @app.set_variable(SettingsWindow::VAR_ASPECT_RATIO, @keep_aspect_ratio ? '1' : '0')
-        @app.set_variable(SettingsWindow::VAR_SHOW_FPS, @show_fps ? '1' : '0')
-        toast_label = "#{@config.toast_duration}s"
-        @app.set_variable(SettingsWindow::VAR_TOAST_DURATION, toast_label)
-        filter_label = @pixel_filter == 'nearest' ? @settings_window.send(:translate, 'settings.filter_nearest') : @settings_window.send(:translate, 'settings.filter_linear')
-        @app.set_variable(SettingsWindow::VAR_FILTER, filter_label)
-        @app.set_variable(SettingsWindow::VAR_INTEGER_SCALE, @integer_scale ? '1' : '0')
-        @app.set_variable(SettingsWindow::VAR_COLOR_CORRECTION, @color_correction ? '1' : '0')
-        @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)
-        @app.set_variable(SettingsWindow::VAR_SS_BACKUP, @save_state_backup ? '1' : '0')
+        push_settings_to_ui
 
         # Input/emulation state (initialized before SDL2)
         @gamepad = nil
@@ -408,6 +398,59 @@ module Teek
         end
       end
 
+      def toggle_per_game(enabled)
+        if enabled
+          @config.enable_per_game
+        else
+          @config.disable_per_game
+        end
+        refresh_from_config
+      end
+
+      # Re-read per-game-eligible settings from config and apply them.
+      def refresh_from_config
+        @scale            = @config.scale
+        @volume           = @config.volume / 100.0
+        @muted            = @config.muted?
+        @turbo_speed      = @config.turbo_speed
+        @pixel_filter     = @config.pixel_filter
+        @integer_scale    = @config.integer_scale?
+        @color_correction = @config.color_correction?
+        @quick_save_slot  = @config.quick_save_slot
+        @save_state_backup = @config.save_state_backup?
+
+        push_settings_to_ui
+
+        # Apply runtime effects
+        apply_scale(@scale) if @viewport
+        @texture.scale_mode = @pixel_filter.to_sym if @texture
+        if @core && !@core.destroyed?
+          @core.color_correction = @color_correction
+          render_frame if @texture
+        end
+        @save_mgr.quick_save_slot = @quick_save_slot if @save_mgr
+        @save_mgr.backup = @save_state_backup if @save_mgr
+      end
+
+      # Push current instance vars to settings window UI variables.
+      def push_settings_to_ui
+        @app.set_variable(SettingsWindow::VAR_SCALE, "#{@scale}x")
+        turbo_label = @turbo_speed == 0 ? 'Uncapped' : "#{@turbo_speed}x"
+        @app.set_variable(SettingsWindow::VAR_TURBO, turbo_label)
+        @app.set_variable(SettingsWindow::VAR_ASPECT_RATIO, @keep_aspect_ratio ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_SHOW_FPS, @show_fps ? '1' : '0')
+        toast_label = "#{@config.toast_duration}s"
+        @app.set_variable(SettingsWindow::VAR_TOAST_DURATION, toast_label)
+        filter_label = @pixel_filter == 'nearest' ? @settings_window.send(:translate, 'settings.filter_nearest') : @settings_window.send(:translate, 'settings.filter_linear')
+        @app.set_variable(SettingsWindow::VAR_FILTER, filter_label)
+        @app.set_variable(SettingsWindow::VAR_INTEGER_SCALE, @integer_scale ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_COLOR_CORRECTION, @color_correction ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_VOLUME, (@volume * 100).round.to_s)
+        @app.set_variable(SettingsWindow::VAR_MUTE, @muted ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)
+        @app.set_variable(SettingsWindow::VAR_SS_BACKUP, @save_state_backup ? '1' : '0')
+      end
+
       # Returns the currently active input map based on settings window mode.
       def active_input
         @settings_window.keyboard_mode? ? @kb_map : @gp_map
@@ -658,11 +701,14 @@ module Teek
         return unless @core
         @paused = !@paused
         if @paused
+          @stream.clear
           @stream.pause
           @toast&.show(translate('toast.paused'), permanent: true)
           @app.command(@emu_menu, :entryconfigure, 0, label: translate('menu.resume'))
         else
           @toast&.destroy
+          @stream.clear
+          @audio_fade_in = FADE_IN_FRAMES
           @stream.resume
           @next_frame = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           @app.command(@emu_menu, :entryconfigure, 0, label: translate('menu.pause'))
@@ -779,8 +825,14 @@ module Teek
         saves = @config.saves_dir
         FileUtils.mkdir_p(saves) unless File.directory?(saves)
         @core = Core.new(path, saves)
-        @core.color_correction = @color_correction
         @rom_path = path
+
+        # Activate per-game config overlay (before reading settings)
+        rom_id = Config.rom_id(@core.game_code, @core.checksum)
+        @config.activate_game(rom_id)
+        refresh_from_config
+        @settings_window.set_per_game_available(true)
+        @settings_window.set_per_game_active(@config.per_game_settings?)
         @save_mgr = SaveStateManager.new(core: @core, config: @config, app: @app)
         @save_mgr.state_dir = @save_mgr.state_dir_for_rom(@core)
         @save_mgr.quick_save_slot = @quick_save_slot
@@ -975,14 +1027,14 @@ module Teek
 
         @audio_samples_produced += pcm.bytesize / 4
         if @muted
-          # Drain blip buffer but don't queue — keeps emulation in sync
+          @audio_fade_in = 0
         else
           vol = volume_override || @volume
-          if vol < 1.0
-            @stream.queue(apply_volume_to_pcm(pcm, vol))
-          else
-            @stream.queue(pcm)
+          pcm = apply_volume_to_pcm(pcm, vol) if vol < 1.0
+          if @audio_fade_in > 0
+            pcm, @audio_fade_in = self.class.apply_fade_ramp(pcm, @audio_fade_in, FADE_IN_FRAMES)
           end
+          @stream.queue(pcm)
         end
       end
 
@@ -1058,6 +1110,25 @@ module Teek
         samples = pcm.unpack('s*')
         samples.map! { |s| (s * gain).round.clamp(-32768, 32767) }
         samples.pack('s*')
+      end
+
+      # Apply a linear fade-in ramp to int16 stereo PCM data.
+      # Pure function: takes remaining/total counters, returns [pcm, new_remaining].
+      # @param pcm [String] packed int16 stereo PCM
+      # @param remaining [Integer] fade samples remaining (counts down to 0)
+      # @param total [Integer] total fade length in samples
+      # @return [Array(String, Integer)] modified PCM and updated remaining count
+      def self.apply_fade_ramp(pcm, remaining, total)
+        samples = pcm.unpack('s*')
+        i = 0
+        while i < samples.length && remaining > 0
+          gain = 1.0 - (remaining.to_f / total)
+          samples[i]     = (samples[i]     * gain).round.clamp(-32768, 32767)
+          samples[i + 1] = (samples[i + 1] * gain).round.clamp(-32768, 32767) if i + 1 < samples.length
+          remaining -= 1
+          i += 2
+        end
+        [samples.pack('s*'), remaining]
       end
 
       def cleanup
