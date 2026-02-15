@@ -34,6 +34,7 @@ module Teek
         'locale'             => 'auto',
         'pixel_filter'       => 'nearest',
         'integer_scale'      => false,
+        'color_correction'   => false,
       }.freeze
 
       GAMEPAD_DEFAULTS = {
@@ -146,6 +147,14 @@ module Teek
 
       def integer_scale=(val)
         global['integer_scale'] = !!val
+      end
+
+      def color_correction?
+        global['color_correction']
+      end
+
+      def color_correction=(val)
+        global['color_correction'] = !!val
       end
 
       # @return [Float] toast notification duration in seconds

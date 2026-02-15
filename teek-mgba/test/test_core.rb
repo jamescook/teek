@@ -253,6 +253,31 @@ class TestMGBACore < Minitest::Test
     end
   end
 
+  # -- Color correction --------------------------------------------------------
+
+  def test_color_correction_defaults_to_false
+    refute @core.color_correction?
+  end
+
+  def test_color_correction_toggle
+    @core.color_correction = true
+    assert @core.color_correction?
+    @core.color_correction = false
+    refute @core.color_correction?
+  end
+
+  def test_color_correction_modifies_argb_output
+    @core.run_frame
+    buf_normal = @core.video_buffer_argb
+
+    @core.color_correction = true
+    buf_corrected = @core.video_buffer_argb
+
+    # The corrected buffer should differ (color values are transformed)
+    refute_equal buf_normal, buf_corrected,
+      "Color-corrected ARGB output should differ from uncorrected"
+  end
+
   # -- Error handling ----------------------------------------------------------
 
   def test_nonexistent_file

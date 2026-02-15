@@ -66,6 +66,7 @@ module Teek
         @show_fps = @config.show_fps?
         @pixel_filter = @config.pixel_filter
         @integer_scale = @config.integer_scale?
+        @color_correction = @config.color_correction?
         @fast_forward = false
         @fullscreen = fullscreen
         @quick_save_slot = @config.quick_save_slot
@@ -109,6 +110,7 @@ module Teek
           on_show_fps_change:     method(:apply_show_fps),
           on_filter_change:       method(:apply_pixel_filter),
           on_integer_scale_change: method(:apply_integer_scale),
+          on_color_correction_change: method(:apply_color_correction),
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
           on_backup_change:       method(:apply_backup),
@@ -131,6 +133,7 @@ module Teek
         filter_label = @pixel_filter == 'nearest' ? @settings_window.send(:translate, 'settings.filter_nearest') : @settings_window.send(:translate, 'settings.filter_linear')
         @app.set_variable(SettingsWindow::VAR_FILTER, filter_label)
         @app.set_variable(SettingsWindow::VAR_INTEGER_SCALE, @integer_scale ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_COLOR_CORRECTION, @color_correction ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)
         @app.set_variable(SettingsWindow::VAR_SS_BACKUP, @save_state_backup ? '1' : '0')
 
@@ -363,6 +366,7 @@ module Teek
         @config.show_fps = @show_fps
         @config.pixel_filter = @pixel_filter
         @config.integer_scale = @integer_scale
+        @config.color_correction = @color_correction
         @config.quick_save_slot = @quick_save_slot
         @config.save_state_backup = @save_state_backup
 
@@ -394,6 +398,14 @@ module Teek
 
       def apply_integer_scale(enabled)
         @integer_scale = !!enabled
+      end
+
+      def apply_color_correction(enabled)
+        @color_correction = !!enabled
+        if @core && !@core.destroyed?
+          @core.color_correction = @color_correction
+          render_frame if @texture
+        end
       end
 
       # Returns the currently active input map based on settings window mode.
@@ -767,6 +779,7 @@ module Teek
         saves = @config.saves_dir
         FileUtils.mkdir_p(saves) unless File.directory?(saves)
         @core = Core.new(path, saves)
+        @core.color_correction = @color_correction
         @rom_path = path
         @save_mgr = SaveStateManager.new(core: @core, config: @config, app: @app)
         @save_mgr.state_dir = @save_mgr.state_dir_for_rom(@core)

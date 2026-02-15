@@ -30,6 +30,7 @@ module Teek
       TOAST_COMBO = "#{NB}.video.toast_row.toast_combo"
       FILTER_COMBO = "#{NB}.video.filter_row.filter_combo"
       INTEGER_SCALE_CHECK = "#{NB}.video.intscale_row.intscale"
+      COLOR_CORRECTION_CHECK = "#{NB}.video.colorcorr_row.colorcorr"
       VOLUME_SCALE = "#{NB}.audio.vol_row.vol_scale"
       MUTE_CHECK = "#{NB}.audio.mute_row.mute"
 
@@ -109,6 +110,7 @@ module Teek
       VAR_TOAST_DURATION = '::mgba_toast_duration'
       VAR_FILTER   = '::mgba_filter'
       VAR_INTEGER_SCALE = '::mgba_integer_scale'
+      VAR_COLOR_CORRECTION = '::mgba_color_correction'
       VAR_QUICK_SLOT     = '::mgba_quick_slot'
       VAR_SS_BACKUP      = '::mgba_ss_backup'
 
@@ -380,6 +382,22 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, INTEGER_SCALE_CHECK, side: :left)
+
+        # Color correction checkbox
+        colorcorr_row = "#{frame}.colorcorr_row"
+        @app.command('ttk::frame', colorcorr_row)
+        @app.command(:pack, colorcorr_row, fill: :x, padx: 10, pady: 5)
+
+        @app.set_variable(VAR_COLOR_CORRECTION, '0')
+        @app.command('ttk::checkbutton', COLOR_CORRECTION_CHECK,
+          text: translate('settings.color_correction'),
+          variable: VAR_COLOR_CORRECTION,
+          command: proc { |*|
+            enabled = @app.get_variable(VAR_COLOR_CORRECTION) == '1'
+            @callbacks[:on_color_correction_change]&.call(enabled)
+            mark_dirty
+          })
+        @app.command(:pack, COLOR_CORRECTION_CHECK, side: :left)
       end
 
       def setup_audio_tab

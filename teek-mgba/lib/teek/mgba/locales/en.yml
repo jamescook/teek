@@ -80,6 +80,7 @@ settings:
   filter_nearest: "Nearest Neighbor"
   filter_linear: "Bilinear"
   integer_scale: "Integer scaling (no fractional pixels)"
+  color_correction: "GBA color correction"
   gp_a: "A"
   gp_b: "B"
   gp_l: "L"

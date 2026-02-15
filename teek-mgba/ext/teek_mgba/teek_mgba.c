@@ -53,12 +53,89 @@ static struct mLogger s_null_logger = {
 /* Core wrapper struct                                       */
 /* --------------------------------------------------------- */
 
+/* --------------------------------------------------------- */
+/* GBA color correction (Pokefan531 / Color Mangler formula)  */
+/*                                                           */
+/* The GBA LCD has a non-standard gamma (~3.2) and channel   */
+/* cross-talk. Games were designed with exaggerated colors    */
+/* to compensate. This LUT maps raw mGBA ARGB8888 output to  */
+/* corrected sRGB values that approximate the original GBA    */
+/* LCD appearance.                                           */
+/*                                                           */
+/* 32x32x32 entries (one per RGB555 input color) = 128KB.    */
+/* Built once on enable; applied per-pixel in video_buffer_argb. */
+/*                                                           */
+/* Reference: libretro gba-color.glsl (public domain)        */
+/*   https://github.com/libretro/glsl-shaders/blob/master/   */
+/*   handheld/shaders/color/gba-color.glsl                   */
+/* --------------------------------------------------------- */
+
+static uint32_t gba_color_lut[32][32][32];
+static int gba_color_lut_built = 0;
+
+static void
+build_gba_color_lut(void)
+{
+    const double target_gamma  = 2.2;
+    const double darken_screen = 1.0;
+    const double display_gamma = 2.2;
+    const double lum           = 0.94;
+    const double input_gamma   = target_gamma + darken_screen; /* 3.2 */
+
+    for (int ri = 0; ri < 32; ri++) {
+        for (int gi = 0; gi < 32; gi++) {
+            for (int bi = 0; bi < 32; bi++) {
+                double r = pow(ri / 31.0, input_gamma) * lum;
+                double g = pow(gi / 31.0, input_gamma) * lum;
+                double b = pow(bi / 31.0, input_gamma) * lum;
+                if (r > 1.0) r = 1.0;
+                if (g > 1.0) g = 1.0;
+                if (b > 1.0) b = 1.0;
+
+                /* Pokefan531 mixing matrix */
+                double nr =  0.82  * r + 0.125 * g + 0.195 * b;
+                double ng =  0.24  * r + 0.665 * g + 0.075 * b;
+                double nb = -0.06  * r + 0.21  * g + 0.73  * b;
+
+                if (nr < 0.0) nr = 0.0; if (nr > 1.0) nr = 1.0;
+                if (ng < 0.0) ng = 0.0; if (ng > 1.0) ng = 1.0;
+                if (nb < 0.0) nb = 0.0; if (nb > 1.0) nb = 1.0;
+
+                nr = pow(nr, 1.0 / display_gamma);
+                ng = pow(ng, 1.0 / display_gamma);
+                nb = pow(nb, 1.0 / display_gamma);
+
+                uint8_t or8 = (uint8_t)(nr * 255.0 + 0.5);
+                uint8_t og8 = (uint8_t)(ng * 255.0 + 0.5);
+                uint8_t ob8 = (uint8_t)(nb * 255.0 + 0.5);
+
+                gba_color_lut[ri][gi][bi] =
+                    0xFF000000 | ((uint32_t)or8 << 16) |
+                    ((uint32_t)og8 << 8) | (uint32_t)ob8;
+            }
+        }
+    }
+    gba_color_lut_built = 1;
+}
+
+/* Apply LUT to an ARGB8888 pixel. The GBA only outputs 15-bit color
+ * (RGB555), so we quantize each 8-bit channel to 5 bits for lookup. */
+static inline uint32_t
+color_correct_pixel(uint32_t argb)
+{
+    int r5 = (int)((argb >> 16) & 0xFF) >> 3;
+    int g5 = (int)((argb >>  8) & 0xFF) >> 3;
+    int b5 = (int)((argb      ) & 0xFF) >> 3;
+    return gba_color_lut[r5][g5][b5];
+}
+
 struct mgba_core {
     struct mCore *core;
     color_t *video_buffer;
     int width;
     int height;
     int destroyed;
+    int color_correction;
 };
 
 static void
@@ -109,6 +186,7 @@ mgba_core_alloc(VALUE klass)
     mc->width = 0;
     mc->height = 0;
     mc->destroyed = 0;
+    mc->color_correction = 0;
     return obj;
 }
 
@@ -263,17 +341,29 @@ mgba_core_video_buffer_argb(VALUE self)
     uint32_t *dst = (uint32_t *)RSTRING_PTR(str);
     const uint32_t *src = (const uint32_t *)mc->video_buffer;
 
-    for (long i = 0; i < npixels; i++) {
-        uint32_t px = src[i];
-        /* mGBA native color_t is mCOLOR_XBGR8 (0xXXBBGGRR) — the high
-         * byte is unused padding, not alpha. Force it to 0xFF so
-         * consumers that interpret byte 3 as alpha (Tk photo, PNG)
-         * don't get transparent pixels.
-         * Ref: https://github.com/mgba-emu/mgba/blob/c30aaa8f42b5b786924d955630b29cd990176968/include/mgba-util/image.h#L62 */
-        dst[i] = 0xFF000000
-               | ((px & 0x000000FF) << 16)
-               | (px & 0x0000FF00)
-               | ((px & 0x00FF0000) >> 16);
+    if (mc->color_correction) {
+        if (!gba_color_lut_built) build_gba_color_lut();
+        for (long i = 0; i < npixels; i++) {
+            uint32_t px = src[i];
+            uint32_t argb = 0xFF000000
+                   | ((px & 0x000000FF) << 16)
+                   | (px & 0x0000FF00)
+                   | ((px & 0x00FF0000) >> 16);
+            dst[i] = color_correct_pixel(argb);
+        }
+    } else {
+        for (long i = 0; i < npixels; i++) {
+            uint32_t px = src[i];
+            /* mGBA native color_t is mCOLOR_XBGR8 (0xXXBBGGRR) — the high
+             * byte is unused padding, not alpha. Force it to 0xFF so
+             * consumers that interpret byte 3 as alpha (Tk photo, PNG)
+             * don't get transparent pixels.
+             * Ref: https://github.com/mgba-emu/mgba/blob/c30aaa8f42b5b786924d955630b29cd990176968/include/mgba-util/image.h#L62 */
+            dst[i] = 0xFF000000
+                   | ((px & 0x000000FF) << 16)
+                   | (px & 0x0000FF00)
+                   | ((px & 0x00FF0000) >> 16);
+        }
     }
     return str;
 }
@@ -491,6 +581,28 @@ mgba_core_load_state_from_file(VALUE self, VALUE rb_path)
 }
 
 /* --------------------------------------------------------- */
+/* Core#color_correction=, Core#color_correction?            */
+/* --------------------------------------------------------- */
+
+static VALUE
+mgba_core_set_color_correction(VALUE self, VALUE val)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    mc->color_correction = RTEST(val) ? 1 : 0;
+    if (mc->color_correction && !gba_color_lut_built) {
+        build_gba_color_lut();
+    }
+    return val;
+}
+
+static VALUE
+mgba_core_color_correction_p(VALUE self)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    return mc->color_correction ? Qtrue : Qfalse;
+}
+
+/* --------------------------------------------------------- */
 /* Core#destroy, Core#destroyed?                             */
 /* --------------------------------------------------------- */
 
@@ -667,6 +779,8 @@ Init_teek_mgba(void)
     rb_define_method(cCore, "rom_size",    mgba_core_rom_size, 0);
     rb_define_method(cCore, "save_state_to_file", mgba_core_save_state_to_file, 1);
     rb_define_method(cCore, "load_state_from_file", mgba_core_load_state_from_file, 1);
+    rb_define_method(cCore, "color_correction=", mgba_core_set_color_correction, 1);
+    rb_define_method(cCore, "color_correction?", mgba_core_color_correction_p, 0);
     rb_define_method(cCore, "destroy",     mgba_core_destroy, 0);
     rb_define_method(cCore, "destroyed?",  mgba_core_destroyed_p, 0);
 
