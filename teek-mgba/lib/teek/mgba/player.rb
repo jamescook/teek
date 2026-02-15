@@ -352,6 +352,15 @@ module Teek
         @app.command(:bell)
       end
 
+      def show_rom_error(message)
+        @app.command('tk_messageBox',
+          parent: '.',
+          title: translate('dialog.drop_error_title'),
+          message: message,
+          type: :ok,
+          icon: :error)
+      end
+
       def save_config
         @config.scale = @scale
         @config.volume = (@volume * 100).round
@@ -819,8 +828,6 @@ module Teek
         result == 'ok'
       end
 
-      ROM_EXTENSIONS = %w[.gba .gb .gbc].freeze
-
       def setup_drop_target
         @app.register_drop_target('.')
         @app.bind('.', '<<DropFile>>', :data) do |data|
@@ -842,7 +849,7 @@ module Teek
 
         path = paths.first
         ext = File.extname(path).downcase
-        unless ROM_EXTENSIONS.include?(ext)
+        unless RomLoader::SUPPORTED_EXTENSIONS.include?(ext)
           @app.command('tk_messageBox',
             parent: '.',
             title: translate('dialog.drop_error_title'),
@@ -857,7 +864,7 @@ module Teek
       end
 
       def open_rom_dialog
-        filetypes = '{{GBA ROMs} {.gba}} {{GB ROMs} {.gb .gbc}} {{All Files} {*}}'
+        filetypes = '{{GBA ROMs} {.gba}} {{GB ROMs} {.gb .gbc}} {{ZIP Archives} {.zip}} {{All Files} {*}}'
         title = translate('menu.open_rom').delete('…')
         path = @app.tcl_eval("tk_getOpenFile -title {#{title}} -filetypes {#{filetypes}}")
         return if path.empty?
@@ -871,6 +878,24 @@ module Teek
         # macOS renders the menu bar at the OS level, outside tk busy's reach.
         # @stream is nil until init_sdl2; the ROM will load via @initial_rom.
         return unless @stream
+
+        # Resolve ZIP archives to a bare ROM path
+        rom_path = begin
+          RomLoader.resolve(path)
+        rescue RomLoader::NoRomInZip => e
+          show_rom_error(translate('dialog.no_rom_in_zip', name: e.message))
+          return
+        rescue RomLoader::MultipleRomsInZip => e
+          show_rom_error(translate('dialog.multiple_roms_in_zip', name: e.message))
+          return
+        rescue RomLoader::UnsupportedFormat => e
+          show_rom_error(translate('dialog.drop_unsupported_type', ext: e.message))
+          return
+        rescue RomLoader::ZipReadError => e
+          show_rom_error(translate('dialog.zip_read_error', detail: e.message))
+          return
+        end
+
         if @core && !@core.destroyed?
           @core.destroy
         end
@@ -878,7 +903,7 @@ module Teek
 
         saves = @config.saves_dir
         FileUtils.mkdir_p(saves) unless File.directory?(saves)
-        @core = Core.new(path, saves)
+        @core = Core.new(rom_path, saves)
         @rom_path = path
 
         # Activate per-game config overlay (before reading settings)
@@ -1198,6 +1223,7 @@ module Teek
         @stream&.destroy unless @stream&.destroyed?
         @texture&.destroy unless @texture&.destroyed?
         @core&.destroy unless @core&.destroyed?
+        RomLoader.cleanup_temp
       end
     end
   end

@@ -29,4 +29,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "minitest", "~> 6.0"
 
   spec.requirements << "libmgba development headers"
+  spec.requirements << "rubyzip gem >= 2.4 (optional, for loading ROMs from .zip files)"
 end
