@@ -5,12 +5,13 @@
 
 require 'minitest/autorun'
 require_relative 'tk_test_helper'
+require_relative '../lib/teek/platform'
 
 class TestAppearance < Minitest::Test
   include TeekTestHelper
 
   def setup
-    skip "macOS aqua only" unless RUBY_PLATFORM.include?("darwin")
+    skip "macOS aqua only" unless Teek.platform.darwin?
   end
 
   def test_set_light_mode

@@ -102,6 +102,47 @@ interp_get_root_coords(VALUE self, VALUE window_path)
 }
 
 /* ---------------------------------------------------------
+ * Interp#window_geometry(window_path)
+ *
+ * Get a window's screen position and interior size in one call.
+ *
+ * Arguments:
+ *   window_path - Tk window path (e.g., ".", ".settings")
+ *
+ * Returns [root_x, root_y, width, height].
+ *
+ * root_x/root_y are absolute screen coordinates (Tk_GetRootCoords).
+ * width/height are the interior size excluding any border (Tk_Width/Tk_Height).
+ * --------------------------------------------------------- */
+
+static VALUE
+interp_window_geometry(VALUE self, VALUE window_path)
+{
+    struct tcltk_interp *tip = get_interp(self);
+    Tk_Window mainWin;
+    Tk_Window tkwin;
+    int x, y;
+
+    StringValue(window_path);
+
+    mainWin = Tk_MainWindow(tip->interp);
+    if (!mainWin) {
+        rb_raise(eTclError, "Tk not initialized (no main window)");
+    }
+
+    tkwin = Tk_NameToWindow(tip->interp, StringValueCStr(window_path), mainWin);
+    if (!tkwin) {
+        rb_raise(eTclError, "window not found: %s", StringValueCStr(window_path));
+    }
+
+    Tk_GetRootCoords(tkwin, &x, &y);
+
+    return rb_ary_new_from_args(4,
+        INT2NUM(x), INT2NUM(y),
+        INT2NUM(Tk_Width(tkwin)), INT2NUM(Tk_Height(tkwin)));
+}
+
+/* ---------------------------------------------------------
  * Interp#coords_to_window(root_x, root_y)
  *
  * Find which window contains the given screen coordinates (hit testing).
@@ -223,6 +264,7 @@ Init_tkwin(VALUE cInterp)
 {
     rb_define_method(cInterp, "user_inactive_time", interp_user_inactive_time, 0);
     rb_define_method(cInterp, "get_root_coords", interp_get_root_coords, 1);
+    rb_define_method(cInterp, "window_geometry", interp_window_geometry, 1);
     rb_define_method(cInterp, "coords_to_window", interp_coords_to_window, 2);
     rb_define_method(cInterp, "native_window_handle", interp_native_window_handle, 1);
 }

@@ -5,3 +5,8 @@ coverage/
 .git/
 .github/
 .claude/
+teek-mgba/vendor/
+**/ext/**/Makefile
+**/ext/**/*.o
+**/ext/**/*.bundle
+**/tmp/

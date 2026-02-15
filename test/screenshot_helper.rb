@@ -12,16 +12,12 @@
 
 require 'fileutils'
 require 'open3'
+require_relative '../lib/teek/platform'
 
 module ScreenshotHelper
   SCREENSHOTS_ROOT = File.expand_path('../screenshots', __dir__)
 
-  PLATFORM = case RUBY_PLATFORM
-             when /darwin/  then 'darwin'
-             when /linux/   then 'linux'
-             when /mingw|mswin/ then 'windows'
-             else 'unknown'
-             end
+  PLATFORM = Teek.platform.to_s
 
   # Default pixel difference threshold for ImageMagick compare (AE metric).
   # GPU drivers may produce minor anti-aliasing variations across runs.
