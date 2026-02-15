@@ -53,6 +53,7 @@ module Teek
       SS_TAB         = "#{NB}.savestates"
       SS_SLOT_COMBO  = "#{SS_TAB}.slot_row.slot_combo"
       SS_BACKUP_CHECK = "#{SS_TAB}.backup_row.backup_check"
+      SS_OPEN_DIR_BTN = "#{SS_TAB}.dir_row.open_btn"
 
       # Bottom bar
       SAVE_BTN = "#{TOP}.save_btn"
@@ -495,6 +496,16 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, SS_BACKUP_CHECK, side: :left)
+
+        # Open Config Folder button
+        dir_row = "#{frame}.dir_row"
+        @app.command('ttk::frame', dir_row)
+        @app.command(:pack, dir_row, fill: :x, padx: 10, pady: [15, 5])
+
+        @app.command('ttk::button', SS_OPEN_DIR_BTN,
+          text: translate('settings.open_config_folder'),
+          command: proc { @callbacks[:on_open_config_dir]&.call })
+        @app.command(:pack, SS_OPEN_DIR_BTN, side: :left)
       end
 
       def make_gba_button(path, parent, gba_btn, side: :left)

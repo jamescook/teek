@@ -57,6 +57,7 @@ settings:
   no_gamepad: "No gamepad detected"
   uncapped: "Uncapped"
   press: "Press…"
+  open_config_folder: "Open Config Folder…"
 
 picker:
   title: "Save States"

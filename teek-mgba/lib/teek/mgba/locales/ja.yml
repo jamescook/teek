@@ -57,6 +57,7 @@ settings:
   no_gamepad: "ゲームパッドが検出されません"
   uncapped: "無制限"
   press: "入力待ち…"
+  open_config_folder: "設定フォルダを開く…"
 
 picker:
   title: "ステートセーブ"

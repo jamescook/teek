@@ -102,6 +102,7 @@ module Teek
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
           on_backup_change:       method(:apply_backup),
+          on_open_config_dir:     method(:open_config_dir),
           on_close:               method(:on_child_window_close),
           on_save:                method(:save_config),
         })
@@ -654,6 +655,19 @@ module Teek
       def apply_backup(enabled)
         @save_state_backup = !!enabled
         @save_mgr.backup = @save_state_backup if @save_mgr
+      end
+
+      def open_config_dir
+        dir = Config.config_dir
+        FileUtils.mkdir_p(dir)
+        p = Teek.platform
+        if p.darwin?
+          system('open', dir)
+        elsif p.windows?
+          system('explorer.exe', dir)
+        else
+          system('xdg-open', dir)
+        end
       end
 
       def toggle_show_fps
