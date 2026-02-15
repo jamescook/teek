@@ -132,16 +132,17 @@ color_correct_pixel(uint32_t argb)
 struct mgba_core {
     struct mCore *core;
     color_t *video_buffer;
+    uint32_t *prev_frame;
     int width;
     int height;
     int destroyed;
     int color_correction;
+    int frame_blending;
 };
 
 static void
-mgba_core_dfree(void *ptr)
+mgba_core_cleanup(struct mgba_core *mc)
 {
-    struct mgba_core *mc = ptr;
     if (!mc->destroyed && mc->core) {
         mc->core->deinit(mc->core);
         mc->core = NULL;
@@ -150,7 +151,18 @@ mgba_core_dfree(void *ptr)
         free(mc->video_buffer);
         mc->video_buffer = NULL;
     }
+    if (mc->prev_frame) {
+        free(mc->prev_frame);
+        mc->prev_frame = NULL;
+    }
     mc->destroyed = 1;
+}
+
+static void
+mgba_core_dfree(void *ptr)
+{
+    struct mgba_core *mc = ptr;
+    mgba_core_cleanup(mc);
     xfree(mc);
 }
 
@@ -161,6 +173,9 @@ mgba_core_memsize(const void *ptr)
     size_t size = sizeof(struct mgba_core);
     if (mc->video_buffer) {
         size += (size_t)mc->width * mc->height * sizeof(color_t);
+    }
+    if (mc->prev_frame) {
+        size += (size_t)mc->width * mc->height * sizeof(uint32_t);
     }
     return size;
 }
@@ -183,10 +198,12 @@ mgba_core_alloc(VALUE klass)
                                      &mgba_core_type, mc);
     mc->core = NULL;
     mc->video_buffer = NULL;
+    mc->prev_frame = NULL;
     mc->width = 0;
     mc->height = 0;
     mc->destroyed = 0;
     mc->color_correction = 0;
+    mc->frame_blending = 0;
     return obj;
 }
 
@@ -243,6 +260,15 @@ mgba_core_initialize(int argc, VALUE *argv, VALUE self)
     }
     core->setVideoBuffer(core, mc->video_buffer, w);
 
+    /* 4b. Allocate previous-frame buffer for frame blending */
+    mc->prev_frame = calloc((size_t)w * h, sizeof(uint32_t));
+    if (!mc->prev_frame) {
+        free(mc->video_buffer);
+        mc->video_buffer = NULL;
+        core->deinit(core);
+        rb_raise(rb_eNoMemError, "failed to allocate prev_frame buffer");
+    }
+
     /* 5. Set audio buffer size */
     core->setAudioBufferSize(core, 2048);
 
@@ -250,6 +276,8 @@ mgba_core_initialize(int argc, VALUE *argv, VALUE self)
     if (!mCoreLoadFile(core, path)) {
         free(mc->video_buffer);
         mc->video_buffer = NULL;
+        free(mc->prev_frame);
+        mc->prev_frame = NULL;
         core->deinit(core);
         rb_raise(rb_eArgError, "failed to load ROM: %s", path);
     }
@@ -277,6 +305,8 @@ mgba_core_initialize(int argc, VALUE *argv, VALUE self)
         if (!left || !right) {
             free(mc->video_buffer);
             mc->video_buffer = NULL;
+            free(mc->prev_frame);
+            mc->prev_frame = NULL;
             core->deinit(core);
             rb_raise(rb_eRuntimeError, "mGBA audio channels not available");
         }
@@ -341,29 +371,33 @@ mgba_core_video_buffer_argb(VALUE self)
     uint32_t *dst = (uint32_t *)RSTRING_PTR(str);
     const uint32_t *src = (const uint32_t *)mc->video_buffer;
 
-    if (mc->color_correction) {
-        if (!gba_color_lut_built) build_gba_color_lut();
-        for (long i = 0; i < npixels; i++) {
-            uint32_t px = src[i];
-            uint32_t argb = 0xFF000000
-                   | ((px & 0x000000FF) << 16)
-                   | (px & 0x0000FF00)
-                   | ((px & 0x00FF0000) >> 16);
-            dst[i] = color_correct_pixel(argb);
+    if (mc->color_correction && !gba_color_lut_built)
+        build_gba_color_lut();
+
+    for (long i = 0; i < npixels; i++) {
+        uint32_t px = src[i];
+        /* mGBA native color_t is mCOLOR_XBGR8 (0xXXBBGGRR) — the high
+         * byte is unused padding, not alpha. Force it to 0xFF so
+         * consumers that interpret byte 3 as alpha (Tk photo, PNG)
+         * don't get transparent pixels.
+         * Ref: https://github.com/mgba-emu/mgba/blob/c30aaa8f42b5b786924d955630b29cd990176968/include/mgba-util/image.h#L62 */
+        uint32_t argb = 0xFF000000
+               | ((px & 0x000000FF) << 16)
+               | (px & 0x0000FF00)
+               | ((px & 0x00FF0000) >> 16);
+
+        if (mc->color_correction)
+            argb = color_correct_pixel(argb);
+
+        if (mc->frame_blending && mc->prev_frame) {
+            uint32_t prev = mc->prev_frame[i];
+            mc->prev_frame[i] = argb;  /* store unblended for next frame */
+            argb = ((argb & 0xFEFEFEFE) >> 1)
+                 + ((prev & 0xFEFEFEFE) >> 1)
+                 + (argb & prev & 0x01010101);
         }
-    } else {
-        for (long i = 0; i < npixels; i++) {
-            uint32_t px = src[i];
-            /* mGBA native color_t is mCOLOR_XBGR8 (0xXXBBGGRR) — the high
-             * byte is unused padding, not alpha. Force it to 0xFF so
-             * consumers that interpret byte 3 as alpha (Tk photo, PNG)
-             * don't get transparent pixels.
-             * Ref: https://github.com/mgba-emu/mgba/blob/c30aaa8f42b5b786924d955630b29cd990176968/include/mgba-util/image.h#L62 */
-            dst[i] = 0xFF000000
-                   | ((px & 0x000000FF) << 16)
-                   | (px & 0x0000FF00)
-                   | ((px & 0x00FF0000) >> 16);
-        }
+
+        dst[i] = argb;
     }
     return str;
 }
@@ -603,6 +637,25 @@ mgba_core_color_correction_p(VALUE self)
 }
 
 /* --------------------------------------------------------- */
+/* Core#frame_blending=, Core#frame_blending?                */
+/* --------------------------------------------------------- */
+
+static VALUE
+mgba_core_set_frame_blending(VALUE self, VALUE val)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    mc->frame_blending = RTEST(val) ? 1 : 0;
+    return val;
+}
+
+static VALUE
+mgba_core_frame_blending_p(VALUE self)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    return mc->frame_blending ? Qtrue : Qfalse;
+}
+
+/* --------------------------------------------------------- */
 /* Core#destroy, Core#destroyed?                             */
 /* --------------------------------------------------------- */
 
@@ -611,15 +664,7 @@ mgba_core_destroy(VALUE self)
 {
     struct mgba_core *mc;
     TypedData_Get_Struct(self, struct mgba_core, &mgba_core_type, mc);
-    if (!mc->destroyed && mc->core) {
-        mc->core->deinit(mc->core);
-        mc->core = NULL;
-    }
-    if (mc->video_buffer) {
-        free(mc->video_buffer);
-        mc->video_buffer = NULL;
-    }
-    mc->destroyed = 1;
+    mgba_core_cleanup(mc);
     return Qnil;
 }
 
@@ -781,6 +826,8 @@ Init_teek_mgba(void)
     rb_define_method(cCore, "load_state_from_file", mgba_core_load_state_from_file, 1);
     rb_define_method(cCore, "color_correction=", mgba_core_set_color_correction, 1);
     rb_define_method(cCore, "color_correction?", mgba_core_color_correction_p, 0);
+    rb_define_method(cCore, "frame_blending=", mgba_core_set_frame_blending, 1);
+    rb_define_method(cCore, "frame_blending?", mgba_core_frame_blending_p, 0);
     rb_define_method(cCore, "destroy",     mgba_core_destroy, 0);
     rb_define_method(cCore, "destroyed?",  mgba_core_destroyed_p, 0);
 

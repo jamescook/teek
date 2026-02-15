@@ -41,6 +41,7 @@ module Teek
         'pixel_filter'       => 'nearest',
         'integer_scale'      => false,
         'color_correction'   => false,
+        'frame_blending'     => false,
         'per_game_settings'  => false,
       }.freeze
 
@@ -51,6 +52,7 @@ module Teek
         'pixel_filter'      => 'settings.pixel_filter',
         'integer_scale'     => 'settings.integer_scale',
         'color_correction'  => 'settings.color_correction',
+        'frame_blending'    => 'settings.frame_blending',
         'volume'            => 'settings.volume',
         'muted'             => 'settings.mute',
         'turbo_speed'       => 'settings.turbo_speed',
@@ -206,6 +208,14 @@ module Teek
 
       def color_correction=(val)
         global['color_correction'] = !!val
+      end
+
+      def frame_blending?
+        global['frame_blending']
+      end
+
+      def frame_blending=(val)
+        global['frame_blending'] = !!val
       end
 
       # -- Per-game settings ---------------------------------------------------

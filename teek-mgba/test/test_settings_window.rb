@@ -839,6 +839,56 @@ class TestMGBASettingsWindow < Minitest::Test
     end
   end
 
+  # -- Frame blending checkbox -----------------------------------------------
+
+  def test_frame_blending_defaults_to_off
+    assert_tk_app("frame blending checkbox defaults to off") do
+      require "teek/mgba/settings_window"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      assert_equal '0', app.get_variable(Teek::MGBA::SettingsWindow::VAR_FRAME_BLENDING)
+    end
+  end
+
+  def test_clicking_frame_blending_fires_callback
+    assert_tk_app("clicking frame blending fires on_frame_blending_change") do
+      require "teek/mgba/settings_window"
+      received = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_frame_blending_change: proc { |v| received = v }
+      })
+      sw.show
+      app.update
+
+      app.command(Teek::MGBA::SettingsWindow::FRAME_BLENDING_CHECK, 'invoke')
+      app.update
+
+      assert_equal true, received
+    end
+  end
+
+  def test_unchecking_frame_blending_fires_false
+    assert_tk_app("unchecking frame blending fires callback with false") do
+      require "teek/mgba/settings_window"
+      received = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_frame_blending_change: proc { |v| received = v }
+      })
+      sw.show
+      app.update
+
+      # Check then uncheck
+      app.command(Teek::MGBA::SettingsWindow::FRAME_BLENDING_CHECK, 'invoke')
+      app.update
+      app.command(Teek::MGBA::SettingsWindow::FRAME_BLENDING_CHECK, 'invoke')
+      app.update
+
+      assert_equal false, received
+    end
+  end
+
   # -- Per-game settings checkbox -------------------------------------------
 
   def test_per_game_checkbox_defaults_disabled

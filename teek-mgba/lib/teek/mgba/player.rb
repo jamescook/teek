@@ -68,6 +68,7 @@ module Teek
         @pixel_filter = @config.pixel_filter
         @integer_scale = @config.integer_scale?
         @color_correction = @config.color_correction?
+        @frame_blending = @config.frame_blending?
         @audio_fade_in = 0
         @frame_limit = frames
         @total_frames = 0
@@ -115,6 +116,7 @@ module Teek
           on_filter_change:       method(:apply_pixel_filter),
           on_integer_scale_change: method(:apply_integer_scale),
           on_color_correction_change: method(:apply_color_correction),
+          on_frame_blending_change:   method(:apply_frame_blending),
           on_per_game_toggle:        method(:toggle_per_game),
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
@@ -359,6 +361,7 @@ module Teek
         @config.pixel_filter = @pixel_filter
         @config.integer_scale = @integer_scale
         @config.color_correction = @color_correction
+        @config.frame_blending = @frame_blending
         @config.quick_save_slot = @quick_save_slot
         @config.save_state_backup = @save_state_backup
 
@@ -400,6 +403,14 @@ module Teek
         end
       end
 
+      def apply_frame_blending(enabled)
+        @frame_blending = !!enabled
+        if @core && !@core.destroyed?
+          @core.frame_blending = @frame_blending
+          render_frame if @texture
+        end
+      end
+
       def toggle_per_game(enabled)
         if enabled
           @config.enable_per_game
@@ -418,6 +429,7 @@ module Teek
         @pixel_filter     = @config.pixel_filter
         @integer_scale    = @config.integer_scale?
         @color_correction = @config.color_correction?
+        @frame_blending   = @config.frame_blending?
         @quick_save_slot  = @config.quick_save_slot
         @save_state_backup = @config.save_state_backup?
 
@@ -428,6 +440,7 @@ module Teek
         @texture.scale_mode = @pixel_filter.to_sym if @texture
         if @core && !@core.destroyed?
           @core.color_correction = @color_correction
+          @core.frame_blending = @frame_blending
           render_frame if @texture
         end
         @save_mgr.quick_save_slot = @quick_save_slot if @save_mgr
@@ -447,6 +460,7 @@ module Teek
         @app.set_variable(SettingsWindow::VAR_FILTER, filter_label)
         @app.set_variable(SettingsWindow::VAR_INTEGER_SCALE, @integer_scale ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_COLOR_CORRECTION, @color_correction ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_FRAME_BLENDING, @frame_blending ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_VOLUME, (@volume * 100).round.to_s)
         @app.set_variable(SettingsWindow::VAR_MUTE, @muted ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)

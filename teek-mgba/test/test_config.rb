@@ -722,7 +722,7 @@ class TestMGBAConfig < Minitest::Test
   end
 
   def test_per_game_settings_constant_keys
-    expected = %w[scale pixel_filter integer_scale color_correction
+    expected = %w[scale pixel_filter integer_scale color_correction frame_blending
                   volume muted turbo_speed quick_save_slot save_state_backup]
     assert_equal expected.sort, Teek::MGBA::Config::PER_GAME_SETTINGS.keys.sort
   end

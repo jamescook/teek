@@ -31,6 +31,7 @@ module Teek
       FILTER_COMBO = "#{NB}.video.filter_row.filter_combo"
       INTEGER_SCALE_CHECK = "#{NB}.video.intscale_row.intscale"
       COLOR_CORRECTION_CHECK = "#{NB}.video.colorcorr_row.colorcorr"
+      FRAME_BLENDING_CHECK = "#{NB}.video.frameblend_row.frameblend"
       VOLUME_SCALE = "#{NB}.audio.vol_row.vol_scale"
       MUTE_CHECK = "#{NB}.audio.mute_row.mute"
 
@@ -116,6 +117,7 @@ module Teek
       VAR_FILTER   = '::mgba_filter'
       VAR_INTEGER_SCALE = '::mgba_integer_scale'
       VAR_COLOR_CORRECTION = '::mgba_color_correction'
+      VAR_FRAME_BLENDING = '::mgba_frame_blending'
       VAR_QUICK_SLOT     = '::mgba_quick_slot'
       VAR_SS_BACKUP      = '::mgba_ss_backup'
 
@@ -451,6 +453,22 @@ module Teek
             mark_dirty
           })
         @app.command(:pack, COLOR_CORRECTION_CHECK, side: :left)
+
+        # Frame blending checkbox
+        frameblend_row = "#{frame}.frameblend_row"
+        @app.command('ttk::frame', frameblend_row)
+        @app.command(:pack, frameblend_row, fill: :x, padx: 10, pady: 5)
+
+        @app.set_variable(VAR_FRAME_BLENDING, '0')
+        @app.command('ttk::checkbutton', FRAME_BLENDING_CHECK,
+          text: translate('settings.frame_blending'),
+          variable: VAR_FRAME_BLENDING,
+          command: proc { |*|
+            enabled = @app.get_variable(VAR_FRAME_BLENDING) == '1'
+            @callbacks[:on_frame_blending_change]&.call(enabled)
+            mark_dirty
+          })
+        @app.command(:pack, FRAME_BLENDING_CHECK, side: :left)
       end
 
       def setup_audio_tab

@@ -81,6 +81,7 @@ settings:
   filter_linear: "Bilinear"
   integer_scale: "Integer scaling (no fractional pixels)"
   color_correction: "GBA color correction"
+  frame_blending: "Frame blending (LCD ghosting)"
   per_game: "Per-game settings"
   gp_a: "A"
   gp_b: "B"

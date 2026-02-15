@@ -278,6 +278,46 @@ class TestMGBACore < Minitest::Test
       "Color-corrected ARGB output should differ from uncorrected"
   end
 
+  # -- Frame blending -----------------------------------------------------------
+
+  def test_frame_blending_defaults_to_false
+    refute @core.frame_blending?
+  end
+
+  def test_frame_blending_toggle
+    @core.frame_blending = true
+    assert @core.frame_blending?
+    @core.frame_blending = false
+    refute @core.frame_blending?
+  end
+
+  def test_frame_blending_modifies_argb_output
+    @core.run_frame
+    buf_normal = @core.video_buffer_argb
+
+    @core.frame_blending = true
+    # First call with blending on blends current frame with zeroed prev_frame
+    buf_blended = @core.video_buffer_argb
+
+    refute_equal buf_normal, buf_blended,
+      "Frame-blended ARGB output should differ from unblended"
+  end
+
+  def test_frame_blending_stabilizes_on_static_content
+    @core.frame_blending = true
+    @core.run_frame
+    @core.video_buffer_argb  # prime prev_frame buffer
+    @core.run_frame
+    buf_a = @core.video_buffer_argb
+    @core.run_frame
+    buf_b = @core.video_buffer_argb
+
+    # Static content (test ROM draws nothing) should produce identical blended
+    # output once prev_frame is primed
+    assert_equal buf_a, buf_b,
+      "Frame blending on static content should stabilize"
+  end
+
   # -- Error handling ----------------------------------------------------------
 
   def test_nonexistent_file
