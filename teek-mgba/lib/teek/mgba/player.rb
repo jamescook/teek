@@ -596,8 +596,10 @@ module Teek
         @paused = !@paused
         if @paused
           @stream.pause
+          @toast&.show(translate('toast.paused'), permanent: true)
           @app.command(@emu_menu, :entryconfigure, 0, label: translate('menu.resume'))
         else
+          @toast&.destroy
           @stream.resume
           @next_frame = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           @app.command(@emu_menu, :entryconfigure, 0, label: translate('menu.pause'))

@@ -24,6 +24,7 @@ toast:
   load_failed: "Failed to load state"
   loaded_sav: "Loaded {name}"
   created_sav: "Created {name}"
+  paused: "Paused"
   waiting_for: "Waiting for {label}…"
 
 dialog:
