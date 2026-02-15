@@ -69,6 +69,11 @@ def find_tcltk
 
   abort "Tcl stub library not found" unless tcl_stub
   abort "Tk stub library not found" unless tk_stub
+
+  # Also link the real Tcl shared library so it's loaded at runtime.
+  # Some distros (e.g. Fedora) ship Tcl symbols in a separate .so that
+  # stubs alone don't pull in, causing dlsym() to fail at bootstrap.
+  have_library('tcl9.0') || have_library('tcl8.6') || have_library('tcl')
 end
 
 find_tcltk
