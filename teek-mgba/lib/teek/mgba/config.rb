@@ -395,9 +395,9 @@ module Teek
       end
 
       # @param action [Symbol, String] e.g. :quit, 'pause'
-      # @param keysym [String] e.g. 'q', 'F5'
-      def set_hotkey(action, keysym)
-        hotkeys[action.to_s] = keysym.to_s
+      # @param hk [String, Array] e.g. 'q', 'F5', or ['Control', 's']
+      def set_hotkey(action, hk)
+        hotkeys[action.to_s] = hk
       end
 
       def reset_hotkeys

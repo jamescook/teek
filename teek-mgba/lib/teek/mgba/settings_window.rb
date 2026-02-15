@@ -169,6 +169,8 @@ module Teek
         @hk_listening_for = nil
         @hk_listen_timer = nil
         @hk_labels = HotkeyMap::DEFAULTS.dup
+        @hk_pending_modifiers = Set.new
+        @hk_mod_timer = nil
 
         build_toplevel(translate('menu.settings'), geometry: '700x560') { setup_ui }
       end
@@ -641,8 +643,8 @@ module Teek
           @app.command('ttk::label', lbl_path, text: translate(HK_LOCALE_KEYS[action]), width: 14, anchor: :w)
           @app.command(:pack, lbl_path, side: :left)
 
-          keysym = @hk_labels[action] || '?'
-          @app.command('ttk::button', btn_path, text: keysym, width: 12,
+          display = hk_display(action)
+          @app.command('ttk::button', btn_path, text: display, width: 12,
             style: hk_customized?(action) ? 'Bold.TButton' : 'TButton',
             command: proc { start_hk_listening(action) })
           @app.command(:pack, btn_path, side: :right)
@@ -744,6 +746,13 @@ module Teek
         @hk_labels[action] != HotkeyMap::DEFAULTS[action]
       end
 
+      # Display-friendly text for a hotkey button.
+      def hk_display(action)
+        val = @hk_labels[action]
+        return '?' unless val
+        HotkeyMap.display_name(val)
+      end
+
       # Update a mapping button's text and bold style.
       def style_btn(widget, text, bold)
         @app.command(widget, 'configure', text: text, style: bold ? 'Bold.TButton' : 'TButton')
@@ -813,6 +822,7 @@ module Teek
       end
 
       LISTEN_TIMEOUT_MS = 10_000
+      MODIFIER_SETTLE_MS = 600
 
       def start_listening(gba_btn)
         cancel_listening
@@ -901,24 +911,64 @@ module Teek
       def refresh_hotkeys(labels)
         @hk_labels = labels.dup
         HK_ACTIONS.each do |action, widget|
-          style_btn(widget, @hk_labels[action] || '?', hk_customized?(action))
+          style_btn(widget, hk_display(action), hk_customized?(action))
         end
       end
 
       # @return [Symbol, nil] the hotkey action currently listening for remap
       attr_reader :hk_listening_for
 
-      # Capture a hotkey binding during listen mode. Called by the Tk <Key>
+      # Capture a hotkey during listen mode. Called by the Tk <Key>
       # bind script, or directly by tests.
+      #
+      # Modifier keys (Ctrl, Shift, Alt) start a pending combo — if a
+      # non-modifier key follows within MODIFIER_SETTLE_MS, the combo is
+      # captured. If the timer expires, the modifier alone is captured.
+      #
+      # @param keysym [String] Tk keysym (e.g. "Control_L", "k")
       def capture_hk_mapping(keysym)
         return unless @hk_listening_for
 
-        # Reject keys that conflict with keyboard gamepad mappings
-        error = @callbacks[:on_validate_hotkey].call(keysym.to_s)
-        if error
-          show_key_conflict(error)
-          cancel_hk_listening
+        mod = HotkeyMap.normalize_modifier(keysym)
+        if mod
+          # Modifier pressed — accumulate and wait for a non-modifier key
+          @hk_pending_modifiers << mod
+          cancel_mod_timer
+          @hk_mod_timer = @app.after(MODIFIER_SETTLE_MS) { finalize_hk(keysym) }
           return
+        end
+
+        # Non-modifier key arrived
+        cancel_mod_timer
+        if @hk_pending_modifiers.any?
+          hotkey = [*@hk_pending_modifiers.sort_by { |m| HotkeyMap::MODIFIER_ORDER.index(m) || 99 }, keysym]
+          @hk_pending_modifiers.clear
+        else
+          hotkey = keysym
+        end
+
+        finalize_hk(hotkey)
+      end
+
+      # Finalize a captured hotkey (plain key or combo). Also called by
+      # tests that want to bypass the modifier settle timer.
+      # @param hotkey [String, Array]
+      def finalize_hk(hotkey)
+        return unless @hk_listening_for
+        cancel_mod_timer
+        @hk_pending_modifiers.clear
+
+        hotkey = HotkeyMap.normalize(hotkey)
+
+        # Reject hotkeys that conflict with keyboard gamepad mappings
+        # (only plain keys can conflict — combos with modifiers are fine)
+        unless hotkey.is_a?(Array)
+          error = @callbacks[:on_validate_hotkey].call(hotkey.to_s)
+          if error
+            show_key_conflict(error)
+            cancel_hk_listening
+            return
+          end
         end
 
         if @hk_listen_timer
@@ -928,12 +978,12 @@ module Teek
         unbind_keyboard_listen
 
         action = @hk_listening_for
-        @hk_labels[action] = keysym.to_s
+        @hk_labels[action] = hotkey
         widget = HK_ACTIONS[action]
-        style_btn(widget, keysym.to_s, hk_customized?(action))
+        style_btn(widget, hk_display(action), hk_customized?(action))
         @hk_listening_for = nil
 
-        @callbacks[:on_hotkey_change]&.call(action, keysym)
+        @callbacks[:on_hotkey_change]&.call(action, hotkey)
         @app.command(HK_UNDO_BTN, 'configure', state: :normal)
         mark_dirty
       end
@@ -953,6 +1003,8 @@ module Teek
       end
 
       def cancel_hk_listening
+        cancel_mod_timer
+        @hk_pending_modifiers.clear
         if @hk_listen_timer
           @app.command(:after, :cancel, @hk_listen_timer)
           @hk_listen_timer = nil
@@ -960,8 +1012,15 @@ module Teek
         if @hk_listening_for
           unbind_keyboard_listen
           widget = HK_ACTIONS[@hk_listening_for]
-          style_btn(widget, @hk_labels[@hk_listening_for] || '?', hk_customized?(@hk_listening_for))
+          style_btn(widget, hk_display(@hk_listening_for), hk_customized?(@hk_listening_for))
           @hk_listening_for = nil
+        end
+      end
+
+      def cancel_mod_timer
+        if @hk_mod_timer
+          @app.command(:after, :cancel, @hk_mod_timer)
+          @hk_mod_timer = nil
         end
       end
 
@@ -1005,7 +1064,7 @@ module Teek
         cancel_hk_listening
         @hk_labels = HotkeyMap::DEFAULTS.dup
         HK_ACTIONS.each do |action, widget|
-          style_btn(widget, @hk_labels[action], false)
+          style_btn(widget, hk_display(action), false)
         end
         @app.command(HK_UNDO_BTN, 'configure', state: :disabled)
         @callbacks[:on_hotkey_reset]&.call

@@ -285,4 +285,137 @@ class TestMGBASettingsHotkeys < Minitest::Test
       assert_equal 'F12', text
     end
   end
+
+  # -- Modifier combo capture -----------------------------------------------
+
+  def test_capture_modifier_then_key_produces_combo
+    assert_tk_app("modifier + key produces combo hotkey") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      received_action = nil
+      received_hk = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_hotkey_change: proc { |a, hk| received_action = a; received_hk = hk },
+      })
+      sw.show
+      app.update
+
+      # Enter listen mode for quit
+      app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:quit], 'invoke')
+      app.update
+
+      # Simulate pressing Control_L (modifier), then 'k' (non-modifier)
+      sw.capture_hk_mapping('Control_L')
+      sw.capture_hk_mapping('k')
+      app.update
+
+      assert_equal :quit, received_action
+      assert_equal ['Control', 'k'], received_hk
+      text = app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:quit], 'cget', '-text')
+      assert_equal 'Ctrl+K', text
+      assert_nil sw.hk_listening_for
+    end
+  end
+
+  def test_capture_multi_modifier_combo
+    assert_tk_app("multi-modifier combo (Ctrl+Shift+S)") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      received_hk = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_hotkey_change: proc { |_, hk| received_hk = hk },
+      })
+      sw.show
+      app.update
+
+      app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:screenshot], 'invoke')
+      app.update
+
+      sw.capture_hk_mapping('Control_L')
+      sw.capture_hk_mapping('Shift_L')
+      sw.capture_hk_mapping('s')
+      app.update
+
+      assert_equal ['Control', 'Shift', 's'], received_hk
+      text = app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:screenshot], 'cget', '-text')
+      assert_equal 'Ctrl+Shift+S', text
+    end
+  end
+
+  def test_combo_hotkey_skips_gamepad_conflict_validation
+    assert_tk_app("combo hotkey skips gamepad conflict validation") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      received_hk = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_hotkey_change: proc { |_, hk| received_hk = hk },
+        # 'z' conflicts as a plain key, but Ctrl+z should be fine
+        on_validate_hotkey: ->(key) {
+          key == 'z' ? '"z" is mapped to GBA button A' : nil
+        },
+      })
+      sw.show
+      app.update
+
+      app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:quit], 'invoke')
+      app.update
+
+      sw.capture_hk_mapping('Control_L')
+      sw.capture_hk_mapping('z')
+      app.update
+
+      assert_equal ['Control', 'z'], received_hk, "Ctrl+Z combo should bypass plain-key conflict"
+    end
+  end
+
+  def test_refresh_hotkeys_shows_combo_display_name
+    assert_tk_app("refresh_hotkeys shows combo display name") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      new_labels = Teek::MGBA::HotkeyMap::DEFAULTS.merge(quit: ['Control', 'q'])
+      sw.refresh_hotkeys(new_labels)
+      app.update
+
+      text = app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:quit], 'cget', '-text')
+      assert_equal 'Ctrl+Q', text
+    end
+  end
+
+  def test_bind_script_modifier_combo_roundtrip
+    assert_tk_app("Tcl bind script round-trip with modifier+key combo") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      received_hk = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_hotkey_change: proc { |_, hk| received_hk = hk },
+      })
+      sw.show
+      app.update
+
+      # Enter listen mode
+      top = Teek::MGBA::SettingsWindow::TOP
+      app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:quit], 'invoke')
+      app.update
+
+      # Verify the <Key> bind script was installed on the toplevel
+      bind_script = app.tcl_eval("bind #{top} <Key>")
+      refute_empty bind_script, "Key binding should be set during listen mode"
+      assert_match(/ruby_callback/, bind_script)
+
+      # Simulate what Tk does on key events: evaluate the bind script
+      # with %K substituted to the keysym value
+      app.tcl_eval(bind_script.gsub('%K', 'Control_L'))
+      app.update
+      app.tcl_eval(bind_script.gsub('%K', 'k'))
+      app.update
+
+      assert_equal ['Control', 'k'], received_hk
+      text = app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:quit], 'cget', '-text')
+      assert_equal 'Ctrl+K', text
+    end
+  end
 end

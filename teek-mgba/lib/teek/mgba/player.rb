@@ -523,18 +523,23 @@ module Teek
         @settings_window.refresh_hotkeys(@hotkeys.labels)
       end
 
-      # Validate a hotkey keysym against keyboard gamepad mappings.
+      # Validate a hotkey against keyboard gamepad mappings.
+      # Combo hotkeys (Array) never conflict with plain key gamepad mappings.
+      # @param hotkey [String, Array] plain keysym or modifier combo
       # @return [String, nil] error message if conflict, nil if ok
-      def validate_hotkey(keysym)
+      def validate_hotkey(hotkey)
+        return nil if hotkey.is_a?(Array)
+
         @kb_map.labels.each do |gba_btn, key|
-          if key == keysym
-            return "\"#{keysym}\" is mapped to GBA button #{gba_btn.upcase}"
+          if key == hotkey
+            return "\"#{hotkey}\" is mapped to GBA button #{gba_btn.upcase}"
           end
         end
         nil
       end
 
       # Validate a keyboard gamepad mapping against hotkeys.
+      # Only plain-key hotkeys conflict — combo hotkeys (Ctrl+K) are fine.
       # @return [String, nil] error message if conflict, nil if ok
       def validate_kb_mapping(keysym)
         action = @hotkeys.action_for(keysym)
@@ -641,11 +646,12 @@ module Teek
       end
 
       def setup_input
-        @viewport.bind('KeyPress', :keysym) do |k|
+        @viewport.bind('KeyPress', :keysym, '%s') do |k, state_str|
           if k == 'Escape'
             @fullscreen ? toggle_fullscreen : (@running = false)
           else
-            case @hotkeys.action_for(k)
+            mods = HotkeyMap.modifiers_from_state(state_str.to_i)
+            case @hotkeys.action_for(k, modifiers: mods)
             when :quit          then @running = false
             when :pause         then toggle_pause
             when :fast_forward  then toggle_fast_forward

@@ -3,6 +3,7 @@
 require "minitest/autorun"
 require "tmpdir"
 require "json"
+require "set"
 
 # Minimal config stub for unit testing HotkeyMap without Tk or SDL2.
 class MockHotkeyConfig
@@ -17,8 +18,8 @@ class MockHotkeyConfig
     @hotkey_data
   end
 
-  def set_hotkey(action, keysym)
-    @saved_hotkeys[action.to_s] = keysym.to_s
+  def set_hotkey(action, hk)
+    @saved_hotkeys[action.to_s] = hk
   end
 
   def reload!
@@ -140,6 +141,13 @@ class TestHotkeyMap < Minitest::Test
     assert_equal 'p', config.saved_hotkeys['pause']
   end
 
+  def test_save_to_config_preserves_combo_arrays
+    map, config = make_map
+    map.set(:quit, ['Control', 'q'])
+    map.save_to_config
+    assert_equal ['Control', 'q'], config.saved_hotkeys['quit']
+  end
+
   # -- Labels ---------------------------------------------------------------
 
   def test_labels_returns_copy
@@ -154,5 +162,159 @@ class TestHotkeyMap < Minitest::Test
     map.set(:quit, 'Escape')
     labels = map.labels
     assert_equal 'Escape', labels[:quit]
+  end
+
+  # -- Modifier combo support -----------------------------------------------
+
+  def test_set_combo_hotkey
+    map, = make_map
+    map.set(:quit, ['Control', 'q'])
+    assert_equal ['Control', 'q'], map.key_for(:quit)
+  end
+
+  def test_action_for_combo_with_modifiers
+    map, = make_map
+    map.set(:quit, ['Control', 'q'])
+    result = map.action_for('q', modifiers: Set.new(['Control']))
+    assert_equal :quit, result
+  end
+
+  def test_action_for_combo_wrong_modifiers
+    map, = make_map
+    map.set(:quit, ['Control', 'q'])
+    assert_nil map.action_for('q', modifiers: Set.new(['Shift']))
+  end
+
+  def test_action_for_combo_no_modifiers
+    map, = make_map
+    map.set(:quit, ['Control', 'q'])
+    assert_nil map.action_for('q'), "Combo should not match without modifiers"
+  end
+
+  def test_action_for_plain_key_ignores_active_modifiers
+    map, = make_map
+    # 'p' (pause) is a plain key — should only match without modifiers
+    assert_nil map.action_for('p', modifiers: Set.new(['Control']))
+    assert_equal :pause, map.action_for('p')
+  end
+
+  def test_action_for_multi_modifier_combo
+    map, = make_map
+    map.set(:screenshot, ['Control', 'Shift', 's'])
+    result = map.action_for('s', modifiers: Set.new(['Control', 'Shift']))
+    assert_equal :screenshot, result
+  end
+
+  def test_action_for_multi_modifier_partial_match_fails
+    map, = make_map
+    map.set(:screenshot, ['Control', 'Shift', 's'])
+    assert_nil map.action_for('s', modifiers: Set.new(['Control']))
+  end
+
+  def test_set_combo_clears_conflicting_combo
+    map, = make_map
+    map.set(:quit, ['Control', 'q'])
+    map.set(:pause, ['Control', 'q'])
+    assert_nil map.key_for(:quit), "Old combo should be unbound"
+    assert_equal ['Control', 'q'], map.key_for(:pause)
+  end
+
+  def test_load_config_with_combo_array
+    map, = make_map({ 'quit' => ['Control', 'q'] })
+    assert_equal ['Control', 'q'], map.key_for(:quit)
+    result = map.action_for('q', modifiers: Set.new(['Control']))
+    assert_equal :quit, result
+  end
+
+  # -- normalize (class method) ---------------------------------------------
+
+  def test_normalize_plain_string
+    assert_equal 'F5', Teek::MGBA::HotkeyMap.normalize('F5')
+  end
+
+  def test_normalize_single_element_array
+    assert_equal 'q', Teek::MGBA::HotkeyMap.normalize(['q'])
+  end
+
+  def test_normalize_sorts_modifiers_canonically
+    result = Teek::MGBA::HotkeyMap.normalize(['Shift', 'Control', 's'])
+    assert_equal ['Control', 'Shift', 's'], result
+  end
+
+  def test_normalize_preserves_correct_order
+    result = Teek::MGBA::HotkeyMap.normalize(['Control', 'Shift', 's'])
+    assert_equal ['Control', 'Shift', 's'], result
+  end
+
+  # -- display_name (class method) ------------------------------------------
+
+  def test_display_name_plain_string
+    assert_equal 'F5', Teek::MGBA::HotkeyMap.display_name('F5')
+  end
+
+  def test_display_name_combo
+    result = Teek::MGBA::HotkeyMap.display_name(['Control', 'q'])
+    assert_equal 'Ctrl+Q', result
+  end
+
+  def test_display_name_multi_modifier
+    result = Teek::MGBA::HotkeyMap.display_name(['Control', 'Shift', 's'])
+    assert_equal 'Ctrl+Shift+S', result
+  end
+
+  # -- modifier helpers (class methods) -------------------------------------
+
+  def test_modifier_key_recognizes_modifiers
+    assert Teek::MGBA::HotkeyMap.modifier_key?('Control_L')
+    assert Teek::MGBA::HotkeyMap.modifier_key?('Shift_R')
+    assert Teek::MGBA::HotkeyMap.modifier_key?('Alt_L')
+    assert Teek::MGBA::HotkeyMap.modifier_key?('Meta_L')
+    assert Teek::MGBA::HotkeyMap.modifier_key?('Super_R')
+  end
+
+  def test_modifier_key_rejects_non_modifiers
+    refute Teek::MGBA::HotkeyMap.modifier_key?('a')
+    refute Teek::MGBA::HotkeyMap.modifier_key?('F5')
+    refute Teek::MGBA::HotkeyMap.modifier_key?('Return')
+  end
+
+  def test_normalize_modifier
+    assert_equal 'Control', Teek::MGBA::HotkeyMap.normalize_modifier('Control_L')
+    assert_equal 'Control', Teek::MGBA::HotkeyMap.normalize_modifier('Control_R')
+    assert_equal 'Shift', Teek::MGBA::HotkeyMap.normalize_modifier('Shift_L')
+    assert_equal 'Alt', Teek::MGBA::HotkeyMap.normalize_modifier('Alt_L')
+    assert_equal 'Alt', Teek::MGBA::HotkeyMap.normalize_modifier('Meta_L')
+    assert_nil Teek::MGBA::HotkeyMap.normalize_modifier('a')
+  end
+
+  def test_modifiers_from_state_empty
+    result = Teek::MGBA::HotkeyMap.modifiers_from_state(0)
+    assert_empty result
+  end
+
+  def test_modifiers_from_state_shift
+    result = Teek::MGBA::HotkeyMap.modifiers_from_state(1)
+    assert_equal Set.new(['Shift']), result
+  end
+
+  def test_modifiers_from_state_control
+    result = Teek::MGBA::HotkeyMap.modifiers_from_state(4)
+    assert_equal Set.new(['Control']), result
+  end
+
+  def test_modifiers_from_state_alt
+    result = Teek::MGBA::HotkeyMap.modifiers_from_state(8)
+    assert_equal Set.new(['Alt']), result
+  end
+
+  def test_modifiers_from_state_control_shift
+    result = Teek::MGBA::HotkeyMap.modifiers_from_state(5) # 4|1
+    assert_equal Set.new(['Control', 'Shift']), result
+  end
+
+  def test_action_for_empty_modifiers_set_matches_plain
+    map, = make_map
+    # Empty set should behave same as nil (match plain keys)
+    assert_equal :pause, map.action_for('p', modifiers: Set.new)
   end
 end
