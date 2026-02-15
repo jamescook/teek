@@ -242,3 +242,29 @@ task.stop    # Stop completely
 The work block runs in a background Ractor and cannot access Tk directly. Use `t.yield()` to send results to `on_progress`, which runs on the main thread where Tk is available. Callbacks (`on_progress`, `on_done`) can be chained in any order.
 
 See [`sample/threading_demo.rb`](sample/threading_demo.rb) for a complete file hasher example.
+
+## File Drop Target
+
+Register any widget as a file drop target to receive OS-native drag-and-drop:
+
+```ruby
+app = Teek::App.new(title: "Drop Demo")
+app.show
+
+app.register_drop_target('.')
+
+app.bind('.', '<<DropFile>>', :data) do |data|
+  paths = app.split_list(data)
+  puts "Dropped: #{paths.inspect}"
+end
+
+app.mainloop
+```
+
+Dropped files arrive as a Tcl list in the `:data` substitution. Use `split_list` to get a Ruby array of paths. Works on macOS (Cocoa), Windows (OLE IDropTarget), and Linux (X11 XDND).
+
+See [`sample/drop_demo.rb`](sample/drop_demo.rb) for a complete example.
+
+## Known Issues
+
+- **File drop on Linux/Wayland** — `register_drop_target` does not yet work under Wayland. The current implementation uses the X11 XDND protocol, which is not compatible with Wayland's native drag-and-drop. Workaround: select an Xorg/X11 session at the login screen (e.g., "GNOME on Xorg"). Native Wayland support via `wl_data_device` is planned.
