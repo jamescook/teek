@@ -33,6 +33,7 @@ module Teek
       INTEGER_SCALE_CHECK = "#{NB}.video.intscale_row.intscale"
       COLOR_CORRECTION_CHECK = "#{NB}.video.colorcorr_row.colorcorr"
       FRAME_BLENDING_CHECK = "#{NB}.video.frameblend_row.frameblend"
+      REWIND_CHECK = "#{NB}.video.rewind_row.rewind"
       VOLUME_SCALE = "#{NB}.audio.vol_row.vol_scale"
       MUTE_CHECK = "#{NB}.audio.mute_row.mute"
 
@@ -71,6 +72,7 @@ module Teek
         quick_load:  "#{HK_TAB}.row_quick_load.btn",
         save_states: "#{HK_TAB}.row_save_states.btn",
         screenshot:  "#{HK_TAB}.row_screenshot.btn",
+        rewind:      "#{HK_TAB}.row_rewind.btn",
       }.freeze
 
       # Action → locale key mapping
@@ -80,6 +82,7 @@ module Teek
         show_fps: 'settings.hk_show_fps', quick_save: 'settings.hk_quick_save',
         quick_load: 'settings.hk_quick_load', save_states: 'settings.hk_save_states',
         screenshot: 'settings.hk_screenshot',
+        rewind: 'settings.hk_rewind',
       }.freeze
 
       # GBA button → locale key mapping
@@ -119,6 +122,7 @@ module Teek
       VAR_INTEGER_SCALE = '::mgba_integer_scale'
       VAR_COLOR_CORRECTION = '::mgba_color_correction'
       VAR_FRAME_BLENDING = '::mgba_frame_blending'
+      VAR_REWIND_ENABLED = '::mgba_rewind_enabled'
       VAR_QUICK_SLOT     = '::mgba_quick_slot'
       VAR_SS_BACKUP      = '::mgba_ss_backup'
 
@@ -496,6 +500,26 @@ module Teek
         @app.command('ttk::label', frameblend_tip, text: '(?)')
         @app.command(:pack, frameblend_tip, side: :left)
         @tips.register(frameblend_tip, translate('settings.tip_frame_blending'))
+
+        # Rewind checkbox
+        rewind_row = "#{frame}.rewind_row"
+        @app.command('ttk::frame', rewind_row)
+        @app.command(:pack, rewind_row, fill: :x, padx: 10, pady: 5)
+
+        @app.set_variable(VAR_REWIND_ENABLED, '1')
+        @app.command('ttk::checkbutton', REWIND_CHECK,
+          text: translate('settings.rewind'),
+          variable: VAR_REWIND_ENABLED,
+          command: proc { |*|
+            enabled = @app.get_variable(VAR_REWIND_ENABLED) == '1'
+            @callbacks[:on_rewind_toggle]&.call(enabled)
+            mark_dirty
+          })
+        @app.command(:pack, REWIND_CHECK, side: :left)
+        rewind_tip = "#{rewind_row}.tip"
+        @app.command('ttk::label', rewind_tip, text: '(?)')
+        @app.command(:pack, rewind_tip, side: :left)
+        @tips.register(rewind_tip, translate('settings.tip_rewind'))
       end
 
       def setup_audio_tab
@@ -938,7 +962,9 @@ module Teek
           return
         end
 
-        # Non-modifier key arrived
+        # Non-modifier key arrived — normalize variant keysyms
+        # (e.g. Shift+Tab produces ISO_Left_Tab on many platforms)
+        keysym = HotkeyMap.normalize_keysym(keysym)
         cancel_mod_timer
         if @hk_pending_modifiers.any?
           hotkey = [*@hk_pending_modifiers.sort_by { |m| HotkeyMap::MODIFIER_ORDER.index(m) || 99 }, keysym]

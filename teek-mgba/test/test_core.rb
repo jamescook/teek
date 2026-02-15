@@ -318,6 +318,73 @@ class TestMGBACore < Minitest::Test
       "Frame blending on static content should stabilize"
   end
 
+  # -- Rewind ----------------------------------------------------------------
+
+  def test_rewind_init_and_count
+    @core.rewind_init(3)
+    assert_equal 0, @core.rewind_count
+    @core.run_frame
+    @core.rewind_push
+    assert_equal 1, @core.rewind_count
+    @core.run_frame
+    @core.rewind_push
+    assert_equal 2, @core.rewind_count
+  end
+
+  def test_rewind_pop_restores_state
+    @core.rewind_init(5)
+    10.times { @core.run_frame }
+
+    # Save snapshot at frame 10
+    @core.rewind_push
+    @core.run_frame
+    buf_11 = @core.video_buffer
+
+    # Advance to frame 20
+    9.times { @core.run_frame }
+
+    # Rewind to frame 10
+    assert_equal true, @core.rewind_pop
+
+    # Run one frame from restored state → should match frame 11
+    @core.run_frame
+    buf_restored = @core.video_buffer
+    assert_equal buf_11, buf_restored
+  end
+
+  def test_rewind_pop_empty_returns_false
+    @core.rewind_init(3)
+    assert_equal false, @core.rewind_pop
+  end
+
+  def test_rewind_pop_without_init_returns_false
+    assert_equal false, @core.rewind_pop
+  end
+
+  def test_rewind_circular_buffer
+    @core.rewind_init(3)
+    5.times do
+      @core.run_frame
+      @core.rewind_push
+    end
+    # Ring buffer capacity is 3, so count stays at 3
+    assert_equal 3, @core.rewind_count
+  end
+
+  def test_rewind_deinit_clears_buffer
+    @core.rewind_init(3)
+    @core.run_frame
+    @core.rewind_push
+    @core.rewind_deinit
+    assert_equal 0, @core.rewind_count
+    assert_equal false, @core.rewind_pop
+  end
+
+  def test_rewind_init_raises_on_invalid_capacity
+    assert_raises(ArgumentError) { @core.rewind_init(0) }
+    assert_raises(ArgumentError) { @core.rewind_init(-1) }
+  end
+
   # -- Error handling ----------------------------------------------------------
 
   def test_nonexistent_file

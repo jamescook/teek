@@ -727,6 +727,49 @@ class TestMGBAConfig < Minitest::Test
     assert_equal expected.sort, Teek::MGBA::Config::PER_GAME_SETTINGS.keys.sort
   end
 
+  # -- Rewind settings ----------------------------------------------------
+
+  def test_defaults_rewind_enabled
+    assert new_config.rewind_enabled?
+  end
+
+  def test_set_rewind_enabled
+    c = new_config
+    c.rewind_enabled = false
+    refute c.rewind_enabled?
+    c.rewind_enabled = true
+    assert c.rewind_enabled?
+  end
+
+  def test_defaults_rewind_seconds
+    assert_equal 10, new_config.rewind_seconds
+  end
+
+  def test_set_rewind_seconds
+    c = new_config
+    c.rewind_seconds = 30
+    assert_equal 30, c.rewind_seconds
+  end
+
+  def test_rewind_seconds_clamps
+    c = new_config
+    c.rewind_seconds = 0
+    assert_equal 1, c.rewind_seconds
+    c.rewind_seconds = 100
+    assert_equal 60, c.rewind_seconds
+  end
+
+  def test_round_trip_rewind
+    c = new_config
+    c.rewind_enabled = false
+    c.rewind_seconds = 20
+    c.save!
+
+    c2 = Teek::MGBA::Config.new(path: @path)
+    refute c2.rewind_enabled?
+    assert_equal 20, c2.rewind_seconds
+  end
+
   # -- Edge cases -----------------------------------------------------------
 
   def test_corrupt_json_falls_back_to_defaults

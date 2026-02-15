@@ -11,13 +11,14 @@ module Teek
     # efficient dispatch in the input loop.
     class HotkeyMap
       ACTIONS = %i[quit pause fast_forward fullscreen show_fps
-                   quick_save quick_load save_states screenshot].freeze
+                   quick_save quick_load save_states screenshot rewind].freeze
 
       DEFAULTS = {
         quit: 'q', pause: 'p', fast_forward: 'Tab',
         fullscreen: 'F11', show_fps: 'F3',
         quick_save: 'F5', quick_load: 'F8',
         save_states: 'F6', screenshot: 'F9',
+        rewind: ['Shift', 'Tab'],
       }.freeze
 
       # Tk keysyms that are modifier keys → normalized name
@@ -38,6 +39,29 @@ module Teek
       # Canonical sort order for modifiers
       MODIFIER_ORDER = %w[Control Shift Alt Super].freeze
 
+      # Tk keysym aliases — modifier combos can produce variant keysyms
+      # that must be normalized for both lookup and capture.
+      #
+      # Known cases:
+      #   Shift+Tab   → ISO_Left_Tab
+      #   Shift+1     → exclam (US layout)
+      #   Shift+a     → A (universal — handled dynamically in normalize_keysym)
+      KEYSYM_ALIASES = {
+        'ISO_Left_Tab' => 'Tab',
+        # Shift+number (US keyboard layout)
+        'exclam'       => '1', 'at'           => '2', 'numbersign'   => '3',
+        'dollar'       => '4', 'percent'      => '5', 'asciicircum'  => '6',
+        'ampersand'    => '7', 'asterisk'     => '8', 'parenleft'    => '9',
+        'parenright'   => '0',
+        # Shift+punctuation (US keyboard layout)
+        'underscore'   => 'minus',        'plus'         => 'equal',
+        'braceleft'    => 'bracketleft',  'braceright'   => 'bracketright',
+        'bar'          => 'backslash',    'colon'        => 'semicolon',
+        'quotedbl'     => 'apostrophe',   'less'         => 'comma',
+        'greater'      => 'period',       'question'     => 'slash',
+        'asciitilde'   => 'grave',
+      }.freeze
+
       def initialize(config)
         @config = config
         @map = DEFAULTS.dup
@@ -55,6 +79,7 @@ module Teek
       # @param modifiers [Set<String>, nil] active modifier names (e.g. Set["Control"])
       # @return [Symbol, nil] action bound to this hotkey, or nil
       def action_for(keysym, modifiers: nil)
+        keysym = self.class.normalize_keysym(keysym)
         mods = modifiers && !modifiers.empty? ? modifiers : nil
 
         @map.each do |action, hk|
@@ -137,6 +162,18 @@ module Teek
         parts = hotkey[0...-1].map { |m| MODIFIER_DISPLAY[m] || m }
         parts << hotkey.last.capitalize
         parts.join('+')
+      end
+
+      # Normalize variant Tk keysyms to their canonical form.
+      # Handles: ISO_Left_Tab → Tab, Shift+letter uppercase → lowercase,
+      # Shift+number → number (US layout), Shift+punctuation → base key.
+      # @param keysym [String] e.g. 'ISO_Left_Tab', 'Q'
+      # @return [String] canonical keysym e.g. 'Tab', 'q'
+      def self.normalize_keysym(keysym)
+        return KEYSYM_ALIASES[keysym] if KEYSYM_ALIASES.key?(keysym)
+        # Shift+letter: single uppercase ASCII letter → lowercase
+        return keysym.downcase if keysym.length == 1 && keysym.match?(/\A[A-Z]\z/)
+        keysym
       end
 
       # @param keysym [String] Tk keysym

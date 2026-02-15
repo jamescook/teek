@@ -42,6 +42,8 @@ module Teek
         'integer_scale'      => false,
         'color_correction'   => false,
         'frame_blending'     => false,
+        'rewind_enabled'     => true,
+        'rewind_seconds'     => 10,
         'per_game_settings'  => false,
         'tip_dismiss_ms'     => 4000,
       }.freeze
@@ -217,6 +219,23 @@ module Teek
 
       def frame_blending=(val)
         global['frame_blending'] = !!val
+      end
+
+      def rewind_enabled?
+        global['rewind_enabled']
+      end
+
+      def rewind_enabled=(val)
+        global['rewind_enabled'] = !!val
+      end
+
+      # @return [Integer] rewind buffer duration in seconds (1-60)
+      def rewind_seconds
+        global['rewind_seconds']
+      end
+
+      def rewind_seconds=(val)
+        global['rewind_seconds'] = val.to_i.clamp(1, 60)
       end
 
       # -- Per-game settings ---------------------------------------------------

@@ -138,11 +138,37 @@ struct mgba_core {
     int destroyed;
     int color_correction;
     int frame_blending;
+    /* Rewind ring buffer */
+    int rewind_capacity;       /* number of slots (0 = disabled) */
+    int rewind_head;           /* next write index */
+    int rewind_count;          /* number of valid snapshots */
+    size_t rewind_state_size;  /* bytes per snapshot */
+    void **rewind_slots;       /* array of rewind_capacity void* buffers */
 };
+
+static void
+mgba_rewind_free(struct mgba_core *mc)
+{
+    if (mc->rewind_slots) {
+        for (int i = 0; i < mc->rewind_capacity; i++) {
+            if (mc->rewind_slots[i]) {
+                free(mc->rewind_slots[i]);
+                mc->rewind_slots[i] = NULL;
+            }
+        }
+        free(mc->rewind_slots);
+        mc->rewind_slots = NULL;
+    }
+    mc->rewind_capacity = 0;
+    mc->rewind_head = 0;
+    mc->rewind_count = 0;
+    mc->rewind_state_size = 0;
+}
 
 static void
 mgba_core_cleanup(struct mgba_core *mc)
 {
+    mgba_rewind_free(mc);
     if (!mc->destroyed && mc->core) {
         mc->core->deinit(mc->core);
         mc->core = NULL;
@@ -177,6 +203,10 @@ mgba_core_memsize(const void *ptr)
     if (mc->prev_frame) {
         size += (size_t)mc->width * mc->height * sizeof(uint32_t);
     }
+    if (mc->rewind_slots) {
+        size += (size_t)mc->rewind_capacity * mc->rewind_state_size;
+        size += (size_t)mc->rewind_capacity * sizeof(void *);
+    }
     return size;
 }
 
@@ -204,6 +234,11 @@ mgba_core_alloc(VALUE klass)
     mc->destroyed = 0;
     mc->color_correction = 0;
     mc->frame_blending = 0;
+    mc->rewind_capacity = 0;
+    mc->rewind_head = 0;
+    mc->rewind_count = 0;
+    mc->rewind_state_size = 0;
+    mc->rewind_slots = NULL;
     return obj;
 }
 
@@ -656,6 +691,113 @@ mgba_core_frame_blending_p(VALUE self)
 }
 
 /* --------------------------------------------------------- */
+/* Rewind ring buffer                                        */
+/* --------------------------------------------------------- */
+
+/*
+ * Core#rewind_init(capacity)
+ * Allocate a ring buffer of `capacity` state snapshots.
+ * Each slot is core->stateSize() bytes. Frees any existing buffer.
+ */
+static VALUE
+mgba_core_rewind_init(VALUE self, VALUE rb_capacity)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    int capacity = NUM2INT(rb_capacity);
+    if (capacity <= 0)
+        rb_raise(rb_eArgError, "rewind capacity must be positive");
+
+    /* Free existing rewind buffer if reinitializing */
+    mgba_rewind_free(mc);
+
+    size_t state_size = mc->core->stateSize(mc->core);
+    void **slots = calloc((size_t)capacity, sizeof(void *));
+    if (!slots)
+        rb_raise(rb_eNoMemError, "failed to allocate rewind slot array");
+
+    for (int i = 0; i < capacity; i++) {
+        slots[i] = malloc(state_size);
+        if (!slots[i]) {
+            /* Clean up already-allocated slots */
+            for (int j = 0; j < i; j++) free(slots[j]);
+            free(slots);
+            rb_raise(rb_eNoMemError, "failed to allocate rewind slot %d", i);
+        }
+    }
+
+    mc->rewind_capacity = capacity;
+    mc->rewind_state_size = state_size;
+    mc->rewind_slots = slots;
+    mc->rewind_head = 0;
+    mc->rewind_count = 0;
+    return Qnil;
+}
+
+/*
+ * Core#rewind_deinit
+ * Free all rewind buffers.
+ */
+static VALUE
+mgba_core_rewind_deinit(VALUE self)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    mgba_rewind_free(mc);
+    return Qnil;
+}
+
+/*
+ * Core#rewind_push
+ * Save current state into the next ring buffer slot.
+ * Returns true on success, false if rewind not initialized.
+ */
+static VALUE
+mgba_core_rewind_push(VALUE self)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    if (!mc->rewind_slots || mc->rewind_capacity <= 0)
+        return Qfalse;
+
+    mc->core->saveState(mc->core, mc->rewind_slots[mc->rewind_head]);
+    mc->rewind_head = (mc->rewind_head + 1) % mc->rewind_capacity;
+    if (mc->rewind_count < mc->rewind_capacity)
+        mc->rewind_count++;
+    return Qtrue;
+}
+
+/*
+ * Core#rewind_pop
+ * Load the oldest snapshot and clear the buffer.
+ * Jumps back to the earliest saved point (~N seconds ago).
+ * Returns true on success, false if no snapshots available.
+ */
+static VALUE
+mgba_core_rewind_pop(VALUE self)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    if (!mc->rewind_slots || mc->rewind_count <= 0)
+        return Qfalse;
+
+    /* oldest = head - count (wrapped) */
+    int oldest = (mc->rewind_head - mc->rewind_count + mc->rewind_capacity)
+                 % mc->rewind_capacity;
+    mc->core->loadState(mc->core, mc->rewind_slots[oldest]);
+    mc->rewind_head = 0;
+    mc->rewind_count = 0;
+    return Qtrue;
+}
+
+/*
+ * Core#rewind_count
+ * Returns the number of valid snapshots in the buffer.
+ */
+static VALUE
+mgba_core_rewind_count(VALUE self)
+{
+    struct mgba_core *mc = get_mgba_core(self);
+    return INT2NUM(mc->rewind_count);
+}
+
+/* --------------------------------------------------------- */
 /* Core#destroy, Core#destroyed?                             */
 /* --------------------------------------------------------- */
 
@@ -828,6 +970,11 @@ Init_teek_mgba(void)
     rb_define_method(cCore, "color_correction?", mgba_core_color_correction_p, 0);
     rb_define_method(cCore, "frame_blending=", mgba_core_set_frame_blending, 1);
     rb_define_method(cCore, "frame_blending?", mgba_core_frame_blending_p, 0);
+    rb_define_method(cCore, "rewind_init",   mgba_core_rewind_init, 1);
+    rb_define_method(cCore, "rewind_deinit", mgba_core_rewind_deinit, 0);
+    rb_define_method(cCore, "rewind_push",   mgba_core_rewind_push, 0);
+    rb_define_method(cCore, "rewind_pop",    mgba_core_rewind_pop, 0);
+    rb_define_method(cCore, "rewind_count",  mgba_core_rewind_count, 0);
     rb_define_method(cCore, "destroy",     mgba_core_destroy, 0);
     rb_define_method(cCore, "destroyed?",  mgba_core_destroyed_p, 0);
 

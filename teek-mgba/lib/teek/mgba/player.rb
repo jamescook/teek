@@ -69,6 +69,9 @@ module Teek
         @integer_scale = @config.integer_scale?
         @color_correction = @config.color_correction?
         @frame_blending = @config.frame_blending?
+        @rewind_enabled = @config.rewind_enabled?
+        @rewind_seconds = @config.rewind_seconds
+        @rewind_frame_counter = 0
         @audio_fade_in = 0
         @frame_limit = frames
         @total_frames = 0
@@ -117,6 +120,7 @@ module Teek
           on_integer_scale_change: method(:apply_integer_scale),
           on_color_correction_change: method(:apply_color_correction),
           on_frame_blending_change:   method(:apply_frame_blending),
+          on_rewind_toggle:          method(:apply_rewind_toggle),
           on_per_game_toggle:        method(:toggle_per_game),
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
@@ -400,6 +404,8 @@ module Teek
         @config.integer_scale = @integer_scale
         @config.color_correction = @color_correction
         @config.frame_blending = @frame_blending
+        @config.rewind_enabled = @rewind_enabled
+        @config.rewind_seconds = @rewind_seconds
         @config.quick_save_slot = @quick_save_slot
         @config.save_state_backup = @save_state_backup
 
@@ -449,6 +455,35 @@ module Teek
         end
       end
 
+      def apply_rewind_toggle(enabled)
+        @rewind_enabled = !!enabled
+        if @core && !@core.destroyed?
+          if @rewind_enabled
+            @core.rewind_init(@rewind_seconds)
+            @rewind_frame_counter = 0
+          else
+            @core.rewind_deinit
+          end
+        end
+      end
+
+      def do_rewind
+        return unless @core && !@core.destroyed?
+        unless @rewind_enabled
+          @toast&.show(translate('toast.no_rewind'))
+          return
+        end
+        if @core.rewind_pop == true
+          @stream.clear
+          @audio_fade_in = FADE_IN_FRAMES
+          @rewind_frame_counter = 0
+          render_frame
+          @toast&.show(translate('toast.rewound'))
+        else
+          @toast&.show(translate('toast.no_rewind'))
+        end
+      end
+
       def toggle_per_game(enabled)
         if enabled
           @config.enable_per_game
@@ -468,6 +503,8 @@ module Teek
         @integer_scale    = @config.integer_scale?
         @color_correction = @config.color_correction?
         @frame_blending   = @config.frame_blending?
+        @rewind_enabled   = @config.rewind_enabled?
+        @rewind_seconds   = @config.rewind_seconds
         @quick_save_slot  = @config.quick_save_slot
         @save_state_backup = @config.save_state_backup?
 
@@ -499,6 +536,7 @@ module Teek
         @app.set_variable(SettingsWindow::VAR_INTEGER_SCALE, @integer_scale ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_COLOR_CORRECTION, @color_correction ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_FRAME_BLENDING, @frame_blending ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_REWIND_ENABLED, @rewind_enabled ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_VOLUME, (@volume * 100).round.to_s)
         @app.set_variable(SettingsWindow::VAR_MUTE, @muted ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)
@@ -661,6 +699,7 @@ module Teek
             when :quick_load    then quick_load
             when :save_states   then show_state_picker
             when :screenshot    then take_screenshot
+            when :rewind        then do_rewind
             else @keyboard.press(k)
             end
           end
@@ -950,6 +989,8 @@ module Teek
         @save_mgr.state_dir = @save_mgr.state_dir_for_rom(@core)
         @save_mgr.quick_save_slot = @quick_save_slot
         @save_mgr.backup = @save_state_backup
+        @core.rewind_init(@rewind_seconds) if @rewind_enabled
+        @rewind_frame_counter = 0
         @paused = false
         @stream.resume
         @app.command(:place, :forget, @status_label) rescue nil
@@ -1129,11 +1170,20 @@ module Teek
         @kb_map.mask | @gp_map.mask
       end
 
+      REWIND_PUSH_INTERVAL = 60  # ~1 second at GBA framerate
+
       def run_one_frame
         @core.set_keys(poll_input)
         @core.run_frame
         @total_frames += 1
         @running = false if @frame_limit && @total_frames >= @frame_limit
+        if @rewind_enabled
+          @rewind_frame_counter += 1
+          if @rewind_frame_counter >= REWIND_PUSH_INTERVAL
+            @core.rewind_push
+            @rewind_frame_counter = 0
+          end
+        end
       end
 
       def queue_audio(volume_override: nil)

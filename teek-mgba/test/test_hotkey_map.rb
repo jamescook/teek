@@ -317,4 +317,64 @@ class TestHotkeyMap < Minitest::Test
     # Empty set should behave same as nil (match plain keys)
     assert_equal :pause, map.action_for('p', modifiers: Set.new)
   end
+
+  # -- Rewind action ---------------------------------------------------------
+
+  def test_rewind_in_actions
+    assert_includes Teek::MGBA::HotkeyMap::ACTIONS, :rewind
+  end
+
+  def test_rewind_default_is_shift_tab
+    map, = make_map
+    assert_equal ['Shift', 'Tab'], map.key_for(:rewind)
+  end
+
+  def test_rewind_action_for_shift_tab
+    map, = make_map
+    result = map.action_for('Tab', modifiers: Set.new(['Shift']))
+    assert_equal :rewind, result
+  end
+
+  def test_rewind_does_not_match_plain_tab
+    map, = make_map
+    # Plain Tab is fast_forward, not rewind
+    assert_equal :fast_forward, map.action_for('Tab')
+  end
+
+  def test_iso_left_tab_normalized_to_rewind
+    map, = make_map
+    # Shift+Tab produces ISO_Left_Tab on many platforms
+    result = map.action_for('ISO_Left_Tab', modifiers: Set.new(['Shift']))
+    assert_equal :rewind, result
+  end
+
+  def test_normalize_keysym_iso_left_tab
+    assert_equal 'Tab', Teek::MGBA::HotkeyMap.normalize_keysym('ISO_Left_Tab')
+  end
+
+  def test_normalize_keysym_uppercase_letter
+    assert_equal 'q', Teek::MGBA::HotkeyMap.normalize_keysym('Q')
+    assert_equal 's', Teek::MGBA::HotkeyMap.normalize_keysym('S')
+    assert_equal 'a', Teek::MGBA::HotkeyMap.normalize_keysym('A')
+  end
+
+  def test_normalize_keysym_shifted_numbers
+    assert_equal '1', Teek::MGBA::HotkeyMap.normalize_keysym('exclam')
+    assert_equal '2', Teek::MGBA::HotkeyMap.normalize_keysym('at')
+    assert_equal '0', Teek::MGBA::HotkeyMap.normalize_keysym('parenright')
+  end
+
+  def test_normalize_keysym_passthrough
+    assert_equal 'q', Teek::MGBA::HotkeyMap.normalize_keysym('q')
+    assert_equal 'F5', Teek::MGBA::HotkeyMap.normalize_keysym('F5')
+    assert_equal 'Tab', Teek::MGBA::HotkeyMap.normalize_keysym('Tab')
+  end
+
+  def test_action_for_shift_uppercase_matches_plain_combo
+    map, = make_map
+    map.set(:screenshot, ['Shift', 's'])
+    # Tk sends 'S' (uppercase) when Shift+s is pressed
+    result = map.action_for('S', modifiers: Set.new(['Shift']))
+    assert_equal :screenshot, result
+  end
 end
