@@ -220,6 +220,23 @@ module Teek
         @data['recent_roms'] = []
       end
 
+      # -- Hotkeys -------------------------------------------------------------
+
+      # @return [Hash] action (String) → keysym (String)
+      def hotkeys
+        @data['hotkeys'] ||= {}
+      end
+
+      # @param action [Symbol, String] e.g. :quit, 'pause'
+      # @param keysym [String] e.g. 'q', 'F5'
+      def set_hotkey(action, keysym)
+        hotkeys[action.to_s] = keysym.to_s
+      end
+
+      def reset_hotkeys
+        @data['hotkeys'] = {}
+      end
+
       # -- Per-gamepad settings ----------------------------------------------
 
       # @param guid [String] SDL joystick GUID, or KEYBOARD_GUID for keyboard bindings

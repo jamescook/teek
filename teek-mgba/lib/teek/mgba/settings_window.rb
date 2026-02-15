@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative "child_window"
+require_relative "hotkey_map"
 require_relative "locale"
 
 module Teek
@@ -48,6 +49,33 @@ module Teek
       GP_BTN_RIGHT  = "#{GAMEPAD_TAB}.buttons.left.btn_right"
       GP_BTN_START  = "#{GAMEPAD_TAB}.buttons.center.btn_start"
       GP_BTN_SELECT = "#{GAMEPAD_TAB}.buttons.center.btn_select"
+
+      # Hotkeys tab widget paths
+      HK_TAB         = "#{NB}.hotkeys"
+      HK_UNDO_BTN    = "#{HK_TAB}.btn_bar.undo_btn"
+      HK_RESET_BTN   = "#{HK_TAB}.btn_bar.reset_btn"
+
+      # Action → widget path mapping for hotkey buttons
+      HK_ACTIONS = {
+        quit:        "#{HK_TAB}.row_quit.btn",
+        pause:       "#{HK_TAB}.row_pause.btn",
+        fast_forward: "#{HK_TAB}.row_fast_forward.btn",
+        fullscreen:  "#{HK_TAB}.row_fullscreen.btn",
+        show_fps:    "#{HK_TAB}.row_show_fps.btn",
+        quick_save:  "#{HK_TAB}.row_quick_save.btn",
+        quick_load:  "#{HK_TAB}.row_quick_load.btn",
+        save_states: "#{HK_TAB}.row_save_states.btn",
+        screenshot:  "#{HK_TAB}.row_screenshot.btn",
+      }.freeze
+
+      # Action → locale key mapping
+      HK_LOCALE_KEYS = {
+        quit: 'settings.hk_quit', pause: 'settings.hk_pause',
+        fast_forward: 'settings.hk_fast_forward', fullscreen: 'settings.hk_fullscreen',
+        show_fps: 'settings.hk_show_fps', quick_save: 'settings.hk_quick_save',
+        quick_load: 'settings.hk_quick_load', save_states: 'settings.hk_save_states',
+        screenshot: 'settings.hk_screenshot',
+      }.freeze
 
       # Save States tab widget paths
       SS_TAB         = "#{NB}.savestates"
@@ -101,15 +129,23 @@ module Teek
       # @param app [Teek::App]
       # @param callbacks [Hash] :on_scale_change, :on_volume_change, :on_mute_change,
       #   :on_gamepad_map_change, :on_deadzone_change
+      CALLBACK_DEFAULTS = {
+        on_validate_hotkey:     ->(_) { nil },
+        on_validate_kb_mapping: ->(_) { nil },
+      }.freeze
+
       def initialize(app, callbacks: {})
         @app = app
-        @callbacks = callbacks
+        @callbacks = CALLBACK_DEFAULTS.merge(callbacks)
         @listening_for = nil
         @listen_timer = nil
         @keyboard_mode = true
         @gp_labels = DEFAULT_KB_LABELS.dup
+        @hk_listening_for = nil
+        @hk_listen_timer = nil
+        @hk_labels = HotkeyMap::DEFAULTS.dup
 
-        build_toplevel(translate('menu.settings'), geometry: '700x390') { setup_ui }
+        build_toplevel(translate('menu.settings'), geometry: '700x460') { setup_ui }
       end
 
       # @return [Symbol, nil] the GBA button currently listening for remap, or nil
@@ -131,6 +167,7 @@ module Teek
         'settings.video'       => "#{NB}.video",
         'settings.audio'       => "#{NB}.audio",
         'settings.gamepad'     => GAMEPAD_TAB,
+        'settings.hotkeys'     => HK_TAB,
         'settings.save_states' => SS_TAB,
       }.freeze
 
@@ -166,6 +203,7 @@ module Teek
         setup_video_tab
         setup_audio_tab
         setup_gamepad_tab
+        setup_hotkeys_tab
         setup_save_states_tab
 
         # Save button — disabled until a setting changes
@@ -450,6 +488,41 @@ module Teek
         set_deadzone_enabled(false)
       end
 
+      def setup_hotkeys_tab
+        frame = HK_TAB
+        @app.command('ttk::frame', frame)
+        @app.command(NB, 'add', frame, text: translate('settings.hotkeys'))
+
+        # Scrollable list of action rows
+        HK_ACTIONS.each do |action, btn_path|
+          row = "#{frame}.row_#{action}"
+          @app.command('ttk::frame', row)
+          @app.command(:pack, row, fill: :x, padx: 10, pady: 2)
+
+          lbl_path = "#{row}.lbl"
+          @app.command('ttk::label', lbl_path, text: translate(HK_LOCALE_KEYS[action]), width: 14, anchor: :w)
+          @app.command(:pack, lbl_path, side: :left)
+
+          keysym = @hk_labels[action] || '?'
+          @app.command('ttk::button', btn_path, text: keysym, width: 12,
+            command: proc { start_hk_listening(action) })
+          @app.command(:pack, btn_path, side: :right)
+        end
+
+        # Bottom bar: Undo (left) | Reset to Defaults (right)
+        btn_bar = "#{frame}.btn_bar"
+        @app.command('ttk::frame', btn_bar)
+        @app.command(:pack, btn_bar, fill: :x, side: :bottom, padx: 10, pady: [4, 8])
+
+        @app.command('ttk::button', HK_UNDO_BTN, text: translate('settings.undo'),
+          state: :disabled, command: proc { do_undo_hotkeys })
+        @app.command(:pack, HK_UNDO_BTN, side: :left)
+
+        @app.command('ttk::button', HK_RESET_BTN, text: translate('settings.hk_reset_defaults'),
+          command: proc { reset_hotkey_defaults })
+        @app.command(:pack, HK_RESET_BTN, side: :right)
+      end
+
       def setup_save_states_tab
         frame = SS_TAB
         @app.command('ttk::frame', frame)
@@ -630,6 +703,16 @@ module Teek
       def capture_mapping(button)
         return unless @listening_for
 
+        # In keyboard mode, reject keys that conflict with hotkeys
+        if @keyboard_mode
+          error = @callbacks[:on_validate_kb_mapping].call(button.to_s)
+          if error
+            show_key_conflict(error)
+            cancel_listening
+            return
+          end
+        end
+
         if @listen_timer
           @app.command(:after, :cancel, @listen_timer)
           @listen_timer = nil
@@ -648,6 +731,104 @@ module Teek
           @callbacks[:on_gamepad_map_change]&.call(gba_btn, button)
         end
         @app.command(GP_UNDO_BTN, 'configure', state: :normal)
+        mark_dirty
+      end
+
+      # Refresh the hotkeys tab widgets from external state (e.g. after undo).
+      # @param labels [Hash{Symbol => String}] action → keysym
+      def refresh_hotkeys(labels)
+        @hk_labels = labels.dup
+        HK_ACTIONS.each do |action, widget|
+          @app.command(widget, 'configure', text: @hk_labels[action] || '?')
+        end
+      end
+
+      # @return [Symbol, nil] the hotkey action currently listening for remap
+      attr_reader :hk_listening_for
+
+      # Capture a hotkey binding during listen mode. Called by the Tk <Key>
+      # bind script, or directly by tests.
+      def capture_hk_mapping(keysym)
+        return unless @hk_listening_for
+
+        # Reject keys that conflict with keyboard gamepad mappings
+        error = @callbacks[:on_validate_hotkey].call(keysym.to_s)
+        if error
+          show_key_conflict(error)
+          cancel_hk_listening
+          return
+        end
+
+        if @hk_listen_timer
+          @app.command(:after, :cancel, @hk_listen_timer)
+          @hk_listen_timer = nil
+        end
+        unbind_keyboard_listen
+
+        action = @hk_listening_for
+        @hk_labels[action] = keysym.to_s
+        widget = HK_ACTIONS[action]
+        @app.command(widget, 'configure', text: keysym.to_s)
+        @hk_listening_for = nil
+
+        @callbacks[:on_hotkey_change]&.call(action, keysym)
+        @app.command(HK_UNDO_BTN, 'configure', state: :normal)
+        mark_dirty
+      end
+
+      private
+
+      def start_hk_listening(action)
+        cancel_hk_listening
+        @hk_listening_for = action
+        widget = HK_ACTIONS[action]
+        @app.command(widget, 'configure', text: translate('settings.press'))
+        @hk_listen_timer = @app.after(LISTEN_TIMEOUT_MS) { cancel_hk_listening }
+
+        cb_id = @app.interp.register_callback(
+          proc { |keysym, *| capture_hk_mapping(keysym) })
+        @app.tcl_eval("bind #{TOP} <Key> {ruby_callback #{cb_id} %K}")
+      end
+
+      def cancel_hk_listening
+        if @hk_listen_timer
+          @app.command(:after, :cancel, @hk_listen_timer)
+          @hk_listen_timer = nil
+        end
+        if @hk_listening_for
+          unbind_keyboard_listen
+          widget = HK_ACTIONS[@hk_listening_for]
+          @app.command(widget, 'configure', text: @hk_labels[@hk_listening_for] || '?')
+          @hk_listening_for = nil
+        end
+      end
+
+      def show_key_conflict(message)
+        if @callbacks[:on_key_conflict]
+          @callbacks[:on_key_conflict].call(message)
+        else
+          @app.command('tk_messageBox',
+            parent: TOP,
+            title: translate('dialog.key_conflict_title'),
+            message: message,
+            type: :ok,
+            icon: :warning)
+        end
+      end
+
+      def do_undo_hotkeys
+        @callbacks[:on_undo_hotkeys]&.call
+        @app.command(HK_UNDO_BTN, 'configure', state: :disabled)
+      end
+
+      def reset_hotkey_defaults
+        cancel_hk_listening
+        @hk_labels = HotkeyMap::DEFAULTS.dup
+        HK_ACTIONS.each do |action, widget|
+          @app.command(widget, 'configure', text: @hk_labels[action])
+        end
+        @app.command(HK_UNDO_BTN, 'configure', state: :disabled)
+        @callbacks[:on_hotkey_reset]&.call
         mark_dirty
       end
     end

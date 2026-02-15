@@ -15,6 +15,7 @@ require_relative "mgba/save_state_manager"
 require_relative "mgba/toast_overlay"
 require_relative "mgba/overlay_renderer"
 require_relative "mgba/input_mappings"
+require_relative "mgba/hotkey_map"
 require_relative "mgba/player"
 
 module Teek

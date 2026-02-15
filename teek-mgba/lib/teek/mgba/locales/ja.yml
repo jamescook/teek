@@ -34,6 +34,7 @@ dialog:
   rom_not_found_msg: "ROMファイルが存在しません:\n{path}"
   reset_gamepad_title: "ゲームパッドをリセット"
   reset_gamepad_msg: "すべてのゲームパッド設定をデフォルトに戻しますか？"
+  key_conflict_title: "キーの競合"
 
 settings:
   video: "映像"
@@ -58,6 +59,17 @@ settings:
   uncapped: "無制限"
   press: "入力待ち…"
   open_config_folder: "設定フォルダを開く…"
+  hotkeys: "ホットキー"
+  hk_quit: "終了"
+  hk_pause: "一時停止"
+  hk_fast_forward: "早送り"
+  hk_fullscreen: "フルスクリーン"
+  hk_show_fps: "FPS表示"
+  hk_quick_save: "クイックセーブ"
+  hk_quick_load: "クイックロード"
+  hk_save_states: "ステートセーブ"
+  hk_screenshot: "スクリーンショット"
+  hk_reset_defaults: "デフォルトに戻す"
 
 picker:
   title: "ステートセーブ"

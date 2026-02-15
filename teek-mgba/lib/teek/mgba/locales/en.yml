@@ -34,6 +34,7 @@ dialog:
   rom_not_found_msg: "The ROM file no longer exists:\n{path}"
   reset_gamepad_title: "Reset Gamepad"
   reset_gamepad_msg: "Reset all gamepad mappings and dead zone to defaults?"
+  key_conflict_title: "Key Conflict"
 
 settings:
   video: "Video"
@@ -58,6 +59,17 @@ settings:
   uncapped: "Uncapped"
   press: "Press…"
   open_config_folder: "Open Config Folder…"
+  hotkeys: "Hotkeys"
+  hk_quit: "Quit"
+  hk_pause: "Pause"
+  hk_fast_forward: "Fast Forward"
+  hk_fullscreen: "Fullscreen"
+  hk_show_fps: "Show FPS"
+  hk_quick_save: "Quick Save"
+  hk_quick_load: "Quick Load"
+  hk_save_states: "Save States"
+  hk_screenshot: "Screenshot"
+  hk_reset_defaults: "Reset to Defaults"
 
 picker:
   title: "Save States"

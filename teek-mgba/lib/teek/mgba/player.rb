@@ -59,6 +59,7 @@ module Teek
         @gp_map  = GamepadMap.new(@config)
         @keyboard = VirtualKeyboard.new
         @kb_map.device = @keyboard
+        @hotkeys = HotkeyMap.new(@config)
         @turbo_speed = @config.turbo_speed
         @turbo_volume = @config.turbo_volume_pct / 100.0
         @keep_aspect_ratio = @config.keep_aspect_ratio?
@@ -96,6 +97,11 @@ module Teek
           on_gamepad_reset:       -> { active_input.reset! },
           on_keyboard_reset:      -> { active_input.reset! },
           on_undo_gamepad:        method(:undo_mappings),
+          on_validate_hotkey:     method(:validate_hotkey),
+          on_validate_kb_mapping: method(:validate_kb_mapping),
+          on_hotkey_change:       ->(action, key) { @hotkeys.set(action, key) },
+          on_hotkey_reset:        -> { @hotkeys.reset! },
+          on_undo_hotkeys:        method(:undo_hotkeys),
           on_turbo_speed_change:  method(:apply_turbo_speed),
           on_aspect_ratio_change: method(:apply_aspect_ratio),
           on_show_fps_change:     method(:apply_show_fps),
@@ -109,6 +115,7 @@ module Teek
 
         # Push loaded config into the settings UI
         @settings_window.refresh_gamepad(@kb_map.labels, @kb_map.dead_zone_pct)
+        @settings_window.refresh_hotkeys(@hotkeys.labels)
         turbo_label = @turbo_speed == 0 ? 'Uncapped' : "#{@turbo_speed}x"
         @app.set_variable(SettingsWindow::VAR_TURBO, turbo_label)
         scale_label = "#{@scale}x"
@@ -351,6 +358,7 @@ module Teek
 
         @kb_map.save_to_config
         @gp_map.save_to_config
+        @hotkeys.save_to_config
         @config.save!
       end
 
@@ -379,6 +387,34 @@ module Teek
         input = active_input
         input.reload!
         @settings_window.refresh_gamepad(input.labels, input.dead_zone_pct)
+      end
+
+      # Undo: reload hotkeys from disk.
+      def undo_hotkeys
+        @hotkeys.reload!
+        @settings_window.refresh_hotkeys(@hotkeys.labels)
+      end
+
+      # Validate a hotkey keysym against keyboard gamepad mappings.
+      # @return [String, nil] error message if conflict, nil if ok
+      def validate_hotkey(keysym)
+        @kb_map.labels.each do |gba_btn, key|
+          if key == keysym
+            return "\"#{keysym}\" is mapped to GBA button #{gba_btn.upcase}"
+          end
+        end
+        nil
+      end
+
+      # Validate a keyboard gamepad mapping against hotkeys.
+      # @return [String, nil] error message if conflict, nil if ok
+      def validate_kb_mapping(keysym)
+        action = @hotkeys.action_for(keysym)
+        if action
+          label = action.to_s.tr('_', ' ').capitalize
+          return "\"#{keysym}\" is assigned to hotkey: #{label}"
+        end
+        nil
       end
 
       # Verify config/saves/states directories are writable.
@@ -478,26 +514,21 @@ module Teek
 
       def setup_input
         @viewport.bind('KeyPress', :keysym) do |k|
-          if k == 'q'
-            @running = false
-          elsif k == 'Escape'
+          if k == 'Escape'
             @fullscreen ? toggle_fullscreen : (@running = false)
-          elsif k == 'p'
-            toggle_pause
-          elsif k == 'Tab'
-            toggle_fast_forward
-          elsif k == 'F11'
-            toggle_fullscreen
-          elsif k == 'F3'
-            toggle_show_fps
-          elsif k == 'F5'
-            quick_save
-          elsif k == 'F6'
-            show_state_picker
-          elsif k == 'F8'
-            quick_load
           else
-            @keyboard.press(k)
+            case @hotkeys.action_for(k)
+            when :quit          then @running = false
+            when :pause         then toggle_pause
+            when :fast_forward  then toggle_fast_forward
+            when :fullscreen    then toggle_fullscreen
+            when :show_fps      then toggle_show_fps
+            when :quick_save    then quick_save
+            when :quick_load    then quick_load
+            when :save_states   then show_state_picker
+            when :screenshot    then nil # future tinyk-qsa
+            else @keyboard.press(k)
+            end
           end
         end
 

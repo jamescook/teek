@@ -633,4 +633,99 @@ class TestMGBASettingsWindow < Minitest::Test
     end
   end
 
+  # -- Keyboard mapping conflict with hotkeys --------------------------------
+
+  def test_kb_mapping_rejected_when_conflicting_with_hotkey
+    assert_tk_app("keyboard mapping rejected when key conflicts with hotkey") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      received = false
+      conflict_msg = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_keyboard_map_change: proc { |*| received = true },
+        on_validate_kb_mapping: ->(keysym) {
+          # Simulate: 'F5' is the Quick Save hotkey
+          keysym == 'F5' ? '"F5" is assigned to hotkey: Quick save' : nil
+        },
+        on_key_conflict: proc { |msg| conflict_msg = msg },
+      })
+      sw.show
+      app.update
+
+      # Try to bind GBA A to F5 (conflicts with hotkey)
+      app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'invoke')
+      app.update
+      sw.capture_mapping('F5')
+      app.update
+
+      refute received, "on_keyboard_map_change should not fire for rejected key"
+      assert_equal '"F5" is assigned to hotkey: Quick save', conflict_msg
+      # Label should revert to original default
+      text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
+      assert_equal 'A: z', text
+      assert_nil sw.listening_for
+    end
+  end
+
+  def test_kb_mapping_accepted_when_no_conflict
+    assert_tk_app("keyboard mapping accepted when no conflict") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      received_gba = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_keyboard_map_change: proc { |g, _| received_gba = g },
+        on_validate_kb_mapping: ->(_) { nil },
+      })
+      sw.show
+      app.update
+
+      app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'invoke')
+      app.update
+      sw.capture_mapping('m')
+      app.update
+
+      assert_equal :a, received_gba
+      text = app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'cget', '-text')
+      assert_equal 'A: m', text
+    end
+  end
+
+  def test_gamepad_mapping_skips_validation
+    assert_tk_app("gamepad mode skips keyboard validation") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      require "teek/sdl2"
+      gp_cls = Teek::SDL2::Gamepad
+      gp_cls.init_subsystem
+      idx = gp_cls.attach_virtual
+      gp = gp_cls.open(idx)
+
+      received_gba = nil
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {
+        on_gamepad_map_change: proc { |g, _| received_gba = g },
+        on_validate_kb_mapping: ->(_) { "should not be called" },
+      })
+      sw.show
+      app.update
+
+      # Switch to gamepad mode
+      sw.update_gamepad_list(['Keyboard Only', gp.name])
+      app.set_variable(Teek::MGBA::SettingsWindow::VAR_GAMEPAD, gp.name)
+      app.command(:event, 'generate', Teek::MGBA::SettingsWindow::GAMEPAD_COMBO, '<<ComboboxSelected>>')
+      app.update
+
+      # Gamepad capture — no keyboard validation applies
+      app.command(Teek::MGBA::SettingsWindow::GP_BTN_A, 'invoke')
+      app.update
+      sw.capture_mapping(:x)
+      app.update
+
+      assert_equal :a, received_gba
+
+      gp.close
+      gp_cls.detach_virtual
+      gp_cls.shutdown_subsystem
+    end
+  end
+
 end
