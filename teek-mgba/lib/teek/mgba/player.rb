@@ -46,7 +46,7 @@ module Teek
         rom_info: 'menu.rom_info',
       }.freeze
 
-      def initialize(rom_path = nil, sound: true, fullscreen: false)
+      def initialize(rom_path = nil, sound: true, fullscreen: false, frames: nil)
         @app = Teek::App.new
         @app.interp.thread_timer_ms = 1  # need fast event dispatch for emulation
         @app.show
@@ -69,6 +69,8 @@ module Teek
         @integer_scale = @config.integer_scale?
         @color_correction = @config.color_correction?
         @audio_fade_in = 0
+        @frame_limit = frames
+        @total_frames = 0
         @fast_forward = false
         @fullscreen = fullscreen
         @quick_save_slot = @config.quick_save_slot
@@ -1019,6 +1021,8 @@ module Teek
       def run_one_frame
         @core.set_keys(poll_input)
         @core.run_frame
+        @total_frames += 1
+        @running = false if @frame_limit && @total_frames >= @frame_limit
       end
 
       def queue_audio(volume_override: nil)

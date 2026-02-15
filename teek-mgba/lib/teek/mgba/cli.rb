@@ -51,6 +51,10 @@ module Teek
             options[:locale] = v
           end
 
+          o.on("--frames N", Integer, "Run N frames then exit (requires ROM)") do |v|
+            options[:frames] = v
+          end
+
           o.on("--reset-config", "Delete settings file and exit (keeps saves)") do
             options[:reset_config] = true
           end
@@ -69,7 +73,7 @@ module Teek
         end
 
         parser.parse!(argv)
-        options[:rom] = argv.first
+        options[:rom] = File.expand_path(argv.first) if argv.first
         options[:parser] = parser
         options
       end
@@ -118,11 +122,17 @@ module Teek
           return
         end
 
+        if options[:frames] && !options[:rom]
+          $stderr.puts "Error: --frames requires a ROM file"
+          exit 1
+        end
+
         apply(Teek::MGBA.user_config, options)
         Teek::MGBA.load_locale if options[:locale]
 
         sound = options.fetch(:sound, true)
-        Player.new(options[:rom], sound: sound, fullscreen: options[:fullscreen]).run
+        Player.new(options[:rom], sound: sound, fullscreen: options[:fullscreen],
+                   frames: options[:frames]).run
       end
     end
   end
