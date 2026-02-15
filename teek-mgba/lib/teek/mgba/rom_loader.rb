@@ -86,7 +86,7 @@ module Teek
           dir = tmp_dir
           FileUtils.mkdir_p(dir)
           out_path = File.join(dir, File.basename(rom_entry.name))
-          rom_entry.extract(out_path) { true } # overwrite if exists
+          File.binwrite(out_path, rom_entry.get_input_stream.read)
           out_path
         end
       rescue NoRomInZip, MultipleRomsInZip
