@@ -257,6 +257,7 @@ module Teek
         start_gamepad_probe
 
         setup_input
+        setup_drop_target
 
         load_rom(@initial_rom) if @initial_rom
 
@@ -816,6 +817,43 @@ module Teek
           type: :okcancel,
           icon: :warning)
         result == 'ok'
+      end
+
+      ROM_EXTENSIONS = %w[.gba .gb .gbc].freeze
+
+      def setup_drop_target
+        @app.register_drop_target('.')
+        @app.bind('.', '<<DropFile>>', :data) do |data|
+          paths = @app.split_list(data)
+          handle_dropped_files(paths)
+        end
+      end
+
+      def handle_dropped_files(paths)
+        if paths.length != 1
+          @app.command('tk_messageBox',
+            parent: '.',
+            title: translate('dialog.drop_error_title'),
+            message: translate('dialog.drop_single_file_only'),
+            type: :ok,
+            icon: :warning)
+          return
+        end
+
+        path = paths.first
+        ext = File.extname(path).downcase
+        unless ROM_EXTENSIONS.include?(ext)
+          @app.command('tk_messageBox',
+            parent: '.',
+            title: translate('dialog.drop_error_title'),
+            message: translate('dialog.drop_unsupported_type', ext: ext),
+            type: :ok,
+            icon: :warning)
+          return
+        end
+
+        return unless confirm_rom_change(path)
+        load_rom(path)
       end
 
       def open_rom_dialog

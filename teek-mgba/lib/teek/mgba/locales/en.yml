@@ -30,6 +30,9 @@ toast:
 dialog:
   game_running_title: "Game Running"
   game_running_msg: "Another game is running. Switch to {name}?"
+  drop_error_title: "Drop Error"
+  drop_single_file_only: "Please drop a single ROM file."
+  drop_unsupported_type: "Unsupported file type: {ext}"
   rom_not_found_title: "ROM Not Found"
   rom_not_found_msg: "The ROM file no longer exists:\n{path}"
   reset_gamepad_title: "Reset Gamepad"

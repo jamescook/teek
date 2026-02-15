@@ -535,4 +535,134 @@ class TestMGBAPlayer < Minitest::Test
     assert success, "Modal child test failed\n#{output.join("\n")}"
     assert_includes stdout, "PASS", "Expected PASS in output\n#{output.join("\n")}"
   end
+
+  # -- File drop (DND) --------------------------------------------------------
+
+  def test_drop_rom_file_loads_game
+    skip "Run: ruby teek-mgba/scripts/generate_test_rom.rb" unless File.exist?(TEST_ROM)
+
+    code = <<~RUBY
+      require "teek/mgba"
+      require "support/player_helpers"
+
+      player = Teek::MGBA::Player.new
+      app = player.instance_variable_get(:@app)
+
+      # Stub tk_messageBox so it never blocks
+      app.tcl_eval('proc tk_messageBox {args} { return "ok" }')
+
+      poll_until_ready(app) do
+        # Simulate dropping a ROM file onto the window
+        app.tcl_eval('event generate . <<DropFile>> -data {#{TEST_ROM}}')
+        app.update
+
+        app.after(500) do
+          core = player.instance_variable_get(:@core)
+          if core && !core.destroyed?
+            $stdout.puts "TITLE=\#{core.title}"
+          else
+            $stdout.puts "FAIL: no core loaded"
+          end
+          player.instance_variable_set(:@running, false)
+        end
+      end
+
+      player.run
+    RUBY
+
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
+
+    output = []
+    output << "STDOUT:\n#{stdout}" unless stdout.empty?
+    output << "STDERR:\n#{stderr}" unless stderr.empty?
+
+    assert success, "Drop ROM test failed\n#{output.join("\n")}"
+    assert_includes stdout, "TITLE=TEEKTEST", "Expected ROM to load via drop\n#{output.join("\n")}"
+  end
+
+  def test_drop_unsupported_file_shows_error
+    skip "Run: ruby teek-mgba/scripts/generate_test_rom.rb" unless File.exist?(TEST_ROM)
+
+    code = <<~RUBY
+      require "teek/mgba"
+      require "support/player_helpers"
+
+      player = Teek::MGBA::Player.new
+      app = player.instance_variable_get(:@app)
+
+      # Capture tk_messageBox calls instead of blocking
+      app.tcl_eval('set ::msgbox_calls {}')
+      app.tcl_eval('proc tk_messageBox {args} { lappend ::msgbox_calls $args; return "ok" }')
+
+      poll_until_ready(app) do
+        # Drop a .txt file — should be rejected
+        app.tcl_eval('event generate . <<DropFile>> -data {/tmp/readme.txt}')
+        app.update
+
+        app.after(200) do
+          calls = app.tcl_eval('set ::msgbox_calls')
+          if calls.include?("Unsupported file type")
+            $stdout.puts "PASS"
+          else
+            $stdout.puts "FAIL: no error dialog shown, calls=\#{calls}"
+          end
+          player.instance_variable_set(:@running, false)
+        end
+      end
+
+      player.run
+    RUBY
+
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
+
+    output = []
+    output << "STDOUT:\n#{stdout}" unless stdout.empty?
+    output << "STDERR:\n#{stderr}" unless stderr.empty?
+
+    assert success, "Drop unsupported file test failed\n#{output.join("\n")}"
+    assert_includes stdout, "PASS", "Expected error dialog for unsupported file type\n#{output.join("\n")}"
+  end
+
+  def test_drop_multiple_files_shows_error
+    skip "Run: ruby teek-mgba/scripts/generate_test_rom.rb" unless File.exist?(TEST_ROM)
+
+    code = <<~RUBY
+      require "teek/mgba"
+      require "support/player_helpers"
+
+      player = Teek::MGBA::Player.new
+      app = player.instance_variable_get(:@app)
+
+      # Capture tk_messageBox calls instead of blocking
+      app.tcl_eval('set ::msgbox_calls {}')
+      app.tcl_eval('proc tk_messageBox {args} { lappend ::msgbox_calls $args; return "ok" }')
+
+      poll_until_ready(app) do
+        # Drop two ROM files — should be rejected
+        app.tcl_eval('event generate . <<DropFile>> -data {#{TEST_ROM} /tmp/other.gba}')
+        app.update
+
+        app.after(200) do
+          calls = app.tcl_eval('set ::msgbox_calls')
+          if calls.include?("single")
+            $stdout.puts "PASS"
+          else
+            $stdout.puts "FAIL: no single-file error dialog, calls=\#{calls}"
+          end
+          player.instance_variable_set(:@running, false)
+        end
+      end
+
+      player.run
+    RUBY
+
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 8)
+
+    output = []
+    output << "STDOUT:\n#{stdout}" unless stdout.empty?
+    output << "STDERR:\n#{stderr}" unless stderr.empty?
+
+    assert success, "Drop multiple files test failed\n#{output.join("\n")}"
+    assert_includes stdout, "PASS", "Expected error dialog for multiple files\n#{output.join("\n")}"
+  end
 end

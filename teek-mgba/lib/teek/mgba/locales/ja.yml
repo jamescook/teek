@@ -30,6 +30,9 @@ toast:
 dialog:
   game_running_title: "ゲーム実行中"
   game_running_msg: "別のゲームが実行中です。{name}に切り替えますか？"
+  drop_error_title: "ドロップエラー"
+  drop_single_file_only: "ROMファイルを1つだけドロップしてください。"
+  drop_unsupported_type: "対応していないファイル形式: {ext}"
   rom_not_found_title: "ROMが見つかりません"
   rom_not_found_msg: "ROMファイルが存在しません:\n{path}"
   reset_gamepad_title: "ゲームパッドをリセット"
