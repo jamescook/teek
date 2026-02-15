@@ -74,6 +74,19 @@ end
 find_tcltk
 
 # Source files for the extension
-$srcs = ['tcltkbridge.c', 'tkphoto.c', 'tkfont.c', 'tkwin.c', 'tkeventsource.c']
+$srcs = ['tcltkbridge.c', 'tkphoto.c', 'tkfont.c', 'tkwin.c', 'tkeventsource.c', 'tkdrop.c']
+
+# Platform-specific file drop target
+case RbConfig::CONFIG['host_os']
+when /darwin/
+  $srcs << 'tkdrop_macos.m'
+  $LDFLAGS << ' -framework Cocoa'
+when /mingw|mswin|cygwin/
+  $srcs << 'tkdrop_win.c'
+  have_library('ole32')
+  have_library('shell32')
+else
+  $srcs << 'tkdrop_x11.c'
+end
 
 create_makefile('tcltklib')

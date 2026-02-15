@@ -1490,6 +1490,9 @@ Init_tcltklib(void)
     /* External event source integration (tkeventsource.c) */
     Init_tkeventsource(mTeek);
 
+    /* File drop target support (tkdrop.c) */
+    Init_tkdrop(cInterp);
+
     /* Class methods for instance tracking */
     rb_define_singleton_method(cInterp, "instance_count", tcltkip_instance_count, 0);
     rb_define_singleton_method(cInterp, "instances", tcltkip_instances, 0);
