@@ -81,5 +81,7 @@ rom_info:
 player:
   open_rom_hint: "File > Open ROM…"
   fps: "{fps} fps"
+  ff: ">> {speed}x"
+  ff_max: ">> MAX"
   none: "(none)"
   clear: "Clear"

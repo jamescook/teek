@@ -81,5 +81,7 @@ rom_info:
 player:
   open_rom_hint: "ファイル > ROMを開く…"
   fps: "{fps} fps"
+  ff: ">> {speed}x"
+  ff_max: ">> 最大"
   none: "(なし)"
   clear: "クリア"

@@ -253,21 +253,16 @@ module Teek
           duration: @config.toast_duration
         )
 
-        # Crop heights: ascent + partial descender. Excludes the very bottom
-        # rows where TTF anti-alias residue causes visible white-line artifacts.
-        @overlay_crop_h = compute_crop_h(@overlay_font)
-        @ff_label_tex = nil
-        @fps_tex = nil
-        @fps_shadow_tex = nil
-
         # Custom blend mode: white text inverts the background behind it.
         # dstRGB = (1 - dstRGB) * srcRGB + dstRGB * (1 - srcA)
         # Where srcA=1 (opaque text): result = 1 - dst  (inverted)
         # Where srcA=0 (transparent): result = dst      (unchanged)
-        @inverse_blend = Teek::SDL2.compose_blend_mode(
+        inverse_blend = Teek::SDL2.compose_blend_mode(
           :one_minus_dst_color, :one_minus_src_alpha, :add,
           :zero, :one, :add
         )
+
+        @hud = OverlayRenderer.new(font: @overlay_font, blend_mode: inverse_blend)
 
         # Audio stream — stereo int16 at GBA sample rate.
         # Falls back to a silent no-op stream when sound is disabled or
@@ -746,9 +741,9 @@ module Teek
         return unless @core
         @fast_forward = !@fast_forward
         if @fast_forward
-          rebuild_ff_label
+          @hud.set_ff_label(ff_label_text)
         else
-          destroy_ff_label
+          @hud.set_ff_label(nil)
           @next_frame = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           @stream.clear
         end
@@ -756,7 +751,11 @@ module Teek
 
       def apply_turbo_speed(speed)
         @turbo_speed = speed
-        rebuild_ff_label if @fast_forward
+        @hud.set_ff_label(ff_label_text) if @fast_forward
+      end
+
+      def ff_label_text
+        @turbo_speed == 0 ? translate('player.ff_max') : translate('player.ff', speed: @turbo_speed)
       end
 
       def apply_aspect_ratio(keep)
@@ -770,7 +769,7 @@ module Teek
 
       def apply_show_fps(show)
         @show_fps = show
-        destroy_fps_overlay unless @show_fps
+        @hud.set_fps(nil) unless @show_fps
       end
 
       def apply_toast_duration(secs)
@@ -790,57 +789,8 @@ module Teek
 
       def toggle_show_fps
         @show_fps = !@show_fps
-        destroy_fps_overlay unless @show_fps
+        @hud.set_fps(nil) unless @show_fps
         @app.set_variable(SettingsWindow::VAR_SHOW_FPS, @show_fps ? '1' : '0')
-      end
-
-      # Build an inverse-blend overlay texture from text. White source
-      # pixels invert the destination, transparent regions pass through.
-      def compute_crop_h(font)
-        return nil unless font
-        ascent = font.ascent
-        full_h = font.measure('p')[1]
-        [ascent + (full_h - ascent) / 2, full_h - 1].min
-      end
-
-      def build_inverse_tex(text)
-        return nil unless @overlay_font
-        tex = @overlay_font.render_text(text, 255, 255, 255)
-        tex.blend_mode = @inverse_blend
-        tex
-      end
-
-      # Draw an inverse overlay texture at (x, y), cropping to the font's
-      # ascent height (excludes descender area which has alpha artifacts
-      # visible under inverse blending).
-      def draw_inverse_tex(r, tex, x, y)
-        return unless tex
-        tw = tex.width
-        th = @overlay_crop_h || tex.height
-        r.copy(tex, [0, 0, tw, th], [x, y, tw, th])
-      end
-
-      # -----------------------------------------------------------------------
-
-      def rebuild_fps_overlay(text)
-        destroy_fps_overlay
-        @fps_tex = build_inverse_tex(text)
-      end
-
-      def destroy_fps_overlay
-        @fps_tex&.destroy
-        @fps_tex = nil
-      end
-
-      def rebuild_ff_label
-        destroy_ff_label
-        label = @turbo_speed == 0 ? '>> MAX' : ">> #{@turbo_speed}x"
-        @ff_label_tex = build_inverse_tex(label)
-      end
-
-      def destroy_ff_label
-        @ff_label_tex&.destroy
-        @ff_label_tex = nil
       end
 
       def reset_core
@@ -971,7 +921,7 @@ module Teek
           @viewport.render do |r|
             r.clear(0, 0, 0)
             r.copy(@texture, nil, dest)
-            draw_fps_overlay(r, dest)
+            @hud.draw(r, dest, show_fps: @show_fps)
             @toast&.draw(r, dest)
           end
           return
@@ -1104,19 +1054,9 @@ module Teek
         @viewport.render do |r|
           r.clear(0, 0, 0)
           r.copy(@texture, nil, dest)
-          ox = dest ? dest[0] : 0
-          oy = dest ? dest[1] : 0
-          draw_inverse_tex(r, @ff_label_tex, ox + 4, oy + 4) if ff_indicator
-          draw_fps_overlay(r, dest)
+          @hud.draw(r, dest, show_fps: @show_fps, show_ff: ff_indicator)
           @toast&.draw(r, dest)
         end
-      end
-
-      def draw_fps_overlay(r, dest)
-        return unless @show_fps && @fps_tex
-        fx = (dest ? dest[0] + dest[2] : r.output_size[0]) - @fps_tex.width - 6
-        fy = (dest ? dest[1] : 0) + 4
-        draw_inverse_tex(r, @fps_tex, fx, fy)
       end
 
       # Calculate a centered destination rectangle that preserves the GBA's 3:2
@@ -1155,7 +1095,7 @@ module Teek
         elapsed = now - @fps_time
         if elapsed >= 1.0
           fps = (@fps_count / elapsed).round(1)
-          rebuild_fps_overlay(translate('player.fps', fps: fps)) if @show_fps
+          @hud.set_fps(translate('player.fps', fps: fps)) if @show_fps
           @audio_samples_produced = 0
           @fps_count = 0
           @fps_time = now
@@ -1185,8 +1125,7 @@ module Teek
         @cleaned_up = true
 
         @stream&.pause unless @stream&.destroyed?
-        destroy_ff_label
-        destroy_fps_overlay
+        @hud&.destroy
         @toast&.destroy
         @overlay_font&.destroy unless @overlay_font&.destroyed?
         @stream&.destroy unless @stream&.destroyed?
