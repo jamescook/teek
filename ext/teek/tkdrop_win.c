@@ -121,6 +121,10 @@ tdt_Drop(IDropTarget *self, IDataObject *pDataObj, DWORD grfKeyState,
     UINT count = DragQueryFileW(hDrop, 0xFFFFFFFF, NULL, 0);
     UINT i;
 
+    /* Build a Tcl list of all dropped file paths */
+    Tcl_Obj *listObj = Tcl_NewListObj(0, NULL);
+    Tcl_IncrRefCount(listObj);
+
     for (i = 0; i < count; i++) {
         WCHAR wpath[MAX_PATH];
         if (DragQueryFileW(hDrop, i, wpath, MAX_PATH) == 0) continue;
@@ -134,16 +138,19 @@ tdt_Drop(IDropTarget *self, IDataObject *pDataObj, DWORD grfKeyState,
         if (!utf8) continue;
 
         WideCharToMultiByte(CP_UTF8, 0, wpath, -1, utf8, utf8_len, NULL, NULL);
-
-        Tcl_Obj *script = Tcl_ObjPrintf(
-            "event generate %s <<DropFile>> -data {%s}",
-            tdt->widget_path, utf8);
-        Tcl_IncrRefCount(script);
-        Tcl_EvalObjEx(tdt->interp, script, TCL_EVAL_GLOBAL);
-        Tcl_DecrRefCount(script);
-
+        Tcl_ListObjAppendElement(NULL, listObj,
+            Tcl_NewStringObj(utf8, -1));
         free(utf8);
     }
+
+    /* Generate single <<DropFile>> event with all paths as a Tcl list */
+    Tcl_Obj *script = Tcl_ObjPrintf(
+        "event generate %s <<DropFile>> -data {%s}",
+        tdt->widget_path, Tcl_GetString(listObj));
+    Tcl_IncrRefCount(script);
+    Tcl_EvalObjEx(tdt->interp, script, TCL_EVAL_GLOBAL);
+    Tcl_DecrRefCount(script);
+    Tcl_DecrRefCount(listObj);
 
     GlobalUnlock(stg.hGlobal);
     ReleaseStgMedium(&stg);

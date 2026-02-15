@@ -2,6 +2,7 @@
 
 # Tests for file drop support via <<DropFile>> virtual event.
 # Uses event generate to simulate drops (no actual OS drag needed).
+# Data arrives as a Tcl list of file paths; use split_list to parse.
 
 require 'minitest/autorun'
 require_relative 'tk_test_helper'
@@ -25,53 +26,74 @@ class TestDrop < Minitest::Test
     end
   end
 
-  def test_drop_file_event_receives_data
-    assert_tk_app("<<DropFile>> should receive file path via :data") do
-      received_path = nil
+  def test_drop_single_file
+    assert_tk_app("<<DropFile>> should receive single file as list") do
+      received = nil
 
       app.show
       app.update
 
-      app.bind('.', '<<DropFile>>', :data) { |path| received_path = path }
+      app.bind('.', '<<DropFile>>', :data) { |d| received = d }
 
       app.tcl_eval('event generate . <<DropFile>> -data {/tmp/test.gba}')
       app.update
 
-      assert_equal "/tmp/test.gba", received_path
+      paths = app.split_list(received)
+      assert_equal ["/tmp/test.gba"], paths
+    end
+  end
+
+  def test_drop_multiple_files
+    assert_tk_app("<<DropFile>> should receive multiple files as list") do
+      received = nil
+
+      app.show
+      app.update
+
+      app.bind('.', '<<DropFile>>', :data) { |d| received = d }
+
+      app.tcl_eval('event generate . <<DropFile>> -data {/tmp/a.gba /tmp/b.gba /tmp/c.gba}')
+      app.update
+
+      paths = app.split_list(received)
+      assert_equal ["/tmp/a.gba", "/tmp/b.gba", "/tmp/c.gba"], paths
+    end
+  end
+
+  def test_drop_file_with_spaces_in_path
+    assert_tk_app("<<DropFile>> should handle paths with spaces") do
+      received = nil
+
+      app.show
+      app.update
+
+      app.bind('.', '<<DropFile>>', :data) { |d| received = d }
+
+      # Tcl list with a space-containing path must be braced
+      app.tcl_eval('event generate . <<DropFile>> -data {{/tmp/my games/rom file.gba}}')
+      app.update
+
+      paths = app.split_list(received)
+      assert_equal ["/tmp/my games/rom file.gba"], paths
     end
   end
 
   def test_drop_file_event_on_child_widget
     assert_tk_app("<<DropFile>> should work on child widgets") do
-      received_path = nil
+      received = nil
 
       app.show
       app.tcl_eval("frame .f -width 100 -height 100")
       app.tcl_eval("pack .f")
       app.update
 
-      app.bind('.f', '<<DropFile>>', :data) { |path| received_path = path }
+      app.bind('.f', '<<DropFile>>', :data) { |d| received = d }
 
       app.tcl_eval('event generate .f <<DropFile>> -data {/home/user/game.gba}')
       app.update
 
-      assert_equal "/home/user/game.gba", received_path
-    end
-  end
-
-  def test_drop_file_with_spaces_in_path
-    assert_tk_app("<<DropFile>> should handle paths with spaces") do
-      received_path = nil
-
-      app.show
-      app.update
-
-      app.bind('.', '<<DropFile>>', :data) { |path| received_path = path }
-
-      app.tcl_eval('event generate . <<DropFile>> -data {/tmp/my games/rom file.gba}')
-      app.update
-
-      assert_equal "/tmp/my games/rom file.gba", received_path
+      paths = app.split_list(received)
+      assert_equal ["/home/user/game.gba"], paths
     end
   end
 

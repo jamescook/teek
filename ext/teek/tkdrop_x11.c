@@ -138,7 +138,7 @@ send_xdnd_finished(TeekXdndState *st, int success)
                (XEvent *)&msg);
 }
 
-/* Process dropped data (text/uri-list) and generate <<DropFile>> events */
+/* Process dropped data (text/uri-list) and generate a single <<DropFile>> event */
 static void
 process_uri_list(TeekXdndState *st, const char *data, unsigned long len)
 {
@@ -146,6 +146,10 @@ process_uri_list(TeekXdndState *st, const char *data, unsigned long len)
     if (!buf) return;
     memcpy(buf, data, len);
     buf[len] = '\0';
+
+    /* Build a Tcl list of all dropped file paths */
+    Tcl_Obj *listObj = Tcl_NewListObj(0, NULL);
+    Tcl_IncrRefCount(listObj);
 
     /* text/uri-list: one URI per line, \r\n separated, # lines are comments */
     char *line = buf;
@@ -155,17 +159,12 @@ process_uri_list(TeekXdndState *st, const char *data, unsigned long len)
 
         /* Skip comments and empty lines */
         if (*line && *line != '#') {
-            /* Make a copy for uri_to_path since it modifies in place */
             char *uri_copy = strdup(line);
             if (uri_copy) {
                 char *path = uri_to_path(uri_copy);
                 if (path && *path) {
-                    Tcl_Obj *script = Tcl_ObjPrintf(
-                        "event generate %s <<DropFile>> -data {%s}",
-                        st->widget_path, path);
-                    Tcl_IncrRefCount(script);
-                    Tcl_EvalObjEx(st->interp, script, TCL_EVAL_GLOBAL);
-                    Tcl_DecrRefCount(script);
+                    Tcl_ListObjAppendElement(NULL, listObj,
+                        Tcl_NewStringObj(path, -1));
                 }
                 free(uri_copy);
             }
@@ -173,6 +172,15 @@ process_uri_list(TeekXdndState *st, const char *data, unsigned long len)
 
         line = eol ? eol + 2 : NULL;
     }
+
+    /* Generate single <<DropFile>> event with all paths as a Tcl list */
+    Tcl_Obj *script = Tcl_ObjPrintf(
+        "event generate %s <<DropFile>> -data {%s}",
+        st->widget_path, Tcl_GetString(listObj));
+    Tcl_IncrRefCount(script);
+    Tcl_EvalObjEx(st->interp, script, TCL_EVAL_GLOBAL);
+    Tcl_DecrRefCount(script);
+    Tcl_DecrRefCount(listObj);
 
     free(buf);
 }

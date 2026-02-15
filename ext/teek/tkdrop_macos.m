@@ -67,20 +67,25 @@
         return NO;
     }
 
+    /* Build a Tcl list of all dropped file paths */
+    Tcl_Obj *listObj = Tcl_NewListObj(0, NULL);
+    Tcl_IncrRefCount(listObj);
+
     for (NSURL *url in urls) {
         NSString *path = [url path];
         if (!path) continue;
-
-        const char *utf8 = [path UTF8String];
-
-        /* Generate <<DropFile>> virtual event with -data */
-        Tcl_Obj *script = Tcl_ObjPrintf(
-            "event generate %s <<DropFile>> -data {%s}",
-            _widgetPath, utf8);
-        Tcl_IncrRefCount(script);
-        Tcl_EvalObjEx(_interp, script, TCL_EVAL_GLOBAL);
-        Tcl_DecrRefCount(script);
+        Tcl_ListObjAppendElement(NULL, listObj,
+            Tcl_NewStringObj([path UTF8String], -1));
     }
+
+    /* Generate single <<DropFile>> event with all paths as a Tcl list */
+    Tcl_Obj *script = Tcl_ObjPrintf(
+        "event generate %s <<DropFile>> -data {%s}",
+        _widgetPath, Tcl_GetString(listObj));
+    Tcl_IncrRefCount(script);
+    Tcl_EvalObjEx(_interp, script, TCL_EVAL_GLOBAL);
+    Tcl_DecrRefCount(script);
+    Tcl_DecrRefCount(listObj);
 
     return YES;
 }
