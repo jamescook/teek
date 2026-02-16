@@ -80,6 +80,8 @@ module Teek
         @quick_save_slot = @config.quick_save_slot
         @save_state_backup = @config.save_state_backup?
         @save_mgr = nil  # created when ROM loaded
+        @recorder = nil
+        @recording_compression = @config.recording_compression
         check_writable_dirs
 
         win_w = GBA_W * @scale
@@ -125,7 +127,9 @@ module Teek
           on_toast_duration_change: method(:apply_toast_duration),
           on_quick_slot_change:   method(:apply_quick_slot),
           on_backup_change:       method(:apply_backup),
+          on_compression_change:  method(:apply_recording_compression),
           on_open_config_dir:     method(:open_config_dir),
+          on_open_recordings_dir: method(:open_recordings_dir),
           on_close:               method(:on_child_window_close),
           on_save:                method(:save_config),
         })
@@ -148,6 +152,24 @@ module Teek
         @app.command('tk', 'busy', '.')
       end
 
+      # @return [Teek::App]
+      attr_reader :app
+
+      # @return [Teek::MGBA::Config]
+      attr_reader :config
+
+      # @return [Teek::MGBA::Viewport, nil] nil until SDL2 init
+      attr_reader :viewport
+
+      # @return [Teek::MGBA::Core, nil] nil until ROM loaded
+      attr_reader :core
+
+      # @return [Teek::MGBA::Recorder, nil] nil when not recording
+      attr_reader :recorder
+
+      # @return [Boolean] whether the main loop is running
+      attr_accessor :running
+
       # @return [Integer] current video scale multiplier
       attr_reader :scale
 
@@ -157,6 +179,11 @@ module Teek
       # @return [Boolean] whether audio is muted
       def muted?
         @muted
+      end
+
+      # @return [Boolean] whether currently recording
+      def recording?
+        @recorder&.recording? || false
       end
 
       # @return [Teek::MGBA::SettingsWindow]
@@ -408,6 +435,7 @@ module Teek
         @config.rewind_seconds = @rewind_seconds
         @config.quick_save_slot = @quick_save_slot
         @config.save_state_backup = @save_state_backup
+        @config.recording_compression = @recording_compression
 
         @kb_map.save_to_config
         @gp_map.save_to_config
@@ -508,6 +536,7 @@ module Teek
         @rewind_seconds   = @config.rewind_seconds
         @quick_save_slot  = @config.quick_save_slot
         @save_state_backup = @config.save_state_backup?
+        @recording_compression = @config.recording_compression
 
         push_settings_to_ui
 
@@ -542,6 +571,7 @@ module Teek
         @app.set_variable(SettingsWindow::VAR_MUTE, @muted ? '1' : '0')
         @app.set_variable(SettingsWindow::VAR_QUICK_SLOT, @quick_save_slot.to_s)
         @app.set_variable(SettingsWindow::VAR_SS_BACKUP, @save_state_backup ? '1' : '0')
+        @app.set_variable(SettingsWindow::VAR_REC_COMPRESSION, @recording_compression.to_s)
       end
 
       # Returns the currently active input map based on settings window mode.
@@ -701,6 +731,7 @@ module Teek
             when :save_states   then show_state_picker
             when :screenshot    then take_screenshot
             when :rewind        then do_rewind
+            when :record        then toggle_recording
             else @keyboard.press(k)
             end
           end
@@ -793,6 +824,10 @@ module Teek
         @app.command(@emu_menu, :add, :command,
                      label: translate('menu.save_states'), accelerator: 'F6', state: :disabled,
                      command: proc { show_state_picker })
+        @app.command(@emu_menu, :add, :separator)
+        @app.command(@emu_menu, :add, :command,
+                     label: translate('menu.start_recording'), accelerator: 'F10', state: :disabled,
+                     command: proc { toggle_recording })
 
         @app.command(:bind, '.', '<Command-r>', proc { reset_core })
       end
@@ -884,6 +919,70 @@ module Teek
         @app.set_variable(SettingsWindow::VAR_SHOW_FPS, @show_fps ? '1' : '0')
       end
 
+      # -- Recording -----------------------------------------------------------
+
+      def toggle_recording
+        return unless @core
+        @recorder&.recording? ? stop_recording : start_recording
+      end
+
+      def start_recording
+        dir = @config.recordings_dir
+        FileUtils.mkdir_p(dir) unless File.directory?(dir)
+        timestamp = Time.now.strftime('%Y%m%d_%H%M%S_%L')
+        title = @core.title.strip.gsub(/[^a-zA-Z0-9_.-]/, '_')
+        filename = "#{title}_#{timestamp}.trec"
+        path = File.join(dir, filename)
+        @recorder = Recorder.new(path, width: GBA_W, height: GBA_H,
+                                 compression: @recording_compression)
+        @recorder.start
+        @toast&.show(translate('toast.recording_started'))
+        update_recording_menu
+      end
+
+      def stop_recording
+        return unless @recorder&.recording?
+        @recorder.stop
+        count = @recorder.frame_count
+        @toast&.show(translate('toast.recording_stopped', frames: count))
+        @recorder = nil
+        update_recording_menu
+      end
+
+      # Capture current frame for recording. Reads audio_buffer (destructive)
+      # and returns the raw PCM so the caller can pass it to queue_audio.
+      # Returns nil when not recording.
+      def capture_frame
+        return nil unless @recorder&.recording?
+        pcm = @core.audio_buffer
+        @recorder.capture(@core.video_buffer_argb, pcm)
+        pcm
+      end
+
+      def update_recording_menu
+        label = @recorder&.recording? ? translate('menu.stop_recording') : translate('menu.start_recording')
+        @app.command(@emu_menu, :entryconfigure, 8, label: label)
+      end
+
+      def apply_recording_compression(val)
+        @recording_compression = val.to_i.clamp(1, 9)
+      end
+
+      def open_recordings_dir
+        dir = @config.recordings_dir
+        FileUtils.mkdir_p(dir) unless File.directory?(dir)
+        p = Teek.platform
+        if p.darwin?
+          system('open', dir)
+        elsif p.windows?
+          system('explorer.exe', dir)
+        else
+          system('xdg-open', dir)
+        end
+      end
+
+      # -- End recording -------------------------------------------------------
+
       def reset_core
         return unless @rom_path
         load_rom(@rom_path)
@@ -970,6 +1069,8 @@ module Teek
           return
         end
 
+        stop_recording if @recorder&.recording?
+
         if @core && !@core.destroyed?
           @core.destroy
         end
@@ -997,8 +1098,9 @@ module Teek
         @app.command(:place, :forget, @status_label) rescue nil
         @app.set_window_title("mGBA \u2014 #{@core.title}")
         @app.command(@view_menu, :entryconfigure, 1, state: :normal)
-        # Enable save state menu entries (Quick Save=3, Quick Load=4, Save States=6)
-        [3, 4, 6].each { |i| @app.command(@emu_menu, :entryconfigure, i, state: :normal) }
+        # Enable save state + recording menu entries
+        # Quick Save=3, Quick Load=4, Save States=6, Record=8
+        [3, 4, 6, 8].each { |i| @app.command(@emu_menu, :entryconfigure, i, state: :normal) }
         @fps_count = 0
         @fps_time = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         @next_frame = @fps_time
@@ -1074,6 +1176,11 @@ module Teek
           @viewport.render do |r|
             r.clear(0, 0, 0)
             r.copy(@texture, nil, dest)
+            if @recorder&.recording?
+              rx = (dest ? dest[0] : 0) + 12
+              ry = (dest ? dest[1] : 0) + 12
+              r.fill_circle(rx, ry, 5, 220, 30, 30, 200)
+            end
             @hud.draw(r, dest, show_fps: @show_fps)
             @toast&.draw(r, dest)
           end
@@ -1094,7 +1201,8 @@ module Teek
         frames = 0
         while @next_frame <= now && frames < 4
           run_one_frame
-          queue_audio
+          rec_pcm = capture_frame
+          queue_audio(raw_pcm: rec_pcm)
 
           # Dynamic rate control — proportional feedback on audio buffer fill.
           # Based on Near/byuu's algorithm for emulator A/V sync:
@@ -1130,7 +1238,12 @@ module Teek
           FF_MAX_FRAMES.times do |i|
             @core.set_keys(keys)
             @core.run_frame
-            i == 0 ? queue_audio(volume_override: @turbo_volume) : @core.audio_buffer
+            rec_pcm = capture_frame
+            if i == 0
+              queue_audio(volume_override: @turbo_volume, raw_pcm: rec_pcm)
+            elsif !rec_pcm
+              @core.audio_buffer  # discard when not recording
+            end
           end
           @next_frame = now
           render_frame(ff_indicator: true)
@@ -1144,7 +1257,12 @@ module Teek
         while @next_frame <= now && frames < @turbo_speed * 4
           @turbo_speed.times do
             run_one_frame
-            frames == 0 ? queue_audio(volume_override: @turbo_volume) : @core.audio_buffer
+            rec_pcm = capture_frame
+            if frames == 0
+              queue_audio(volume_override: @turbo_volume, raw_pcm: rec_pcm)
+            elsif !rec_pcm
+              @core.audio_buffer  # discard when not recording
+            end
             frames += 1
           end
           @next_frame += FRAME_PERIOD
@@ -1187,8 +1305,8 @@ module Teek
         end
       end
 
-      def queue_audio(volume_override: nil)
-        pcm = @core.audio_buffer
+      def queue_audio(volume_override: nil, raw_pcm: nil)
+        pcm = raw_pcm || @core.audio_buffer
         return if pcm.empty?
 
         @audio_samples_produced += pcm.bytesize / 4
@@ -1211,6 +1329,11 @@ module Teek
         @viewport.render do |r|
           r.clear(0, 0, 0)
           r.copy(@texture, nil, dest)
+          if @recorder&.recording?
+            rx = (dest ? dest[0] : 0) + 12
+            ry = (dest ? dest[1] : 0) + 12
+            r.fill_circle(rx, ry, 5, 220, 30, 30, 200)
+          end
           @hud.draw(r, dest, show_fps: @show_fps, show_ff: ff_indicator)
           @toast&.draw(r, dest)
         end
@@ -1301,6 +1424,7 @@ module Teek
         return if @cleaned_up
         @cleaned_up = true
 
+        stop_recording if @recorder&.recording?
         @stream&.pause unless @stream&.destroyed?
         @hud&.destroy
         @toast&.destroy

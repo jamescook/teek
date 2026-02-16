@@ -73,6 +73,7 @@ module Teek
         save_states: "#{HK_TAB}.row_save_states.btn",
         screenshot:  "#{HK_TAB}.row_screenshot.btn",
         rewind:      "#{HK_TAB}.row_rewind.btn",
+        record:      "#{HK_TAB}.row_record.btn",
       }.freeze
 
       # Action → locale key mapping
@@ -83,6 +84,7 @@ module Teek
         quick_load: 'settings.hk_quick_load', save_states: 'settings.hk_save_states',
         screenshot: 'settings.hk_screenshot',
         rewind: 'settings.hk_rewind',
+        record: 'settings.hk_record',
       }.freeze
 
       # GBA button → locale key mapping
@@ -97,6 +99,11 @@ module Teek
       # Per-game settings bar (above notebook, shown/hidden based on active tab)
       PER_GAME_BAR   = "#{TOP}.per_game_bar"
       PER_GAME_CHECK = "#{PER_GAME_BAR}.check"
+
+      # Recording tab widget paths
+      REC_TAB              = "#{NB}.recording"
+      REC_COMPRESSION_COMBO = "#{REC_TAB}.comp_row.comp_combo"
+      REC_OPEN_DIR_BTN     = "#{REC_TAB}.dir_row.open_btn"
 
       # Save States tab widget paths
       SS_TAB         = "#{NB}.savestates"
@@ -125,6 +132,7 @@ module Teek
       VAR_REWIND_ENABLED = '::mgba_rewind_enabled'
       VAR_QUICK_SLOT     = '::mgba_quick_slot'
       VAR_SS_BACKUP      = '::mgba_ss_backup'
+      VAR_REC_COMPRESSION = '::mgba_rec_compression'
 
       # GBA button → widget path mapping
       GBA_BUTTONS = {
@@ -199,6 +207,7 @@ module Teek
         'settings.audio'       => "#{NB}.audio",
         'settings.gamepad'     => GAMEPAD_TAB,
         'settings.hotkeys'     => HK_TAB,
+        'settings.recording'   => REC_TAB,
         'settings.save_states' => SS_TAB,
       }.freeze
 
@@ -288,6 +297,7 @@ module Teek
         setup_audio_tab
         setup_gamepad_tab
         setup_hotkeys_tab
+        setup_recording_tab
         setup_save_states_tab
 
         # Show/hide per-game bar based on active tab
@@ -686,6 +696,53 @@ module Teek
         @app.command('ttk::button', HK_RESET_BTN, text: translate('settings.hk_reset_defaults'),
           command: proc { confirm_reset_hotkeys })
         @app.command(:pack, HK_RESET_BTN, side: :right)
+      end
+
+      def setup_recording_tab
+        frame = REC_TAB
+        @app.command('ttk::frame', frame)
+        @app.command(NB, 'add', frame, text: translate('settings.recording'))
+
+        # Compression level
+        comp_row = "#{frame}.comp_row"
+        @app.command('ttk::frame', comp_row)
+        @app.command(:pack, comp_row, fill: :x, padx: 10, pady: [15, 5])
+
+        @app.command('ttk::label', "#{comp_row}.lbl", text: translate('settings.recording_compression'))
+        @app.command(:pack, "#{comp_row}.lbl", side: :left)
+
+        comp_tip = "#{comp_row}.tip"
+        @app.command('ttk::label', comp_tip, text: '(?)')
+        @app.command(:pack, comp_tip, side: :left)
+        @tips.register(comp_tip, translate('settings.tip_recording_compression'))
+
+        comp_values = (1..9).map(&:to_s)
+        @app.set_variable(VAR_REC_COMPRESSION, '1')
+        @app.command('ttk::combobox', REC_COMPRESSION_COMBO,
+          textvariable: VAR_REC_COMPRESSION,
+          values: Teek.make_list(*comp_values),
+          state: :readonly,
+          width: 5)
+        @app.command(:pack, REC_COMPRESSION_COMBO, side: :right)
+
+        @app.command(:bind, REC_COMPRESSION_COMBO, '<<ComboboxSelected>>',
+          proc { |*|
+            val = @app.get_variable(VAR_REC_COMPRESSION).to_i
+            if val >= 1 && val <= 9
+              @callbacks[:on_compression_change]&.call(val)
+              mark_dirty
+            end
+          })
+
+        # Open Recordings Folder button
+        dir_row = "#{frame}.dir_row"
+        @app.command('ttk::frame', dir_row)
+        @app.command(:pack, dir_row, fill: :x, padx: 10, pady: [15, 5])
+
+        @app.command('ttk::button', REC_OPEN_DIR_BTN,
+          text: translate('settings.open_recordings_folder'),
+          command: proc { @callbacks[:on_open_recordings_dir]&.call })
+        @app.command(:pack, REC_OPEN_DIR_BTN, side: :left)
       end
 
       def setup_save_states_tab

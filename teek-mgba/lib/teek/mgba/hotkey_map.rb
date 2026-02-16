@@ -11,7 +11,8 @@ module Teek
     # efficient dispatch in the input loop.
     class HotkeyMap
       ACTIONS = %i[quit pause fast_forward fullscreen show_fps
-                   quick_save quick_load save_states screenshot rewind].freeze
+                   quick_save quick_load save_states screenshot rewind
+                   record].freeze
 
       DEFAULTS = {
         quit: 'q', pause: 'p', fast_forward: 'Tab',
@@ -19,6 +20,7 @@ module Teek
         quick_save: 'F5', quick_load: 'F8',
         save_states: 'F6', screenshot: 'F9',
         rewind: ['Shift', 'Tab'],
+        record: 'F10',
       }.freeze
 
       # Tk keysyms that are modifier keys → normalized name

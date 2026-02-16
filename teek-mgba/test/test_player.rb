@@ -17,9 +17,9 @@ class TestMGBAPlayer < Minitest::Test
       require "support/player_helpers"
 
       player = Teek::MGBA::Player.new("#{TEST_ROM}")
-      app = player.instance_variable_get(:@app)
+      app = player.app
 
-      poll_until_ready(app) { player.instance_variable_set(:@running, false) }
+      poll_until_ready(app) { player.running = false }
 
       player.run
     RUBY
@@ -42,10 +42,10 @@ class TestMGBAPlayer < Minitest::Test
       require "support/player_helpers"
 
       player = Teek::MGBA::Player.new("#{TEST_ROM}")
-      app = player.instance_variable_get(:@app)
+      app = player.app
 
       poll_until_ready(app) do
-        vp = player.instance_variable_get(:@viewport)
+        vp = player.viewport
         frame = vp.frame.path
 
         # User presses F11 → fullscreen on
@@ -86,10 +86,10 @@ class TestMGBAPlayer < Minitest::Test
       require "support/player_helpers"
 
       player = Teek::MGBA::Player.new("#{TEST_ROM}")
-      app = player.instance_variable_get(:@app)
+      app = player.app
 
       poll_until_ready(app) do
-        vp = player.instance_variable_get(:@viewport)
+        vp = player.viewport
         frame = vp.frame.path
 
         # User presses Tab → enable turbo (2x default)
@@ -130,8 +130,8 @@ class TestMGBAPlayer < Minitest::Test
       states_dir = Dir.mktmpdir("teek-states-test")
 
       player = Teek::MGBA::Player.new("#{TEST_ROM}")
-      app = player.instance_variable_get(:@app)
-      config = player.instance_variable_get(:@config)
+      app = player.app
+      config = player.config
 
       # Override states dir and reduce debounce for test speed
       config.states_dir = states_dir
@@ -140,7 +140,7 @@ class TestMGBAPlayer < Minitest::Test
       poll_until_ready(app) do
         core = player.save_mgr.core
         state_dir = player.save_mgr.state_dir
-        vp = player.instance_variable_get(:@viewport)
+        vp = player.viewport
         frame_path = vp.frame.path
 
         # Quick save (F5)
@@ -209,7 +209,7 @@ class TestMGBAPlayer < Minitest::Test
 
                 # Clean up and quit
                 FileUtils.rm_rf(states_dir)
-                player.instance_variable_set(:@running, false)
+                player.running = false
               end
             end
           end
@@ -252,14 +252,14 @@ class TestMGBAPlayer < Minitest::Test
       states_dir = Dir.mktmpdir("teek-debounce-test")
 
       player = Teek::MGBA::Player.new("#{TEST_ROM}")
-      app = player.instance_variable_get(:@app)
-      config = player.instance_variable_get(:@config)
+      app = player.app
+      config = player.config
 
       config.states_dir = states_dir
       config.save_state_debounce = 5.0  # long debounce
 
       poll_until_ready(app) do
-        vp = player.instance_variable_get(:@viewport)
+        vp = player.viewport
         frame_path = vp.frame.path
 
         # First save should succeed
@@ -292,7 +292,7 @@ class TestMGBAPlayer < Minitest::Test
 
             $stdout.puts "PASS"
             FileUtils.rm_rf(states_dir)
-            player.instance_variable_set(:@running, false)
+            player.running = false
           end
         end
       end
@@ -326,11 +326,11 @@ class TestMGBAPlayer < Minitest::Test
       config_path = File.join(config_dir, "settings.json")
 
       player = Teek::MGBA::Player.new("#{TEST_ROM}")
-      app = player.instance_variable_get(:@app)
-      config = player.instance_variable_get(:@config)
+      app = player.app
+      config = player.config
 
       # Redirect config to a temp file so we can verify persistence
-      config.instance_variable_set(:@path, config_path)
+      config.path = config_path
 
       poll_until_ready(app) do
         nb       = Teek::MGBA::SettingsWindow::NB
@@ -376,7 +376,7 @@ class TestMGBAPlayer < Minitest::Test
           $stdout.puts "PASS"
           $stdout.puts "saved_slot=\#{saved_slot}"
           FileUtils.rm_rf(config_dir)
-          player.instance_variable_set(:@running, false)
+          player.running = false
         end
       end
 
@@ -446,10 +446,10 @@ class TestMGBAPlayer < Minitest::Test
       sp_top = Teek::MGBA::SaveStatePicker::TOP
 
       player = Teek::MGBA::Player.new("#{TEST_ROM}")
-      app = player.instance_variable_get(:@app)
+      app = player.app
 
       poll_until_ready(app) do
-        vp = player.instance_variable_get(:@viewport)
+        vp = player.viewport
         frame = vp.frame.path
 
         # 1. Open Settings via menu (Settings > Video = index 0)
@@ -520,7 +520,7 @@ class TestMGBAPlayer < Minitest::Test
         end
 
         $stdout.puts "PASS"
-        player.instance_variable_set(:@running, false)
+        player.running = false
       end
 
       player.run
@@ -546,7 +546,7 @@ class TestMGBAPlayer < Minitest::Test
       require "support/player_helpers"
 
       player = Teek::MGBA::Player.new
-      app = player.instance_variable_get(:@app)
+      app = player.app
 
       # Stub tk_messageBox so it never blocks
       app.tcl_eval('proc tk_messageBox {args} { return "ok" }')
@@ -557,13 +557,13 @@ class TestMGBAPlayer < Minitest::Test
         app.update
 
         app.after(500) do
-          core = player.instance_variable_get(:@core)
+          core = player.core
           if core && !core.destroyed?
             $stdout.puts "TITLE=\#{core.title}"
           else
             $stdout.puts "FAIL: no core loaded"
           end
-          player.instance_variable_set(:@running, false)
+          player.running = false
         end
       end
 
@@ -588,7 +588,7 @@ class TestMGBAPlayer < Minitest::Test
       require "support/player_helpers"
 
       player = Teek::MGBA::Player.new
-      app = player.instance_variable_get(:@app)
+      app = player.app
 
       # Capture tk_messageBox calls instead of blocking
       app.tcl_eval('set ::msgbox_calls {}')
@@ -606,7 +606,7 @@ class TestMGBAPlayer < Minitest::Test
           else
             $stdout.puts "FAIL: no error dialog shown, calls=\#{calls}"
           end
-          player.instance_variable_set(:@running, false)
+          player.running = false
         end
       end
 
@@ -631,7 +631,7 @@ class TestMGBAPlayer < Minitest::Test
       require "support/player_helpers"
 
       player = Teek::MGBA::Player.new
-      app = player.instance_variable_get(:@app)
+      app = player.app
 
       # Capture tk_messageBox calls instead of blocking
       app.tcl_eval('set ::msgbox_calls {}')
@@ -649,7 +649,7 @@ class TestMGBAPlayer < Minitest::Test
           else
             $stdout.puts "FAIL: no single-file error dialog, calls=\#{calls}"
           end
-          player.instance_variable_set(:@running, false)
+          player.running = false
         end
       end
 
@@ -664,5 +664,77 @@ class TestMGBAPlayer < Minitest::Test
 
     assert success, "Drop multiple files test failed\n#{output.join("\n")}"
     assert_includes stdout, "PASS", "Expected error dialog for multiple files\n#{output.join("\n")}"
+  end
+
+  # E2E: press F10 to start recording, run a few frames with the red dot
+  # indicator rendering, press F10 to stop, verify .trec file was created.
+  def test_recording_toggle_creates_trec_file
+    skip "Run: ruby teek-mgba/scripts/generate_test_rom.rb" unless File.exist?(TEST_ROM)
+
+    code = <<~RUBY
+      require "teek/mgba"
+      require "tmpdir"
+      require "fileutils"
+      require "support/player_helpers"
+
+      rec_dir = Dir.mktmpdir("teek-rec-test")
+
+      begin
+        player = Teek::MGBA::Player.new("#{TEST_ROM}")
+        app = player.app
+        config = player.config
+        config.recordings_dir = rec_dir
+
+        poll_until_ready(app) do
+          vp = player.viewport
+          frame = vp.frame.path
+
+          # Press F10 → start recording
+          app.command(:event, 'generate', frame, '<KeyPress>', keysym: 'F10')
+          app.update
+
+          # Let a few frames render with the recording indicator (red dot)
+          app.after(500) do
+            unless player.recording?
+              puts "FAIL: recording never started"
+              player.running = false
+              next
+            end
+
+            # Refocus needed under xvfb after timer callbacks
+            app.tcl_eval("focus -force \#{frame}")
+            # Press F10 → stop recording
+            app.command(:event, 'generate', frame, '<KeyPress>', keysym: 'F10')
+            app.update
+
+            app.after(200) do
+              trec_files = Dir.glob(File.join(rec_dir, "*.trec"))
+              if trec_files.empty?
+                puts "FAIL: no .trec file found"
+              elsif File.size(trec_files.first) < 32
+                puts "FAIL: .trec too small (\#{File.size(trec_files.first)} bytes)"
+              else
+                puts "PASS: \#{File.basename(trec_files.first)} (\#{File.size(trec_files.first)} bytes)"
+              end
+
+              player.running = false
+            end
+          end
+        end
+
+        player.run
+      ensure
+        FileUtils.rm_rf(rec_dir) if rec_dir
+      end
+    RUBY
+
+    success, stdout, stderr, _status = tk_subprocess(code, timeout: 10)
+
+    output = []
+    output << "STDOUT:\n#{stdout}" unless stdout.empty?
+    output << "STDERR:\n#{stderr}" unless stderr.empty?
+
+    assert success, "Recording toggle test failed\n#{output.join("\n")}"
+    assert_includes stdout, "PASS", "Expected .trec file to be created\n#{output.join("\n")}"
   end
 end

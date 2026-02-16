@@ -1,5 +1,16 @@
 # frozen_string_literal: true
 
+# == xvfb gotcha: focus & key events ==
+#
+# Under xvfb, `event generate <widget> <KeyPress>` only fires bindings
+# when the widget has focus. The first key event after poll_until_ready
+# usually works, but inside nested `app.after` callbacks focus can drift.
+# If a second (or later) key event silently does nothing, add:
+#
+#   app.tcl_eval("focus -force #{frame}")
+#
+# before the `event generate` call. See test_recording_toggle for an example.
+
 # Polls `tk busy status .` until the Player finishes SDL2 init
 # (viewport, audio, renderer), then yields the block.
 #

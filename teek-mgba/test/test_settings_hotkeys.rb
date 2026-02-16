@@ -418,4 +418,17 @@ class TestMGBASettingsHotkeys < Minitest::Test
       assert_equal 'Ctrl+K', text
     end
   end
+
+  def test_record_hotkey_button_shows_default
+    assert_tk_app("record hotkey button shows F10") do
+      require "teek/mgba/settings_window"
+      require "teek/mgba/hotkey_map"
+      sw = Teek::MGBA::SettingsWindow.new(app, callbacks: {})
+      sw.show
+      app.update
+
+      text = app.command(Teek::MGBA::SettingsWindow::HK_ACTIONS[:record], 'cget', '-text')
+      assert_equal 'F10', text
+    end
+  end
 end

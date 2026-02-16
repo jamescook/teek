@@ -377,4 +377,20 @@ class TestHotkeyMap < Minitest::Test
     result = map.action_for('S', modifiers: Set.new(['Shift']))
     assert_equal :screenshot, result
   end
+
+  # -- Record action ---------------------------------------------------------
+
+  def test_record_in_actions
+    assert_includes Teek::MGBA::HotkeyMap::ACTIONS, :record
+  end
+
+  def test_record_default_is_f10
+    map, = make_map
+    assert_equal 'F10', map.key_for(:record)
+  end
+
+  def test_record_dispatches_on_f10
+    map, = make_map
+    assert_equal :record, map.action_for('F10')
+  end
 end

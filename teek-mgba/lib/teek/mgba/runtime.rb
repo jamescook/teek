@@ -22,6 +22,12 @@ module Teek
       @user_config ||= Config.new
     end
 
+    # Override the user config (useful for tests).
+    # @param config [Teek::MGBA::Config, nil] pass nil to reset to default
+    def self.user_config=(config)
+      @user_config = config
+    end
+
     # Load translations based on the config locale setting.
     def self.load_locale
       lang = user_config.locale

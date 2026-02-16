@@ -824,4 +824,29 @@ class TestMGBAConfig < Minitest::Test
     refute File.exist?(@path)
     assert_nil Teek::MGBA::Config.reset!(path: @path)
   end
+
+  # -- Recording settings ---------------------------------------------------
+
+  def test_recording_compression_default
+    assert_equal 1, new_config.recording_compression
+  end
+
+  def test_recording_compression_setter
+    c = new_config
+    c.recording_compression = 6
+    assert_equal 6, c.recording_compression
+  end
+
+  def test_recording_compression_clamps
+    c = new_config
+    c.recording_compression = 0
+    assert_equal 1, c.recording_compression
+    c.recording_compression = 99
+    assert_equal 9, c.recording_compression
+  end
+
+  def test_recordings_dir
+    dir = new_config.recordings_dir
+    assert dir.end_with?('recordings'), "Expected recordings dir to end with 'recordings', got: #{dir}"
+  end
 end

@@ -14,6 +14,8 @@ menu:
   quick_save: "クイックセーブ"
   quick_load: "クイックロード"
   save_states: "ステートセーブ…"
+  start_recording: "録画開始"
+  stop_recording: "録画停止"
 
 toast:
   save_blocked: "セーブ制限中（間隔が短すぎます）"
@@ -30,6 +32,8 @@ toast:
   no_rewind: "巻き戻しデータがありません"
   paused: "一時停止"
   waiting_for: "{label}を待機中…"
+  recording_started: "録画を開始しました"
+  recording_stopped: "{frames}フレームを録画しました"
 
 dialog:
   game_running_title: "ゲーム実行中"
@@ -86,6 +90,7 @@ settings:
   hk_save_states: "ステートセーブ"
   hk_screenshot: "スクリーンショット"
   hk_rewind: "巻き戻し"
+  hk_record: "録画"
   hk_reset_defaults: "デフォルトに戻す"
   pixel_filter: "ピクセルフィルタ:"
   filter_nearest: "ニアレストネイバー"
@@ -105,6 +110,11 @@ settings:
   tip_per_game: "ROM毎に映像・音声・ステートセーブの設定を個別に保存します。"
   tip_turbo_speed: "早送りホットキー使用時の速度。"
   tip_toast_duration: "画面上の通知の表示時間。"
+  recording: "録画"
+  recording_compression: "圧縮レベル:"
+  tip_recording_compression: ".trecファイルのzlib圧縮レベル。\n1 = 最速（デフォルト）、6以上は効果が小さくなります。"
+  recordings_folder: "録画フォルダ:"
+  open_recordings_folder: "録画フォルダを開く…"
   gp_a: "A"
   gp_b: "B"
   gp_l: "L"

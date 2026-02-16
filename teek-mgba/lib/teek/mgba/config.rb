@@ -47,6 +47,7 @@ module Teek
         'rewind_seconds'     => 10,
         'per_game_settings'  => false,
         'tip_dismiss_ms'     => 4000,
+        'recording_compression' => 1,
       }.freeze
 
       # Settings that can be overridden per ROM. Maps config key → locale key.
@@ -127,7 +128,7 @@ module Teek
       end
 
       # @return [String] path to the config file
-      attr_reader :path
+      attr_accessor :path
 
       # -- Global settings ---------------------------------------------------
 
@@ -381,6 +382,24 @@ module Teek
         global['locale'] = val.to_s
       end
 
+      # @return [Integer] zlib compression level for .trec recordings (1-9)
+      def recording_compression
+        global['recording_compression']
+      end
+
+      def recording_compression=(val)
+        global['recording_compression'] = val.to_i.clamp(1, 9)
+      end
+
+      # @return [String] directory for .trec recording files
+      def recordings_dir
+        global['recordings_dir'] || self.class.default_recordings_dir
+      end
+
+      def recordings_dir=(val)
+        global['recordings_dir'] = val.to_s
+      end
+
       # -- Recent ROMs -------------------------------------------------------
 
       # @return [Array<String>] ROM paths, newest first
@@ -530,6 +549,11 @@ module Teek
       # @return [String] default directory for screenshots
       def self.default_screenshots_dir
         File.join(config_dir, 'screenshots')
+      end
+
+      # @return [String] default directory for .trec recordings
+      def self.default_recordings_dir
+        File.join(config_dir, 'recordings')
       end
 
       private
