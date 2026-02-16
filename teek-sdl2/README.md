@@ -163,6 +163,10 @@ Teek::SDL2::Gamepad.poll_events
 Teek::SDL2::Gamepad.detach_virtual
 ```
 
+## Why SDL2 and not SDL3?
+
+SDL3 core is stable (3.4.0), but SDL3_mixer is still at RC stage (3.1.2) and SDL2_gfx has no official SDL3 port. Once SDL3_mixer ships stable, this gem will migrate to SDL3 and be renamed `teek-sdl`.
+
 ## Requirements
 
 - [teek](https://github.com/jamescook/teek) >= 0.1.0

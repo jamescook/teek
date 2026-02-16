@@ -82,12 +82,14 @@ module TeekTestHelper
     end
 
     unless status
-      # Timed out - kill the process
+      # Timed out - capture any output before killing so errors are visible
+      out = stdout.read_nonblock(64 * 1024) rescue ""
+      err = stderr.read_nonblock(64 * 1024) rescue ""
       Process.kill('KILL', pid) rescue nil
       wait_thr.join
       stdout.close
       stderr.close
-      return [false, "", "Test timed out after #{timeout}s", nil]
+      return [false, out, "Test timed out after #{timeout}s\n#{err}", nil]
     end
 
     out = stdout.read

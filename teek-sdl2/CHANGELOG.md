@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Added
+
+- `Texture#scale_mode=` / `Texture#scale_mode` — get/set texture scaling filter (`:nearest` for sharp pixels, `:linear` for smooth bilinear)
+
 ## [0.1.2] - 2026-02-14
 
 ### Added

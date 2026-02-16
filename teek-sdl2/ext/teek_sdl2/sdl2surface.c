@@ -964,6 +964,67 @@ renderer_destroyed_p(VALUE self)
     return r->destroyed ? Qtrue : Qfalse;
 }
 
+/*
+ * Teek::SDL2::Renderer#input_focus? -> true/false
+ *
+ * Returns whether the SDL2 window currently has keyboard input focus.
+ * Uses SDL_GetWindowFlags() which reads the window manager state
+ * without pumping the event loop.
+ */
+static VALUE
+renderer_input_focus_p(VALUE self)
+{
+    struct sdl2_renderer *r;
+    TypedData_Get_Struct(self, struct sdl2_renderer, &renderer_type, r);
+    if (r->destroyed || !r->window) return Qfalse;
+
+    Uint32 flags = SDL_GetWindowFlags(r->window);
+    return (flags & SDL_WINDOW_INPUT_FOCUS) ? Qtrue : Qfalse;
+}
+
+/*
+ * Teek::SDL2::Renderer#hide_window -> nil
+ *
+ * Hides the SDL2 window (SDL_HideWindow).
+ */
+static VALUE
+renderer_hide_window(VALUE self)
+{
+    struct sdl2_renderer *r;
+    TypedData_Get_Struct(self, struct sdl2_renderer, &renderer_type, r);
+    if (!r->destroyed && r->window) SDL_HideWindow(r->window);
+    return Qnil;
+}
+
+/*
+ * Teek::SDL2::Renderer#show_window -> nil
+ *
+ * Shows the SDL2 window (SDL_ShowWindow).
+ */
+static VALUE
+renderer_show_window(VALUE self)
+{
+    struct sdl2_renderer *r;
+    TypedData_Get_Struct(self, struct sdl2_renderer, &renderer_type, r);
+    if (!r->destroyed && r->window) SDL_ShowWindow(r->window);
+    return Qnil;
+}
+
+/*
+ * Teek::SDL2::Renderer#raise_window -> nil
+ *
+ * Raises the SDL2 window above others and sets input focus
+ * (SDL_RaiseWindow).
+ */
+static VALUE
+renderer_raise_window(VALUE self)
+{
+    struct sdl2_renderer *r;
+    TypedData_Get_Struct(self, struct sdl2_renderer, &renderer_type, r);
+    if (!r->destroyed && r->window) SDL_RaiseWindow(r->window);
+    return Qnil;
+}
+
 /* ---------------------------------------------------------
  * Texture (wraps SDL_Texture)
  *
@@ -1399,6 +1460,10 @@ Init_sdl2surface(VALUE mTeekSDL2)
     rb_define_method(cRenderer, "copy", renderer_copy, -1);
     rb_define_method(cRenderer, "destroy", renderer_destroy, 0);
     rb_define_method(cRenderer, "destroyed?", renderer_destroyed_p, 0);
+    rb_define_method(cRenderer, "input_focus?", renderer_input_focus_p, 0);
+    rb_define_method(cRenderer, "hide_window", renderer_hide_window, 0);
+    rb_define_method(cRenderer, "show_window", renderer_show_window, 0);
+    rb_define_method(cRenderer, "raise_window", renderer_raise_window, 0);
 
     /* Texture */
     cTexture = rb_define_class_under(mTeekSDL2, "Texture", rb_cObject);
