@@ -474,6 +474,7 @@ module Teek
           return
         end
         if @core.rewind_pop == true
+          @core.run_frame # refresh video buffer from restored state
           @stream.clear
           @audio_fade_in = FADE_IN_FRAMES
           @rewind_frame_counter = 0
