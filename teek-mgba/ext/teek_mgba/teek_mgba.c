@@ -931,6 +931,62 @@ mgba_toast_background(VALUE mod, VALUE rb_w, VALUE rb_h, VALUE rb_rad)
 }
 
 /* --------------------------------------------------------- */
+/* XOR delta for recording                                   */
+/* --------------------------------------------------------- */
+
+/*
+ * Teek::MGBA.xor_delta(current, previous) → String
+ *
+ * XOR two equal-length binary strings byte-by-byte.
+ * Used for frame delta compression in recording.
+ */
+static VALUE
+mgba_xor_delta(VALUE mod, VALUE a, VALUE b)
+{
+    (void)mod;
+    StringValue(a);
+    StringValue(b);
+
+    long len = RSTRING_LEN(a);
+    if (RSTRING_LEN(b) != len)
+        rb_raise(rb_eArgError, "strings must be the same length");
+
+    VALUE result = rb_str_new(NULL, len);
+    const unsigned char *sa = (const unsigned char *)RSTRING_PTR(a);
+    const unsigned char *sb = (const unsigned char *)RSTRING_PTR(b);
+    unsigned char *dst = (unsigned char *)RSTRING_PTR(result);
+
+    for (long i = 0; i < len; i++)
+        dst[i] = sa[i] ^ sb[i];
+
+    return result;
+}
+
+/*
+ * Teek::MGBA.count_changed_pixels(delta) → Integer
+ *
+ * Count the number of non-zero 4-byte pixels in a delta string.
+ * Used alongside xor_delta to measure per-frame change rates.
+ */
+static VALUE
+mgba_count_changed_pixels(VALUE mod, VALUE delta)
+{
+    (void)mod;
+    StringValue(delta);
+
+    long len = RSTRING_LEN(delta);
+    const uint32_t *pixels = (const uint32_t *)RSTRING_PTR(delta);
+    long count = len / 4;
+    long changed = 0;
+
+    for (long i = 0; i < count; i++) {
+        if (pixels[i] != 0) changed++;
+    }
+
+    return LONG2NUM(changed);
+}
+
+/* --------------------------------------------------------- */
 /* Init                                                      */
 /* --------------------------------------------------------- */
 
@@ -992,4 +1048,8 @@ Init_teek_mgba(void)
 
     /* Toast background generator */
     rb_define_module_function(mTeekMGBA, "toast_background", mgba_toast_background, 3);
+
+    /* XOR delta for recording */
+    rb_define_module_function(mTeekMGBA, "xor_delta", mgba_xor_delta, 2);
+    rb_define_module_function(mTeekMGBA, "count_changed_pixels", mgba_count_changed_pixels, 1);
 }

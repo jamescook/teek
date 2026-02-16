@@ -27,7 +27,7 @@ class TestCLI < Minitest::Test
     assert_nil opts[:rom]
   end
 
-  # -- flags --
+  # -- player flags --
 
   def test_scale
     opts = parse(["--scale", "2"])
@@ -148,6 +148,14 @@ class TestCLI < Minitest::Test
     assert_includes help, "GBA emulator"
   end
 
+  def test_help_lists_subcommands
+    opts = parse([])
+    help = opts[:parser].to_s
+    assert_includes help, "record"
+    assert_includes help, "decode"
+    assert_includes help, "info"
+  end
+
   # -- apply --
 
   class MockConfig
@@ -192,7 +200,51 @@ class TestCLI < Minitest::Test
     assert_equal 3, config.turbo_speed
   end
 
-  # -- invalid args --
+  # -- subcommand dispatch --
+
+  def test_subcommands_constant
+    assert_includes Teek::MGBA::CLI::SUBCOMMANDS, 'record'
+    assert_includes Teek::MGBA::CLI::SUBCOMMANDS, 'decode'
+    assert_includes Teek::MGBA::CLI::SUBCOMMANDS, 'info'
+  end
+
+  # -- record subcommand parsing --
+
+  def test_parse_record_frames_and_rom
+    opts = Teek::MGBA::CLI.parse_record(["--frames", "100", "game.gba"])
+    assert_equal 100, opts[:frames]
+    assert_equal File.expand_path("game.gba"), opts[:rom]
+  end
+
+  def test_parse_record_output
+    opts = Teek::MGBA::CLI.parse_record(["-o", "out.trec", "--frames", "10", "game.gba"])
+    assert_equal "out.trec", opts[:output]
+  end
+
+  def test_parse_record_help
+    opts = Teek::MGBA::CLI.parse_record(["--help"])
+    assert opts[:help]
+  end
+
+  # -- decode subcommand parsing --
+
+  def test_parse_decode_trec
+    opts = Teek::MGBA::CLI.parse_decode(["recording.trec"])
+    assert_equal "recording.trec", opts[:trec]
+  end
+
+  def test_parse_decode_output
+    opts = Teek::MGBA::CLI.parse_decode(["-o", "out.mkv", "recording.trec"])
+    assert_equal "out.mkv", opts[:output]
+  end
+
+  def test_parse_decode_codecs
+    opts = Teek::MGBA::CLI.parse_decode(["--video-codec", "libx265", "--audio-codec", "opus", "r.trec"])
+    assert_equal "libx265", opts[:video_codec]
+    assert_equal "opus", opts[:audio_codec]
+  end
+
+  # -- misc --
 
   def test_reset_config_flag
     opts = parse(["--reset-config"])

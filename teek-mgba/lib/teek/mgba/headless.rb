@@ -7,4 +7,6 @@
 #   Teek::MGBA::HeadlessPlayer.open("game.gba") { |p| p.step(60) }
 
 require_relative "runtime"
+require_relative "recorder"
+require_relative "recorder_decoder"
 require_relative "headless_player"

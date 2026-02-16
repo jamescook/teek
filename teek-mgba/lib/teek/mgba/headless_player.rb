@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require 'zlib'
 
 module Teek
   module MGBA
@@ -39,11 +40,23 @@ module Teek
         end
       end
 
-      # Run one or more frames.
+      # Run one or more frames. Captures to recorder if recording.
       # @param n [Integer] number of frames to advance (default 1)
+      # @yield [Integer] frame number (1-based) after each frame, if block given
       def step(n = 1)
         check_open!
-        n.times { @core.run_frame }
+        if block_given?
+          n.times do |i|
+            @core.run_frame
+            @recorder&.capture(@core.video_buffer_argb, @core.audio_buffer) if @recorder&.recording?
+            yield i + 1
+          end
+        else
+          n.times do
+            @core.run_frame
+            @recorder&.capture(@core.video_buffer_argb, @core.audio_buffer) if @recorder&.recording?
+          end
+        end
       end
 
       # Set currently pressed buttons as a bitmask.
@@ -146,9 +159,36 @@ module Teek
 
       # @!endgroup
 
+      # @!group Recording
+
+      # Start recording video + audio to a .trec file.
+      # @param path [String] output file path
+      # @param compression [Integer] zlib level 1-9 (default 1 = fastest)
+      def start_recording(path, compression: Zlib::BEST_SPEED)
+        check_open!
+        raise "Already recording" if recording?
+        @recorder = Recorder.new(path, width: @core.width, height: @core.height,
+                                 compression: compression)
+        @recorder.start
+      end
+
+      # Stop recording and finalize the file.
+      def stop_recording
+        @recorder&.stop
+        @recorder = nil
+      end
+
+      # @return [Boolean] true if currently recording
+      def recording?
+        @recorder&.recording? || false
+      end
+
+      # @!endgroup
+
       # Shut down the core and free resources.
       def close
         return if closed?
+        stop_recording if recording?
         @core.destroy
         @core = nil
       end
