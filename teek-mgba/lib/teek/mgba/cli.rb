@@ -51,6 +51,10 @@ module Teek
             options[:locale] = v
           end
 
+          o.on("--headless", "Run without GUI (no Tk/SDL2, requires ROM)") do
+            options[:headless] = true
+          end
+
           o.on("--frames N", Integer, "Run N frames then exit (requires ROM)") do |v|
             options[:frames] = v
           end
@@ -105,6 +109,10 @@ module Teek
           return
         end
 
+        if options[:headless]
+          return run_headless(options)
+        end
+
         require "teek/mgba"
 
         if options[:reset_config]
@@ -134,6 +142,22 @@ module Teek
         Player.new(options[:rom], sound: sound, fullscreen: options[:fullscreen],
                    frames: options[:frames]).run
       end
+
+      # Run in headless mode: no Tk, no SDL2. Batch only — runs N frames and exits.
+      # @param options [Hash]
+      def self.run_headless(options)
+        unless options[:frames] && options[:rom]
+          $stderr.puts "Error: --headless requires --frames N and a ROM file"
+          exit 1
+        end
+
+        require "teek/mgba/headless"
+
+        HeadlessPlayer.open(options[:rom]) do |player|
+          player.step(options[:frames])
+        end
+      end
+      private_class_method :run_headless
     end
   end
 end

@@ -3,6 +3,7 @@
 require 'json'
 require 'fileutils'
 require 'set'
+require 'teek/platform'
 
 module Teek
   module MGBA
