@@ -29,5 +29,5 @@ Gem::Specification.new do |spec|
   spec.add_development_dependency "prism", "~> 1.0"  # stdlib in Ruby 3.3+, gem for 3.2
   spec.add_development_dependency "base64"  # stdlib until Ruby 3.4, now bundled gem
 
-  spec.metadata["msys2_mingw_dependencies"] = "teek"
+  spec.metadata["msys2_mingw_dependencies"] = "tcl tk"
 end
