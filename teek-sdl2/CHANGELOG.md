@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.2.0] - 2026-02-17
+
 ### Removed
 
 - **SDL2_gfx dependency and all drawing primitives** — circles, ellipses, arcs, pies, polygons, triangles, beziers, thick/AA lines, pixel/hline/vline methods have been removed from `Renderer`. SDL2_gfx has no SDL3 port and was problematic to install on Linux. The custom `fill_rounded_rect` and `draw_rounded_rect` methods (pure SDL2, no gfx dependency) are retained.
@@ -75,6 +77,7 @@ Initial release.
 - Screenshot-based visual regression testing via `assert_sdl2_screenshot`
 - SDL2 demo sample
 
-[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.3...HEAD
+[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.2.0...HEAD
+[0.2.0]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.3...teek-sdl2-v0.2.0
 [0.1.3]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.2...teek-sdl2-v0.1.3
 [0.1.2]: https://github.com/jamescook/teek/releases/tag/teek-sdl2-v0.1.2
