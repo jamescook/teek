@@ -26,6 +26,21 @@ def find_tcltk
       if File.exist?("#{inc}/tcl-tk/tcl.h")
         inc = "#{inc}/tcl-tk"
       end
+
+      # Check for versioned subdirectories (Debian/Ubuntu layout:
+      # /usr/include/tcl9.0/tcl.h, /usr/include/tcl8.6/tcl.h)
+      unless File.exist?("#{inc}/tcl.h")
+        versioned = Dir.glob("#{inc}/tcl*/tcl.h").max
+        if versioned
+          tcl_ver_dir = File.dirname(versioned)
+          tk_ver_dir = tcl_ver_dir.sub(/tcl/, 'tk')
+          $INCFLAGS << " -I#{tcl_ver_dir}"
+          $INCFLAGS << " -I#{tk_ver_dir}" if File.directory?(tk_ver_dir)
+          $LDFLAGS << " -L#{lib}"
+          break
+        end
+      end
+
       if File.exist?("#{inc}/tcl.h") && File.exist?("#{inc}/tk.h")
         $INCFLAGS << " -I#{inc}"
         $LDFLAGS << " -L#{lib}"
