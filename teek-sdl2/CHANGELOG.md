@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.1.3] - 2026-02-16
+
 ### Added
 
 - `Texture#scale_mode=` / `Texture#scale_mode` — get/set texture scaling filter (`:nearest` for sharp pixels, `:linear` for smooth bilinear)
@@ -78,5 +80,6 @@ Initial release.
 - Screenshot-based visual regression testing via `assert_sdl2_screenshot`
 - SDL2 demo sample
 
-[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.2...HEAD
+[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.3...HEAD
+[0.1.3]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.2...teek-sdl2-v0.1.3
 [0.1.2]: https://github.com/jamescook/teek/releases/tag/teek-sdl2-v0.1.2
