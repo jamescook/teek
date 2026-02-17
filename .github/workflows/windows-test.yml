@@ -67,7 +67,6 @@ jobs:
           mingw-w64-ucrt-x86_64-SDL2_image \
           mingw-w64-ucrt-x86_64-SDL2_mixer \
           mingw-w64-ucrt-x86_64-SDL2_gfx \
-          mingw-w64-ucrt-x86_64-mgba \
           mingw-w64-ucrt-x86_64-imagemagick
 
     - name: Restore compiled extensions
@@ -77,11 +76,10 @@ jobs:
         path: |
           lib/*.so
           teek-sdl2/lib/*.so
-          teek-mgba/lib/*.so
-        key: windows-ext-ruby${{ github.event.inputs.ruby_version }}-${{ hashFiles('ext/**/*.c', 'ext/**/*.h', 'ext/**/extconf.rb', 'teek-sdl2/ext/**/*.c', 'teek-sdl2/ext/**/*.h', 'teek-mgba/ext/**/*.c', 'teek-mgba/ext/**/*.h', 'Rakefile', 'Gemfile.lock') }}
+        key: windows-ext-ruby${{ github.event.inputs.ruby_version }}-${{ hashFiles('ext/**/*.c', 'ext/**/*.h', 'ext/**/extconf.rb', 'teek-sdl2/ext/**/*.c', 'teek-sdl2/ext/**/*.h', 'Rakefile', 'Gemfile.lock') }}
 
     - name: Compile native extensions
-      run: bundle exec rake compile sdl2:compile mgba:compile 2>&1 | tee compile-output.log
+      run: bundle exec rake compile sdl2:compile 2>&1 | tee compile-output.log
 
     - name: Run tests
       timeout-minutes: 5
@@ -90,10 +88,6 @@ jobs:
     - name: Run SDL2 tests
       timeout-minutes: 5
       run: bundle exec rake sdl2:test TESTOPTS="-v"
-
-    - name: Run mGBA tests
-      timeout-minutes: 5
-      run: bundle exec rake mgba:test TESTOPTS="-v"
 
     - name: Save MSYS2 installed packages
       if: always() && steps.msys2-cache.outputs.cache-hit != 'true'
@@ -112,8 +106,7 @@ jobs:
         path: |
           lib/*.so
           teek-sdl2/lib/*.so
-          teek-mgba/lib/*.so
-        key: windows-ext-ruby${{ github.event.inputs.ruby_version }}-${{ hashFiles('ext/**/*.c', 'ext/**/*.h', 'ext/**/extconf.rb', 'teek-sdl2/ext/**/*.c', 'teek-sdl2/ext/**/*.h', 'teek-mgba/ext/**/*.c', 'teek-mgba/ext/**/*.h', 'Rakefile', 'Gemfile.lock') }}
+        key: windows-ext-ruby${{ github.event.inputs.ruby_version }}-${{ hashFiles('ext/**/*.c', 'ext/**/*.h', 'ext/**/extconf.rb', 'teek-sdl2/ext/**/*.c', 'teek-sdl2/ext/**/*.h', 'Rakefile', 'Gemfile.lock') }}
 
     - name: Upload build and test logs
       if: always()
@@ -122,5 +115,4 @@ jobs:
         name: windows-logs-ruby${{ github.event.inputs.ruby_version }}
         path: |
           compile-output.log
-          teek-mgba/ext/teek_mgba/mkmf.log
         retention-days: 7

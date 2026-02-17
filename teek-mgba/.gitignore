@@ -1,9 +1,0 @@
-vendor/
-*.bundle
-*.so
-*.o
-*.log
-*.def
-*.dSYM
-Makefile
-tmp/
