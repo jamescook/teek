@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Removed
+
+- **SDL2_gfx dependency and all drawing primitives** — circles, ellipses, arcs, pies, polygons, triangles, beziers, thick/AA lines, pixel/hline/vline methods have been removed from `Renderer`. SDL2_gfx has no SDL3 port and was problematic to install on Linux. The custom `fill_rounded_rect` and `draw_rounded_rect` methods (pure SDL2, no gfx dependency) are retained.
+
 ## [0.1.3] - 2026-02-16
 
 ### Added
@@ -19,16 +23,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - `Teek::SDL2::AudioStream` — push-based real-time PCM audio output for emulators, synthesizers, and procedural audio. Supports `:s16`, `:f32`, and `:u8` sample formats with configurable frequency and channels
-- SDL2_gfx drawing primitives on `Renderer` — many new methods for shapes and curves:
-  - `fill_rounded_rect`, `draw_rounded_rect` — rectangles with rounded corners
-  - `draw_circle`, `fill_circle`, `draw_aa_circle` — circles (aliased and anti-aliased)
-  - `draw_ellipse`, `fill_ellipse`, `draw_aa_ellipse` — ellipses
-  - `draw_arc`, `draw_pie`, `fill_pie` — arcs and pie slices
-  - `draw_polygon`, `fill_polygon`, `draw_aa_polygon` — arbitrary polygons
-  - `draw_trigon`, `fill_trigon`, `draw_aa_trigon` — triangles
-  - `draw_bezier` — Bezier curves
-  - `draw_aa_line`, `draw_thick_line` — anti-aliased and thick lines
-  - `draw_pixel`, `draw_hline`, `draw_vline` — individual pixels and axis-aligned lines
+- `fill_rounded_rect`, `draw_rounded_rect` — rectangles with rounded corners
 - `Texture#blend_mode=` / `Texture#blend_mode` — get/set texture blend mode (`:none`, `:blend`, `:add`, `:mod`, or custom)
 - `SDL2.compose_blend_mode` — create custom blend modes with configurable source/destination factors and operations
 - `Viewport.new` accepts `vsync:` keyword (default `true`). Pass `false` for applications that manage their own frame pacing
