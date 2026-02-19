@@ -8,6 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+- **macOS: SDL2 Metal subview not removed on foreign window destroy** — SDL2's Metal backend leaves an `SDL_cocoametalview` on Tk-owned windows after `SDL_DestroyRenderer`, preventing Tk widgets from becoming visible again. The renderer destroy path now removes the Metal subview via ObjC.
+
 ## [0.2.0] - 2026-02-17
 
 ### Removed

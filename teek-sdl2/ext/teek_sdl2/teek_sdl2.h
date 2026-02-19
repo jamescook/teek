@@ -63,4 +63,7 @@ void Init_sdl2mixer(VALUE mTeekSDL2);
 void Init_sdl2audio(VALUE mTeekSDL2);
 void Init_sdl2gamepad(VALUE mTeekSDL2);
 
+/* macOS Metal view cleanup (sdl2_macos.m) — no-op on other platforms */
+void sdl2_macos_cleanup_metal_view(SDL_Window *window);
+
 #endif /* TEEK_SDL2_H */

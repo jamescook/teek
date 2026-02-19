@@ -48,8 +48,11 @@ renderer_free(void *ptr)
             SDL_DestroyRenderer(r->renderer);
             r->renderer = NULL;
         }
-        if (r->window && r->owned_window) {
-            SDL_DestroyWindow(r->window);
+        if (r->window) {
+            sdl2_macos_cleanup_metal_view(r->window);
+            if (r->owned_window) {
+                SDL_DestroyWindow(r->window);
+            }
             r->window = NULL;
         }
         r->destroyed = 1;
@@ -388,8 +391,14 @@ renderer_destroy(VALUE self)
             SDL_DestroyRenderer(r->renderer);
             r->renderer = NULL;
         }
-        if (r->window && r->owned_window) {
-            SDL_DestroyWindow(r->window);
+        if (r->window) {
+            /* On macOS, SDL2's Metal backend leaves an SDL_cocoametalview
+             * subview on foreign (Tk-owned) windows after SDL_DestroyRenderer.
+             * Remove it before destroying the SDL_Window. */
+            sdl2_macos_cleanup_metal_view(r->window);
+            if (r->owned_window) {
+                SDL_DestroyWindow(r->window);
+            }
             r->window = NULL;
         }
         r->destroyed = 1;

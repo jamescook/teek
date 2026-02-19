@@ -130,4 +130,13 @@ end
 
 $srcs = ['teek_sdl2.c', 'sdl2surface.c', 'sdl2bridge.c', 'sdl2text.c', 'sdl2pixels.c', 'sdl2image.c', 'sdl2mixer.c', 'sdl2audio.c', 'sdl2gamepad.c']
 
+# macOS: ObjC file to clean up SDL2 Metal subview left on foreign windows.
+# Non-macOS: C stub with no-op implementation.
+if RUBY_PLATFORM =~ /darwin/
+  $srcs << 'sdl2_macos.m'
+  $LDFLAGS << ' -framework Cocoa -framework QuartzCore'
+else
+  $srcs << 'sdl2_macos_stub.c'
+end
+
 create_makefile('teek_sdl2')
