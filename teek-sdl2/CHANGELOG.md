@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+## [0.2.1] - 2026-02-19
+
 ### Fixed
 
 - **macOS: SDL2 Metal subview not removed on foreign window destroy** — SDL2's Metal backend leaves an `SDL_cocoametalview` on Tk-owned windows after `SDL_DestroyRenderer`, preventing Tk widgets from becoming visible again. The renderer destroy path now removes the Metal subview via ObjC.
@@ -81,7 +83,8 @@ Initial release.
 - Screenshot-based visual regression testing via `assert_sdl2_screenshot`
 - SDL2 demo sample
 
-[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.2.0...HEAD
+[Unreleased]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.2.1...HEAD
+[0.2.1]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.2.0...teek-sdl2-v0.2.1
 [0.2.0]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.3...teek-sdl2-v0.2.0
 [0.1.3]: https://github.com/jamescook/teek/compare/teek-sdl2-v0.1.2...teek-sdl2-v0.1.3
 [0.1.2]: https://github.com/jamescook/teek/releases/tag/teek-sdl2-v0.1.2
