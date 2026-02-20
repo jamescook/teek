@@ -1,9 +1,12 @@
 #include "teek_sdl2.h"
 
-/* No-op stub for non-macOS platforms. The real implementation
- * lives in sdl2_macos.m (ObjC) and is only compiled on Darwin. */
+/* No-op stubs for non-macOS platforms. The real implementations
+ * live in sdl2_macos.m (ObjC) and are only compiled on Darwin. */
 void
 sdl2_macos_cleanup_metal_view(SDL_Window *window)
 {
     (void)window;
 }
+
+void sdl2_macos_hide_cursor(void) { SDL_ShowCursor(SDL_DISABLE); }
+void sdl2_macos_show_cursor(void) { SDL_ShowCursor(SDL_ENABLE); }
