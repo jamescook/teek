@@ -65,5 +65,7 @@ void Init_sdl2gamepad(VALUE mTeekSDL2);
 
 /* macOS Metal view cleanup (sdl2_macos.m) — no-op on other platforms */
 void sdl2_macos_cleanup_metal_view(SDL_Window *window);
+void sdl2_macos_hide_cursor(void);
+void sdl2_macos_show_cursor(void);
 
 #endif /* TEEK_SDL2_H */

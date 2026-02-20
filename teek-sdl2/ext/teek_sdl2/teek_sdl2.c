@@ -35,6 +35,31 @@ teek_sdl2_compiled_version(VALUE self)
     return rb_str_new_cstr(buf);
 }
 
+/*
+ * Teek::SDL2.hide_cursor -> nil
+ *
+ * Hides the mouse cursor. Uses [NSCursor hide] on macOS (SDL_ShowCursor is
+ * unreliable in embedded/subview mode where SDL2 doesn't own the window).
+ */
+static VALUE
+teek_sdl2_hide_cursor(VALUE self)
+{
+    sdl2_macos_hide_cursor();
+    return Qnil;
+}
+
+/*
+ * Teek::SDL2.show_cursor -> nil
+ *
+ * Restores the cursor hidden by hide_cursor.
+ */
+static VALUE
+teek_sdl2_show_cursor(VALUE self)
+{
+    sdl2_macos_show_cursor();
+    return Qnil;
+}
+
 void
 Init_teek_sdl2(void)
 {
@@ -47,6 +72,10 @@ Init_teek_sdl2(void)
     /* Version queries */
     rb_define_module_function(mTeekSDL2, "sdl_version", teek_sdl2_version, 0);
     rb_define_module_function(mTeekSDL2, "sdl_compiled_version", teek_sdl2_compiled_version, 0);
+
+    /* Cursor visibility */
+    rb_define_module_function(mTeekSDL2, "hide_cursor", teek_sdl2_hide_cursor, 0);
+    rb_define_module_function(mTeekSDL2, "show_cursor", teek_sdl2_show_cursor, 0);
 
     /* Layer 1: Pure SDL2 surface/renderer/texture */
     Init_sdl2surface(mTeekSDL2);
