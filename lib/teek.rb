@@ -305,28 +305,35 @@ module Teek
       @interp.tcl_eval(parts.join(' '))
     end
 
+    # Register any Proc-valued kwarg (e.g. command:, validatecommand:) as a
+    # callback tracked under +path+, releasing it if reconfigured or when
+    # the widget is destroyed. The tracked-callback equivalent of {#bind}
+    # for widget-level options instead of event bindings - a widget's own
+    # options are never silently renumbered or invalidated out from under
+    # us the way menu entries are, so this reuses bind's cheap in-memory
+    # {CallbackRegistry#reconcile} style rather than menu's live-scan one.
+    #
+    # Called by {#create_widget} and {Widget#command}, which both know
+    # +path+ unambiguously; not meant to be called directly. Building a Tcl
+    # command via the raw {#command} with a widget path you construct
+    # yourself does not go through this - see {#command}'s note.
+    # @param path [String] the widget path these kwargs configure
+    # @param kwargs [Hash] keyword arguments about to be passed to {#command}
+    # @return [Hash] +kwargs+ with any Proc values swapped for the Tcl
+    #   script {#command} embeds
+    def track_widget_option_callbacks(path, kwargs)
+      proc_kwargs = kwargs.select { |_, value| value.is_a?(Proc) }
+      return kwargs if proc_kwargs.empty?
+
+      ids = proc_kwargs.transform_values { |value| register_callback(value) }
+      @callback_registry.reconcile([:widget_option, path]) { |before| before.merge(ids) }
+      kwargs.merge(ids.transform_values { |id| "ruby_callback #{id}" })
+    end
+
     # Create a Tk widget and return a {Widget} wrapper.
     #
     # Auto-generates a unique path if none is given. The path is derived from
     # the widget type and a monotonic counter.
-    #
-    # @param type [String, Symbol] Tk widget command (e.g. 'ttk::button', :canvas)
-    # @param path [String, nil] explicit Tk path, or nil for auto-naming
-    # @param parent [Widget, String, nil] parent widget for path nesting
-    # @param kwargs keyword arguments passed to the Tk widget command
-    # @return [Widget] the created widget
-    #
-    # @example Auto-named
-    #   btn = app.create_widget('ttk::button', text: 'Click')
-    #   # btn.path => ".ttkbtn1"
-    #
-    # @example Explicit path
-    #   frm = app.create_widget('ttk::frame', '.myframe')
-    #
-    # @example Nested under a parent
-    #   frm = app.create_widget('ttk::frame')
-    #   btn = app.create_widget('ttk::button', parent: frm, text: 'Click')
-    #   # btn.path => ".ttkfrm1.ttkbtn1"
     #
     # @param type [String, Symbol] Tk widget command (e.g. 'ttk::button', :canvas)
     # @param path [String, nil] explicit Tk path, or nil for auto-naming
@@ -354,7 +361,9 @@ module Teek
     def create_widget(type, path = nil, parent: nil, idempotent: false, **kwargs)
       type_s = type.to_s
       path ||= next_widget_path(type_s, parent)
-      command(type_s, path, **kwargs) unless idempotent && tcl_eval("winfo exists #{path}") == '1'
+      unless idempotent && tcl_eval("winfo exists #{path}") == '1'
+        command(type_s, path, **track_widget_option_callbacks(path, kwargs))
+      end
       widget = Widget.new(self, path)
       behavior = Widget.behavior_for(type_s)
       widget.extend(behavior) if behavior

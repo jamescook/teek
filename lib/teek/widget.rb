@@ -70,10 +70,12 @@ module Teek
     #   btn.command(:invoke)                  # => .ttkbutton1 invoke
     #
     # @param args positional arguments
-    # @param kwargs keyword arguments mapped to -key value pairs
+    # @param kwargs keyword arguments mapped to -key value pairs; any Proc
+    #   value (e.g. command:) is tracked and released if reconfigured or
+    #   when this widget is destroyed
     # @return [String] the Tcl result
     def command(*args, **kwargs)
-      @app.command(@path, *args, **kwargs)
+      @app.command(@path, *args, **@app.track_widget_option_callbacks(@path, kwargs))
     end
 
     # Destroy this widget and all its children.

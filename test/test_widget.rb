@@ -156,4 +156,69 @@ class TestWidget < Minitest::Test
       assert_equal 'path\\to\\', result
     end
   end
+
+  # -- callback cleanup -------------------------------------------------------
+  #
+  # create_widget/Widget#command register any Proc-valued kwarg (-command,
+  # -validatecommand, ...) as a tracked callback. These tests use
+  # Interp#callback_ids to confirm those procs actually get released on
+  # widget destroy or when replaced, instead of accumulating forever - see
+  # also test_bind.rb.
+
+  def test_create_widget_command_proc_releases_on_destroy
+    assert_tk_app("destroying a widget should release its -command callback") do
+      baseline = app.interp.callback_ids.length
+
+      btn = app.create_widget('ttk::button', text: 'Go', command: proc { })
+      assert_equal baseline + 1, app.interp.callback_ids.length, "creating should register one callback"
+
+      btn.destroy
+
+      assert_equal baseline, app.interp.callback_ids.length,
+        "destroy should release the widget's -command callback"
+    end
+  end
+
+  def test_widget_command_configure_replaces_and_releases_old_callback
+    assert_tk_app("reconfiguring -command should release the old callback") do
+      btn = app.create_widget('ttk::button', text: 'Go', command: proc { })
+      baseline = app.interp.callback_ids.length
+
+      btn.command(:configure, command: proc { })
+
+      assert_equal baseline, app.interp.callback_ids.length,
+        "reconfiguring should replace, not accumulate, the tracked callback"
+
+      btn.destroy
+      assert_equal baseline - 1, app.interp.callback_ids.length
+    end
+  end
+
+  def test_multiple_proc_options_on_one_widget_tracked_independently
+    assert_tk_app("multiple Proc-valued options on one widget should be tracked independently") do
+      baseline = app.interp.callback_ids.length
+
+      spin = app.create_widget('ttk::spinbox', from: 0, to: 10,
+        command: proc { }, validatecommand: proc { true }, validate: :key)
+      assert_equal baseline + 2, app.interp.callback_ids.length,
+        "both command and validatecommand should register their own callback"
+
+      spin.command(:configure, command: proc { })
+      assert_equal baseline + 2, app.interp.callback_ids.length,
+        "replacing just command: should not touch validatecommand's callback"
+
+      spin.destroy
+      assert_equal baseline, app.interp.callback_ids.length,
+        "destroy should release both tracked callbacks"
+    end
+  end
+
+  def test_widget_command_proc_still_fires
+    assert_tk_app("a tracked -command proc should still actually fire") do
+      fired = false
+      btn = app.create_widget('ttk::button', text: 'Go', command: proc { fired = true })
+      btn.command(:invoke)
+      assert fired, "button command should have fired"
+    end
+  end
 end
