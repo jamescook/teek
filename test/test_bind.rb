@@ -211,4 +211,106 @@ class TestBind < Minitest::Test
       assert_equal 1, count, "binding still fired after unbind"
     end
   end
+
+  # -- callback cleanup (teek-6oz) -------------------------------------------
+  #
+  # App#bind registers a Ruby proc via Interp#register_callback. These tests
+  # use Interp#callback_count (a plain reader on the interpreter's callback
+  # table) to confirm those procs actually get released again, instead of
+  # accumulating forever.
+
+  def test_rebind_does_not_leak_callbacks
+    assert_tk_app("rebinding the same widget+event should not grow callback count") do
+      app.tcl_eval("entry .e")
+
+      app.bind('.e', 'Key-a') { }
+      baseline = app.interp.callback_count
+
+      5.times { app.bind('.e', 'Key-a') { } }
+
+      assert_equal baseline, app.interp.callback_count,
+        "rebinding should replace, not accumulate, the registered callback"
+    end
+  end
+
+  def test_unbind_releases_callback
+    assert_tk_app("unbind should release the registered callback") do
+      app.tcl_eval("entry .e")
+
+      baseline = app.interp.callback_count
+      app.bind('.e', 'Key-a') { }
+      assert_equal baseline + 1, app.interp.callback_count, "bind should register one callback"
+
+      app.unbind('.e', 'Key-a')
+
+      assert_equal baseline, app.interp.callback_count, "unbind should release the callback"
+    end
+  end
+
+  def test_destroy_releases_bind_callbacks
+    assert_tk_app("destroying a widget should release its bind callbacks") do
+      app.tcl_eval("frame .f")
+
+      baseline = app.interp.callback_count
+      app.bind('.f', 'Button-1') { }
+      app.bind('.f', 'Key-a') { }
+      assert_equal baseline + 2, app.interp.callback_count, "bind should register two callbacks"
+
+      app.destroy('.f')
+
+      assert_equal baseline, app.interp.callback_count,
+        "destroy should release all bind callbacks owned by the widget"
+    end
+  end
+
+  def test_destroy_releases_bind_callbacks_for_children
+    assert_tk_app("destroying a widget should release bind callbacks on its descendants") do
+      app.tcl_eval("frame .f2")
+      app.tcl_eval("button .f2.b -text hi")
+
+      baseline = app.interp.callback_count
+      app.bind('.f2', 'Button-1') { }
+      app.bind('.f2.b', 'Key-a') { }
+      assert_equal baseline + 2, app.interp.callback_count, "bind should register two callbacks"
+
+      app.destroy('.f2')
+
+      assert_equal baseline, app.interp.callback_count,
+        "destroy should recursively release descendant bind callbacks"
+    end
+  end
+
+  def test_destroy_releases_bind_callbacks_without_widget_tracking
+    assert_tk_app("bind cleanup should work even with track_widgets disabled") do
+      app2 = Teek::App.new(track_widgets: false)
+      app2.tcl_eval("frame .f3")
+
+      baseline = app2.interp.callback_count
+      app2.bind('.f3', 'Button-1') { }
+      assert_equal baseline + 1, app2.interp.callback_count, "bind should register one callback"
+
+      app2.destroy('.f3')
+
+      assert_equal baseline, app2.interp.callback_count,
+        "destroy should release bind callbacks regardless of track_widgets"
+    end
+  end
+
+  def test_destroy_releases_bind_callbacks_for_menu_and_toplevel
+    assert_tk_app("menu and toplevel widgets should release bind callbacks on destroy") do
+      app.tcl_eval("menu .m4")
+      app.tcl_eval("toplevel .t4")
+
+      baseline = app.interp.callback_count
+      app.bind('.m4', '<<MenuSelect>>') { }
+      app.bind('.t4', 'Key-a') { }
+      assert_equal baseline + 2, app.interp.callback_count, "bind should register two callbacks"
+
+      app.destroy('.m4')
+      app.destroy('.t4')
+
+      assert_equal baseline, app.interp.callback_count,
+        "menu/toplevel destroy should release bind callbacks"
+    end
+  end
 end

@@ -57,10 +57,13 @@ module Teek
       hide
       @widgets = {}
       @widget_counters = Hash.new(0)
+      @bind_callbacks = Hash.new { |h, k| h[k] = {} }
       @_pending_exception = nil
       debug ||= !!ENV['TEEK_DEBUG']
       track_widgets = true if debug
+      @track_widgets = track_widgets
       setup_widget_tracking if track_widgets
+      setup_destroy_cleanup
       if debug
         require_relative 'teek/debugger'
         @debugger = Teek::Debugger.new(self)
@@ -615,7 +618,9 @@ module Teek
 
     def bind(widget, event, *subs, &block)
       event_str = event.start_with?('<') ? event : "<#{event}>"
+      release_bind_callback(widget, event_str)
       cb = register_callback(proc { |*args| block.call(*args) })
+      @bind_callbacks[widget][event_str] = cb
       tcl_subs = subs.map { |s| s.is_a?(Symbol) ? BIND_SUBS.fetch(s) : s.to_s }
       sub_str = tcl_subs.empty? ? '' : ' ' + tcl_subs.join(' ')
       @interp.tcl_eval("bind #{widget} #{event_str} {ruby_callback #{cb}#{sub_str}}")
@@ -629,6 +634,7 @@ module Teek
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/bind.htm bind
     def unbind(widget, event)
       event_str = event.start_with?('<') ? event : "<#{event}>"
+      release_bind_callback(widget, event_str)
       @interp.tcl_eval("bind #{widget} #{event_str} {}")
     end
 
@@ -761,11 +767,6 @@ module Teek
         @widgets[path] = { class: cls, parent: File.dirname(path).gsub(/\A$/, '.') }
         @debugger&.on_widget_created(path, cls)
       })
-      @destroy_cb_id = @interp.register_callback(proc { |path|
-        next if path.start_with?('.teek_debug')
-        @widgets.delete(path)
-        @debugger&.on_widget_destroyed(path)
-      })
 
       # Tcl proc called on widget creation (trace leave)
       @interp.tcl_eval("proc ::teek_track_create {cmd_string code result op} {
@@ -776,13 +777,38 @@ module Teek
         }
       }")
 
-      # Tcl proc called on widget destruction (bind)
-      @interp.tcl_eval("bind all <Destroy> {ruby_callback #{@destroy_cb_id} %W}")
-
       # Add trace on each widget command
       Teek::WIDGET_COMMANDS.each do |cmd|
         @interp.tcl_eval("catch {trace add execution #{cmd} leave ::teek_track_create}")
       end
+    end
+
+    # Installed unconditionally (unlike widget-creation tracking, which is
+    # opt-out via track_widgets: false) so that bind-callback cleanup always
+    # runs. A single `bind all <Destroy>` script is used because Tcl's bind
+    # command replaces rather than appends per tag+event, so widget-tracking
+    # cleanup is folded into the same callback rather than installed separately.
+    def setup_destroy_cleanup
+      @destroy_cb_id = @interp.register_callback(proc { |path|
+        release_bind_callbacks(path)
+        next if path.start_with?('.teek_debug')
+        if @track_widgets
+          @widgets.delete(path)
+          @debugger&.on_widget_destroyed(path)
+        end
+      })
+      @interp.tcl_eval("bind all <Destroy> {ruby_callback #{@destroy_cb_id} %W}")
+    end
+
+    def release_bind_callback(widget, event_str)
+      cb = @bind_callbacks[widget].delete(event_str)
+      unregister_callback(cb) if cb
+    end
+
+    def release_bind_callbacks(widget)
+      callbacks = @bind_callbacks.delete(widget)
+      return unless callbacks
+      callbacks.each_value { |cb| unregister_callback(cb) }
     end
 
     def tcl_value(value)
