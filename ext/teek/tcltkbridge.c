@@ -585,16 +585,16 @@ interp_unregister_callback(VALUE self, VALUE id)
 }
 
 /* ---------------------------------------------------------
- * Interp#callback_count - Number of currently registered callbacks
- * (test/introspection use: verifying leak fixes without reaching
- * into interpreter internals)
+ * Interp#callback_ids - Currently registered callback id strings
+ * (test/introspection use: asserting exactly which ids survive a
+ * release, not just how many)
  * --------------------------------------------------------- */
 
 static VALUE
-interp_callback_count(VALUE self)
+interp_callback_ids(VALUE self)
 {
     struct tcltk_interp *tip = get_interp(self);
-    return rb_hash_size(tip->callbacks);
+    return rb_funcall(tip->callbacks, rb_intern("keys"), 0);
 }
 
 /* ---------------------------------------------------------
@@ -1517,7 +1517,7 @@ Init_tcltklib(void)
     rb_define_method(cInterp, "mainloop", interp_mainloop, 0);
     rb_define_method(cInterp, "register_callback", interp_register_callback, 1);
     rb_define_method(cInterp, "unregister_callback", interp_unregister_callback, 1);
-    rb_define_method(cInterp, "callback_count", interp_callback_count, 0);
+    rb_define_method(cInterp, "callback_ids", interp_callback_ids, 0);
     rb_define_method(cInterp, "create_slave", interp_create_slave, -1);
     rb_define_method(cInterp, "thread_timer_ms", interp_get_thread_timer_ms, 0);
     rb_define_method(cInterp, "thread_timer_ms=", interp_set_thread_timer_ms, 1);

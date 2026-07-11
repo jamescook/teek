@@ -104,22 +104,23 @@ If a callback raises a Ruby exception, it becomes a Tcl error. The exception mes
 
 ## Menus
 
-Build a menu bar with standard `menu` widgets:
+Build a menu bar with `App#menu`:
 
 ```ruby
 app = Teek::App.new(title: 'My App')
 
-app.command(:menu, '.menubar')
-app.command('.', :configure, menu: '.menubar')
+menubar = app.menu('.menubar')
+app.command('.', :configure, menu: menubar)
 
-app.command(:menu, '.menubar.file', tearoff: 0)
-app.command('.menubar', :add, :cascade, label: 'File', menu: '.menubar.file')
-app.command('.menubar.file', :add, :command,
-           label: 'Quit', command: proc { app.command(:destroy, '.') })
+file_menu = app.menu('.menubar.file')
+menubar.add_cascade(label: 'File', menu: file_menu)
+file_menu.add_command(label: 'Quit', command: proc { app.command(:destroy, '.') })
 
 app.show
 app.mainloop
 ```
+
+`app.menu(path)` creates the underlying Tk menu the first time it's called for a given path (tearoff disabled) and just returns a handle to it on later calls, so it's safe to call again whenever you're about to rebuild a menu's entries (e.g. on every right-click). It also tracks each entry's `command:` callback and releases it when the entry is replaced, deleted, or the menu itself is destroyed — building menus with raw `app.command(:menu, ...)` works too, but any `command:` proc attached that way is only released when the menu is destroyed, not when an entry is rebuilt in place.
 
 > **macOS note:** On macOS, Tk always displays a menu bar. If you don't configure one, Tk shows a default menu with items like "Run Widget Demo" that are meant for the Tcl interpreter shell. Attach a custom menu bar (even an empty one) to suppress it. See the [TkDocs menu tutorial](https://tkdocs.com/tutorial/menus.html) for details.
 

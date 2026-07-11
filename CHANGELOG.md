@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `App#menu(path)` — creates (or reuses, tearoff disabled) a Tk menu and returns a `Widget` with entry methods (`add_command`/`add_cascade`/`add_checkbutton`/`add_radiobutton`/`add_separator`, `insert`, `entryconfigure`, `delete`, `clear`, `popup`) that tracks each entry's `-command` callback and reconciles it against Tk's live menu state after every rebuild, so callbacks no longer leak when a menu is cleared and rebuilt in place. `App#command` now warns once per path if it detects a `-command` proc being attached to a menu entry the old, unmanaged way.
+- `App#create_widget` accepts `idempotent: true` to skip widget creation when a widget already exists at the given path, and extends the returned `Widget` with any behavior module registered for that widget type via `Widget.register_behavior` — the mechanism `App#menu` is built on, open to third-party or application-specific widget behaviors.
+- `Teek::CallbackRegistry` — shared internal tracking for callbacks scoped to something narrower than a whole widget (event bindings, menu entries), released on overwrite, explicit removal, or the owning widget's destruction, regardless of which feature registered them.
+
 ### Fixed
 
 - `App#bind` no longer leaks a Ruby callback each time an event is rebound on the same widget, and `App#unbind` now actually releases its callback (previously it never did). Destroying a widget also releases any bind callbacks it (or its descendants) held, even with `track_widgets: false`.

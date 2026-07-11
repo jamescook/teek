@@ -65,11 +65,11 @@ class PaintDemo
     @app.set_window_geometry("#{PHOTO_WIDTH}x#{PHOTO_HEIGHT + 40}")
 
     # Menu bar
-    @app.command(:menu, '.menubar')
-    @app.command('.', :configure, menu: '.menubar')
-    create_edit_menu('.menubar')
-    create_layer_menu('.menubar')
-    create_window_menu('.menubar')
+    menubar = @app.menu('.menubar')
+    @app.command('.', :configure, menu: menubar)
+    create_edit_menu(menubar)
+    create_layer_menu(menubar)
+    create_window_menu(menubar)
 
     # Status bar (packed first so canvas gets remaining space)
     status_frame = @app.create_widget('ttk::frame')
@@ -241,41 +241,31 @@ class PaintDemo
   end
 
   def create_edit_menu(menubar)
-    @app.command(:menu, "#{menubar}.edit", tearoff: 0)
-    @app.command(menubar, :add, :cascade, label: 'Edit', menu: "#{menubar}.edit")
-    @app.command("#{menubar}.edit", :add, :command,
-                 label: 'Undo', accelerator: 'Ctrl+Z', command: proc { undo })
-    @app.command("#{menubar}.edit", :add, :command,
-                 label: 'Redo', accelerator: 'Ctrl+Shift+Z', command: proc { redo_action })
-    @app.command("#{menubar}.edit", :add, :separator)
-    @app.command("#{menubar}.edit", :add, :command,
-                 label: 'Clear Layer', command: proc { clear_active_layer })
-    @app.command("#{menubar}.edit", :add, :command,
-                 label: 'Clear All Layers', command: proc { clear_canvas })
+    edit_menu = @app.menu("#{menubar}.edit")
+    menubar.add_cascade(label: 'Edit', menu: edit_menu)
+    edit_menu.add_command(label: 'Undo', accelerator: 'Ctrl+Z', command: proc { undo })
+    edit_menu.add_command(label: 'Redo', accelerator: 'Ctrl+Shift+Z', command: proc { redo_action })
+    edit_menu.add_separator
+    edit_menu.add_command(label: 'Clear Layer', command: proc { clear_active_layer })
+    edit_menu.add_command(label: 'Clear All Layers', command: proc { clear_canvas })
   end
 
   def create_layer_menu(menubar)
-    @app.command(:menu, "#{menubar}.layer", tearoff: 0)
-    @app.command(menubar, :add, :cascade, label: 'Layer', menu: "#{menubar}.layer")
-    @app.command("#{menubar}.layer", :add, :command,
-                 label: 'Add Layer', command: proc { add_layer })
-    @app.command("#{menubar}.layer", :add, :command,
-                 label: 'Delete Layer', command: proc { delete_layer })
-    @app.command("#{menubar}.layer", :add, :separator)
-    @app.command("#{menubar}.layer", :add, :command,
-                 label: 'Toggle Visibility', command: proc { toggle_layer_visibility })
-    @app.command("#{menubar}.layer", :add, :separator)
-    @app.command("#{menubar}.layer", :add, :command,
-                 label: 'Flatten All', command: proc { flatten_layers })
+    layer_menu = @app.menu("#{menubar}.layer")
+    menubar.add_cascade(label: 'Layer', menu: layer_menu)
+    layer_menu.add_command(label: 'Add Layer', command: proc { add_layer })
+    layer_menu.add_command(label: 'Delete Layer', command: proc { delete_layer })
+    layer_menu.add_separator
+    layer_menu.add_command(label: 'Toggle Visibility', command: proc { toggle_layer_visibility })
+    layer_menu.add_separator
+    layer_menu.add_command(label: 'Flatten All', command: proc { flatten_layers })
   end
 
   def create_window_menu(menubar)
-    @app.command(:menu, "#{menubar}.window", tearoff: 0)
-    @app.command(menubar, :add, :cascade, label: 'Window', menu: "#{menubar}.window")
-    @app.command("#{menubar}.window", :add, :command,
-                 label: 'Show Tools', command: proc { @app.command(:wm, :deiconify, @tools_path) })
-    @app.command("#{menubar}.window", :add, :command,
-                 label: 'Show Colors', command: proc { @app.command(:wm, :deiconify, @palette_path) })
+    window_menu = @app.menu("#{menubar}.window")
+    menubar.add_cascade(label: 'Window', menu: window_menu)
+    window_menu.add_command(label: 'Show Tools', command: proc { @app.command(:wm, :deiconify, @tools_path) })
+    window_menu.add_command(label: 'Show Colors', command: proc { @app.command(:wm, :deiconify, @palette_path) })
   end
 
   def add_tooltip(widget, text)

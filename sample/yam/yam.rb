@@ -20,8 +20,14 @@
 #   https://opengameart.org/content/calm-piano-1-vaporware
 #   cynicmusic.com / pixelsphere.org
 
-require_relative '../../lib/teek'
-require_relative '../../teek-sdl2/lib/teek/sdl2'
+# Load the local checkouts, not whatever teek/teek-sdl2 gems happen to be
+# installed - teek-sdl2 does its own `require "teek"` internally, which
+# needs to resolve to the same path as the one below or you can end up
+# with a stale installed teek gem partially clobbering this one.
+$LOAD_PATH.unshift(File.expand_path('../../lib', __dir__))
+$LOAD_PATH.unshift(File.expand_path('../../teek-sdl2/lib', __dir__))
+require 'teek'
+require 'teek/sdl2'
 
 class Minesweeper
   # The source PNGs are 216x216. Tk can shrink them with "copy -subsample N N"
@@ -119,43 +125,43 @@ class Minesweeper
     build_canvas
   end
 
-  # Tk menus: create a menu widget, attach it to the window with "configure
-  # -menu", then add items. Each item that triggers Ruby code needs a
-  # registered callback -- register_callback returns an integer ID, and
-  # "ruby_callback <id>" in Tcl invokes the corresponding Ruby proc.
+  # Tk menus: app.menu(path) creates the menu widget (or hands back the
+  # existing one at that path), attach it to the window with "configure
+  # -menu", then add items. Each item's command: proc is registered as a
+  # callback under the hood -- "ruby_callback <id>" in Tcl invokes the
+  # corresponding Ruby proc -- and app.menu tracks and releases it if the
+  # entry is later replaced or the menu is rebuilt.
   def build_menu
-    @app.command(:menu, '.menubar')
-    @app.command('.', :configure, menu: '.menubar')
-    @app.command(:menu, '.menubar.game', tearoff: 0)
-    @app.command('.menubar', :add, :cascade, label: 'Game', menu: '.menubar.game')
+    menubar = @app.menu('.menubar')
+    @app.command('.', :configure, menu: menubar)
+    game_menu = @app.menu('.menubar.game')
+    menubar.add_cascade(label: 'Game', menu: game_menu)
 
-    # "add command" creates a clickable menu item.
+    # "add_command" creates a clickable menu item.
     # -accelerator is cosmetic (shows "F2" in the menu) -- the actual
     # keybinding is set separately with "bind".
-    # With command(), procs are auto-registered as callbacks -- no need
-    # to manually call register_callback + interpolate the ID.
+    # With app.menu(), procs passed as command: are auto-registered as
+    # callbacks -- no need to manually call register_callback + interpolate
+    # the ID.
     new_game_proc = proc { |*| new_game }
-    @app.command('.menubar.game', :add, :command,
-                 label: 'New Game', accelerator: 'F2', command: new_game_proc)
+    game_menu.add_command(label: 'New Game', accelerator: 'F2', command: new_game_proc)
     @app.command(:bind, '.', '<F2>', new_game_proc)
 
-    @app.command('.menubar.game', :add, :separator)
+    game_menu.add_separator
 
-    # "add radiobutton" items share a Tcl variable -- Tk automatically shows
+    # "add_radiobutton" items share a Tcl variable -- Tk automatically shows
     # a bullet next to the selected one. The -variable points to a global
     # Tcl variable (:: prefix), and -value is what gets stored when selected.
     @level_var = '::ms_level'
     @app.command(:set, @level_var, @level)
     LEVELS.each_key do |lvl|
-      @app.command('.menubar.game', :add, :radiobutton,
-                   label: lvl.capitalize, variable: @level_var, value: lvl,
-                   command: proc { |*| change_level(lvl) })
+      game_menu.add_radiobutton(label: lvl.capitalize, variable: @level_var, value: lvl,
+                                 command: proc { |*| change_level(lvl) })
     end
 
-    @app.command('.menubar.game', :add, :separator)
+    game_menu.add_separator
 
-    @app.command('.menubar.game', :add, :command,
-                 label: 'Exit', command: proc { |*| @app.command(:destroy, '.') })
+    game_menu.add_command(label: 'Exit', command: proc { |*| @app.command(:destroy, '.') })
   end
 
   # The header bar uses "pack" geometry: mine counter on the left, face

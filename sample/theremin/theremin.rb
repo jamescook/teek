@@ -93,16 +93,14 @@ class Theremin
   private
 
   def build_menu
-    menubar = '.menubar'
-    @app.command(:menu, menubar)
+    menubar = @app.menu('.menubar')
     @app.command('.', :configure, menu: menubar)
 
     # File menu
-    @app.command(:menu, "#{menubar}.file", tearoff: 0)
-    @app.command(menubar, :add, :cascade, label: 'File', menu: "#{menubar}.file")
-    @app.command("#{menubar}.file", :add, :command,
-                 label: 'Quit', accelerator: 'Cmd+Q',
-                 command: proc { @running = false; @app.command(:destroy, '.') })
+    file_menu = @app.menu('.menubar.file')
+    menubar.add_cascade(label: 'File', menu: file_menu)
+    file_menu.add_command(label: 'Quit', accelerator: 'Cmd+Q',
+                           command: proc { @running = false; @app.command(:destroy, '.') })
   end
 
   def setup_input

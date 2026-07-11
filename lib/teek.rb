@@ -5,6 +5,8 @@ require_relative 'teek/version'
 require_relative 'teek/platform'
 require_relative 'teek/ractor_support'
 require_relative 'teek/widget'
+require_relative 'teek/callback_registry'
+require_relative 'teek/menu_behavior'
 require_relative 'teek/photo'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
@@ -48,7 +50,7 @@ module Teek
   ].freeze
 
   class App
-    attr_reader :interp, :widgets, :debugger
+    attr_reader :interp, :widgets, :debugger, :callback_registry
     attr_writer :_pending_exception # @api private
 
     def initialize(title: nil, track_widgets: true, debug: false, &block)
@@ -57,7 +59,8 @@ module Teek
       hide
       @widgets = {}
       @widget_counters = Hash.new(0)
-      @bind_callbacks = Hash.new { |h, k| h[k] = {} }
+      @callback_registry = Teek::CallbackRegistry.new(self)
+      @menu_command_warned = {}
       @_pending_exception = nil
       debug ||= !!ENV['TEEK_DEBUG']
       track_widgets = true if debug
@@ -122,6 +125,20 @@ module Teek
     # @return [void]
     def unregister_callback(id)
       @interp.unregister_callback(id)
+    end
+
+    # Evaluate +script+ once per App instance under +name+, skipping it on
+    # later calls. Meant for widget-behavior modules that need to define a
+    # Tcl-side helper proc (e.g. a scan routine) without re-sending and
+    # re-parsing that definition on every call.
+    # @param name [Symbol] unique name for this helper
+    # @yieldreturn [String] the Tcl script to evaluate the first time
+    # @return [void]
+    def ensure_tcl_helper(name)
+      @installed_tcl_helpers ||= {}
+      return if @installed_tcl_helpers[name]
+      @interp.tcl_eval(yield)
+      @installed_tcl_helpers[name] = true
     end
 
     # Schedule a one-shot timer. Calls the block after +ms+ milliseconds.
@@ -233,6 +250,11 @@ module Teek
       Teek.bool_to_tcl(val)
     end
 
+    # Tk menu entry types that take a `-command` option, for the
+    # unmanaged-menu-callback warning in {#command}.
+    MENU_ENTRY_TYPES = %w[command cascade checkbutton radiobutton separator].freeze
+    private_constant :MENU_ENTRY_TYPES
+
     # Build and evaluate a Tcl command from Ruby values.
     # Positional args are converted: Symbols pass bare, Procs become
     # callbacks, everything else is brace-quoted. Keyword args become
@@ -240,11 +262,21 @@ module Teek
     # @example
     #   app.command(:pack, '.btn', side: :left, padx: 10)
     #   # evaluates: pack .btn -side left -padx {10}
+    #
+    # @note This is a dumb, general-purpose Tcl builder - it does not
+    #   understand menus. Passing a `command:` Proc to a menu's `add`,
+    #   `insert`, or `entryconfigure` here registers a real, working
+    #   callback, but nothing ever releases it if the entry is later
+    #   replaced or the menu is rebuilt in place. teek warns (once per
+    #   path) when it recognizes this shape; use {#menu} instead, which
+    #   tracks and releases these automatically.
     # @param cmd [Symbol, String] the Tcl command name
     # @param args positional arguments
     # @param kwargs keyword arguments mapped to +-key value+ pairs
     # @return [String] the Tcl result
     def command(cmd, *args, **kwargs)
+      warn_if_unmanaged_menu_command(cmd, args, kwargs)
+
       parts = [cmd.to_s]
       i = 0
       while i < args.length
@@ -296,11 +328,50 @@ module Teek
     #   btn = app.create_widget('ttk::button', parent: frm, text: 'Click')
     #   # btn.path => ".ttkfrm1.ttkbtn1"
     #
-    def create_widget(type, path = nil, parent: nil, **kwargs)
+    # @param type [String, Symbol] Tk widget command (e.g. 'ttk::button', :canvas)
+    # @param path [String, nil] explicit Tk path, or nil for auto-naming
+    # @param parent [Widget, String, nil] parent widget for path nesting
+    # @param idempotent [Boolean] skip the creation command if a widget
+    #   already exists at +path+ - for widgets meant to be fetched by a
+    #   stable, caller-chosen path and reused across many calls (see {#menu})
+    #   rather than freshly created each time
+    # @param kwargs keyword arguments passed to the Tk widget command
+    # @return [Widget] the created widget, extended with whatever behavior
+    #   module is registered for +type+ (see {Widget.register_behavior})
+    #
+    # @example Auto-named
+    #   btn = app.create_widget('ttk::button', text: 'Click')
+    #   # btn.path => ".ttkbtn1"
+    #
+    # @example Explicit path
+    #   frm = app.create_widget('ttk::frame', '.myframe')
+    #
+    # @example Nested under a parent
+    #   frm = app.create_widget('ttk::frame')
+    #   btn = app.create_widget('ttk::button', parent: frm, text: 'Click')
+    #   # btn.path => ".ttkfrm1.ttkbtn1"
+    #
+    def create_widget(type, path = nil, parent: nil, idempotent: false, **kwargs)
       type_s = type.to_s
       path ||= next_widget_path(type_s, parent)
-      command(type_s, path, **kwargs)
-      Widget.new(self, path)
+      command(type_s, path, **kwargs) unless idempotent && tcl_eval("winfo exists #{path}") == '1'
+      widget = Widget.new(self, path)
+      behavior = Widget.behavior_for(type_s)
+      widget.extend(behavior) if behavior
+      widget
+    end
+
+    # Wrap a Tk menu at the given path, creating it (tearoff disabled) if
+    # it doesn't exist yet. Safe to call repeatedly with the same path -
+    # it's a flyweight, not a handle you need to hold onto: call this again
+    # any time you're about to rebuild the menu (e.g. on every right-click).
+    # @param path [String] Tk menu path (e.g. ".card.ctx")
+    # @param kwargs extra options for the underlying `menu` command, used
+    #   only the first time this path is created
+    # @return [Widget] extended with menu entry methods (add_command, delete, ...)
+    # @see MenuBehavior
+    def menu(path, **kwargs)
+      create_widget(:menu, path, idempotent: true, tearoff: 0, **kwargs)
     end
 
     # Add a directory to Tcl's package search path.
@@ -618,9 +689,8 @@ module Teek
 
     def bind(widget, event, *subs, &block)
       event_str = event.start_with?('<') ? event : "<#{event}>"
-      release_bind_callback(widget, event_str)
       cb = register_callback(proc { |*args| block.call(*args) })
-      @bind_callbacks[widget][event_str] = cb
+      @callback_registry.reconcile([:bind, widget]) { |before| before.merge(event_str => cb) }
       tcl_subs = subs.map { |s| s.is_a?(Symbol) ? BIND_SUBS.fetch(s) : s.to_s }
       sub_str = tcl_subs.empty? ? '' : ' ' + tcl_subs.join(' ')
       @interp.tcl_eval("bind #{widget} #{event_str} {ruby_callback #{cb}#{sub_str}}")
@@ -634,7 +704,7 @@ module Teek
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/bind.htm bind
     def unbind(widget, event)
       event_str = event.start_with?('<') ? event : "<#{event}>"
-      release_bind_callback(widget, event_str)
+      @callback_registry.reconcile([:bind, widget]) { |before| before.reject { |k, _| k == event_str } }
       @interp.tcl_eval("bind #{widget} #{event_str} {}")
     end
 
@@ -790,7 +860,7 @@ module Teek
     # cleanup is folded into the same callback rather than installed separately.
     def setup_destroy_cleanup
       @destroy_cb_id = @interp.register_callback(proc { |path|
-        release_bind_callbacks(path)
+        @callback_registry.forget_all_for_path(path)
         next if path.start_with?('.teek_debug')
         if @track_widgets
           @widgets.delete(path)
@@ -800,15 +870,29 @@ module Teek
       @interp.tcl_eval("bind all <Destroy> {ruby_callback #{@destroy_cb_id} %W}")
     end
 
-    def release_bind_callback(widget, event_str)
-      cb = @bind_callbacks[widget].delete(event_str)
-      unregister_callback(cb) if cb
-    end
+    # Diagnostic only - registers nothing, tracks nothing, changes no
+    # behavior. Recognizes a `-command` Proc being attached to a menu entry
+    # through the raw command() path (bypassing #menu) and warns once per
+    # path, since that Proc will leak the moment this entry is replaced or
+    # the menu is rebuilt.
+    def warn_if_unmanaged_menu_command(path, args, kwargs)
+      return unless kwargs[:command].is_a?(Proc)
+      return if @menu_command_warned[path]
 
-    def release_bind_callbacks(widget)
-      callbacks = @bind_callbacks.delete(widget)
-      return unless callbacks
-      callbacks.each_value { |cb| unregister_callback(cb) }
+      sub = args[0].to_s
+      looks_like_menu_entry =
+        case sub
+        when 'add' then MENU_ENTRY_TYPES.include?(args[1].to_s)
+        when 'insert' then MENU_ENTRY_TYPES.include?(args[2].to_s)
+        when 'entryconfigure' then true
+        else false
+        end
+      return unless looks_like_menu_entry
+
+      @menu_command_warned[path] = true
+      warn "teek: command: proc passed to app.command(#{path.inspect}, :#{sub}, ...) is not " \
+           "tracked and will leak if this entry is replaced or the menu is rebuilt in place. " \
+           "Use app.menu(#{path.inspect}) instead - it releases these automatically."
     end
 
     def tcl_value(value)

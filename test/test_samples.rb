@@ -36,4 +36,16 @@ class TestSamples < Minitest::Test
 
     assert success, "Calculator demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
   end
+
+  def test_paint_demo
+    success, stdout, stderr = smoke_test_sample("#{SAMPLE_DIR}/paint/paint_demo.rb", timeout: 15)
+
+    assert success, "Paint demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
+  end
+
+  def test_yam
+    success, stdout, stderr = smoke_test_sample("#{SAMPLE_DIR}/yam/yam.rb", timeout: 15)
+
+    assert success, "Yam demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
+  end
 end

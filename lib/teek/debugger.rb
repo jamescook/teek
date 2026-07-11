@@ -246,10 +246,9 @@ module Teek
       @app.command(:pack, vars_tree, fill: :both, expand: 1)
 
       # Right-click context menu
-      @app.command(:menu, "#{NB}.vars.ctx", tearoff: 0)
+      vars_ctx = @app.menu("#{NB}.vars.ctx")
       watch_proc = proc { |*| watch_selected_variable }
-      @app.command("#{NB}.vars.ctx", 'add', 'command',
-        label: 'Watch', command: watch_proc)
+      vars_ctx.add_command(label: 'Watch', command: watch_proc)
 
       @app.command(:bind, vars_tree, '<Button-3>', proc { |*|
         # Select the row under cursor, then show context menu
@@ -257,7 +256,7 @@ module Teek
           set item [#{vars_tree} identify item [winfo pointerx #{vars_tree}] [winfo pointery #{vars_tree}]]
           if {$item ne {}} { #{vars_tree} selection set $item }
         ")
-        @app.tcl_eval("tk_popup #{NB}.vars.ctx [winfo pointerx .] [winfo pointery .]")
+        vars_ctx.popup(@app.tcl_eval('winfo pointerx .'), @app.tcl_eval('winfo pointery .'))
       })
 
       # Double-click to watch
@@ -530,17 +529,16 @@ module Teek
       @app.command(:bind, watch_tree, '<<TreeviewSelect>>', select_proc)
 
       # Right-click to unwatch
-      @app.command(:menu, "#{NB}.watches.ctx", tearoff: 0)
+      watches_ctx = @app.menu("#{NB}.watches.ctx")
       unwatch_proc = proc { |*| unwatch_selected }
-      @app.command("#{NB}.watches.ctx", 'add', 'command',
-        label: 'Unwatch', command: unwatch_proc)
+      watches_ctx.add_command(label: 'Unwatch', command: unwatch_proc)
 
       @app.command(:bind, watch_tree, '<Button-3>', proc { |*|
         @app.tcl_eval("
           set item [#{watch_tree} identify item [winfo pointerx #{watch_tree}] [winfo pointery #{watch_tree}]]
           if {$item ne {}} { #{watch_tree} selection set $item }
         ")
-        @app.tcl_eval("tk_popup #{NB}.watches.ctx [winfo pointerx .] [winfo pointery .]")
+        watches_ctx.popup(@app.tcl_eval('winfo pointerx .'), @app.tcl_eval('winfo pointery .'))
       })
     end
 

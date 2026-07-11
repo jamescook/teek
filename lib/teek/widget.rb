@@ -17,6 +17,40 @@ module Teek
   #
   # @see App#create_widget
   class Widget
+    class << self
+      # Associate a Tk widget-command type string (e.g. "menu") with a
+      # module of extra instance methods. {App#create_widget} extends a
+      # plain Widget with whichever module is registered for the type
+      # being created, so widget-type-specific behavior (menu's entry
+      # methods, for example) lives in its own module rather than in
+      # Widget itself or in a subclass.
+      #
+      # Call this from the file that defines the behavior module - it's
+      # how that module makes itself known, without App or Widget having
+      # to be edited for each new widget type. This is also the hook for
+      # third-party or application-specific widget behaviors: define a
+      # module and register it for your own type string.
+      #
+      # @param type [String, Symbol] Tk widget-command type string
+      # @param behavior_module [Module] extended onto matching Widget instances
+      # @return [void]
+      def register_behavior(type, behavior_module)
+        behaviors[type.to_s] = behavior_module
+      end
+
+      # @param type [String, Symbol] Tk widget-command type string
+      # @return [Module, nil] the module registered for +type+, if any
+      def behavior_for(type)
+        behaviors[type.to_s]
+      end
+
+      private
+
+      def behaviors
+        @behaviors ||= {}
+      end
+    end
+
     attr_reader :app, :path
 
     def initialize(app, path)
