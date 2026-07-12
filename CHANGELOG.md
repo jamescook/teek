@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `App#bind` no longer leaks a Ruby callback each time an event is rebound on the same widget, and `App#unbind` now actually releases its callback (previously it never did). Destroying a widget also releases any bind callbacks it (or its descendants) held, even with `track_widgets: false`.
 - `App#create_widget` and `Widget#command` no longer leak a Ruby callback for any Proc-valued option (`command:`, `validatecommand:`, etc.) — the callback is now released when the option is reconfigured or the widget is destroyed, instead of accumulating for the life of the process.
 - `throw :teek_break`/`:teek_continue` inside a menu entry's or widget's `command:` proc no longer raises a Tcl error. These signals only mean something inside Tk's bind dispatch (confirmed against Tcl core: an unhandled `TCL_BREAK`/`TCL_CONTINUE` reaching the top of any other evaluation is rejected outright), so outside a bind callback they're now caught and treated as a normal return instead of being relayed to Tcl. `throw :teek_return` continues to work everywhere, as before.
+- `App#set_variable`/`App#get_variable` no longer corrupt or fail on values containing Tcl-special characters (unbalanced braces, a trailing backslash, `$`, `[`) — they go through `Tcl_SetVar`/`Tcl_GetVar` directly instead of building and re-parsing a `set name {value}` string, so nothing needs escaping. Array-element (`arr(key)`) and namespaced (`::ns::var`) names both work as before.
 
 ## [0.1.5] - 2026-02-19
 

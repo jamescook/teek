@@ -451,21 +451,25 @@ module Teek
     end
 
     # Set a Tcl variable. Useful for widget +textvariable+ and +variable+ options.
-    # @param name [String] variable name
+    # Goes through Tcl_SetVar directly (no re-parsing), so the value never
+    # needs escaping - braces, backslashes, +$+, +[+, whatever, all safe.
+    # @param name [String] variable name (array-element and namespaced forms work)
     # @param value [String] value to set
     # @return [String] the value
     # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/set.htm set
     def set_variable(name, value)
-      tcl_eval("set #{name} {#{value}}")
+      @interp.tcl_set_var(name.to_s, value.to_s)
     end
 
     # Get a Tcl variable's value.
-    # @param name [String] variable name
+    # @param name [String] variable name (array-element and namespaced forms work)
     # @return [String] the value
     # @raise [Teek::TclError] if the variable doesn't exist
     # @see https://www.tcl-lang.org/man/tcl8.6/TclCmd/set.htm set
     def get_variable(name)
-      tcl_eval("set #{name}")
+      value = @interp.tcl_get_var(name.to_s)
+      return value unless value.nil?
+      raise Teek::TclError, "can't read \"#{name}\": no such variable"
     end
 
     # Destroy a widget and all its children.
