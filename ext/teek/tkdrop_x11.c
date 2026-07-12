@@ -48,8 +48,8 @@ static int
 hex_decode(const char *s)
 {
     int hi, lo;
-    hi = s[0];
-    lo = s[1];
+    hi = (unsigned char)s[0];
+    lo = (unsigned char)s[1];
     if (hi >= '0' && hi <= '9') hi -= '0';
     else if (hi >= 'a' && hi <= 'f') hi = hi - 'a' + 10;
     else if (hi >= 'A' && hi <= 'F') hi = hi - 'A' + 10;

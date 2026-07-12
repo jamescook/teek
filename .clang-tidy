@@ -1,0 +1,30 @@
+---
+# clang-tidy configuration for teek (ext/teek/) and teek-sdl2 (teek-sdl2/ext/)
+
+Checks: >
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-exception-escape,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-narrowing-conversions,
+  -bugprone-suspicious-include,
+  -bugprone-unhandled-exception-at-new,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
+
+# Turn all the warnings from the checks above into errors.
+WarningsAsErrors: '*'
+
+# Check first-party headers only (our own code in ext/teek/ and
+# teek-sdl2/ext/) - not Ruby, Tcl/Tk, or SDL2 headers pulled in via -I.
+HeaderFilterRegex: '(ext/teek|teek-sdl2/ext)/.*\.h$'
+
+# Don't check system headers (Ruby/Tcl/Tk/SDL2 C API headers)
+SystemHeaders: false
+
+# Ruby/Tcl/Tk/SDL2 C API specific suppressions
+CheckOptions:
+  # These APIs use long parameter lists (e.g., rb_struct_define_under,
+  # Tcl_CreateObjCommand, SDL functions with several same-typed args)
+  - key: bugprone-easily-swappable-parameters.MinimumLength
+    value: 4
