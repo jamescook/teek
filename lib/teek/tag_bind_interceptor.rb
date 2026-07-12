@@ -34,6 +34,13 @@ module Teek
     def self.live_command_ids(app, path)
       app.ensure_tcl_helper(:tag_live_commands) { LIVE_COMMANDS_TCL_PROC }
       raw = app.tcl_eval("::teek_tag_live_commands #{path}")
+      # \z anchors this to a BARE `ruby_callback <id>` with nothing after.
+      # raw_command's generic positional-Proc handling technically allows a
+      # caller to pass %-substitutions to a tag-bind-shaped app.command
+      # call (the same mechanism App#bind uses), but nothing in teek does
+      # that today. If a caller ever does, this regex silently stops
+      # matching and that id leaks on rebuild/delete - drop the \z anchor
+      # (match just the leading `ruby_callback <id>`) if that changes.
       app.split_list(raw).each_with_object({}) do |cmd, ids|
         ids[Regexp.last_match(1)] = Regexp.last_match(1) if cmd =~ /\Aruby_callback (\S+)\z/
       end

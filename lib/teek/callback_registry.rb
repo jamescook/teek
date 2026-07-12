@@ -16,12 +16,21 @@ module Teek
   # Its block is handed the {key => id} hash tracked last time and must
   # return the {key => id} hash that should be tracked now; whatever id
   # drops out between the two gets released. What the block *does* with
-  # the hash it's handed is entirely up to the caller - reuse it directly
-  # for a cheap in-memory update (nothing external can silently change an
-  # event binding), or ignore it and recompute the truth from scratch by
-  # asking Tk (Tk silently renumbers menu entries, so nothing short of
-  # asking can be trusted there). The registry itself never knows or
-  # cares which one a caller chose.
+  # the hash it's handed is entirely up to the caller - reuse its values
+  # as a starting point for a cheap in-memory update (nothing external
+  # can silently change an event binding), or ignore it and recompute
+  # the truth from scratch by asking Tk (Tk silently renumbers menu
+  # entries, so nothing short of asking can be trusted there). The
+  # registry itself never knows or cares which one a caller chose.
+  #
+  # The one hard rule either way: the returned hash must be a DIFFERENT
+  # object from the one the block was handed - e.g. +before.merge(...)+,
+  # never +before.merge!(...)+ returned as-is. Released ids are computed
+  # as +before.values - after.values+; if the block mutates +before+ in
+  # place and returns that same object, +before+ and +after+ are
+  # identical by the time that subtraction runs, so any id that was
+  # dropped or replaced is silently never released - a leak, the exact
+  # thing this class exists to prevent.
   #
   # {#forget_all_for_path} is the only thing a <Destroy> handler needs to
   # call: it releases every container ever registered under a path,
@@ -36,7 +45,10 @@ module Teek
 
     # @yieldparam before [Hash] the {key => id} hash tracked for +container+
     #   as of the last call (empty on the first call)
-    # @yieldreturn [Hash] the {key => id} hash that should be tracked now
+    # @yieldreturn [Hash] the {key => id} hash that should be tracked now -
+    #   must be a different object from +before+ (see class docs above);
+    #   do not mutate +before+ in place and return it, or dropped/replaced
+    #   ids silently never get released
     # @return [void]
     def reconcile(container)
       track(container)

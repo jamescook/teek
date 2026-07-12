@@ -51,6 +51,14 @@ module Teek
         rescue Teek::TclError
           ''
         end
+        # \z anchors this to a BARE `ruby_callback <id>` with nothing
+        # after. raw_command's generic positional-Proc handling
+        # technically allows a caller to pass %-substitutions to a
+        # canvas-bind-shaped app.command call (the same mechanism
+        # App#bind uses), but nothing in teek does that today. If a
+        # caller ever does, this regex silently stops matching and that
+        # id leaks on rebuild/delete - drop the \z anchor (match just
+        # the leading `ruby_callback <id>`) if that changes.
         after[[tag_or_id, seq]] = Regexp.last_match(1) if current =~ /\Aruby_callback (\S+)\z/
       end
     end
