@@ -18,7 +18,12 @@
 # Tool icons in assets/ from Lucide (https://lucide.dev, MIT license)
 # and Iconoir (https://iconoir.com, MIT license).
 
-require_relative '../../lib/teek'
+# Load the local checkout, not whatever teek gem happens to be installed -
+# require 'tcltklib' inside lib/teek.rb is a bare require that searches
+# $LOAD_PATH, so without this it can silently resolve to an installed gem's
+# native extension instead of this repo's build.
+$LOAD_PATH.unshift(File.expand_path('../../lib', __dir__))
+require 'teek'
 require_relative 'layer_manager'
 
 class PaintDemo
