@@ -28,6 +28,14 @@ class TestMenu < Minitest::Test
       app.command('.m1', :add, :command, label: 'Go', command: proc { fired = true })
       app.tcl_eval(".m1 invoke 0")
 
+      # menu invoke evaluates the entry's -command synchronously (confirmed
+      # against Tk source - TkInvokeMenu reads commandPtr straight off the
+      # entry struct, no platform-specific deferral), so this should never
+      # need to wait. Seen flaky on Windows CI with no clear mechanism found
+      # yet; wait_until is a cheap hedge that costs nothing when it really
+      # is already true.
+      wait_until(timeout: 2.0) { fired }
+
       assert fired, "menu entry command did not fire"
     end
   end
