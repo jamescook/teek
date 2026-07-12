@@ -13,6 +13,7 @@ require_relative 'teek/canvas_bind_interceptor'
 require_relative 'teek/photo'
 require_relative 'teek/dialogs'
 require_relative 'teek/winfo'
+require_relative 'teek/wm'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
 # with Ruby callbacks, event bindings, and background work support.
@@ -89,17 +90,18 @@ module Teek
   ].freeze
 
   class App
-    attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo
+    attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo, :wm
     attr_writer :_pending_exception # @api private
 
     def initialize(title: nil, track_widgets: true, debug: false, &block)
       @interp = Teek::Interp.new
       @interp.tcl_eval('package require Tk')
+      @winfo = Teek::Winfo.new(self)
+      @wm = Teek::Wm.new(self)
       hide
       @widgets = {}
       @widget_counters = Hash.new(0)
       @callback_registry = Teek::CallbackRegistry.new(self)
-      @winfo = Teek::Winfo.new(self)
       @widget_types_by_path = {}
       @_pending_exception = nil
       debug ||= !!ENV['TEEK_DEBUG']
@@ -678,17 +680,19 @@ module Teek
     # Show a window. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
+    # @see Wm#deiconify
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M38 wm deiconify
     def show(window = '.')
-      @interp.tcl_eval("wm deiconify #{window}")
+      @wm.deiconify(window: window)
     end
 
     # Hide a window without destroying it. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
+    # @see Wm#withdraw
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M65 wm withdraw
     def hide(window = '.')
-      @interp.tcl_eval("wm withdraw #{window}")
+      @wm.withdraw(window: window)
     end
 
     # Enable the Tk debug console. The console starts hidden and can be
@@ -733,34 +737,38 @@ module Teek
     # @param title [String] new title
     # @param window [String] Tk window path
     # @return [String] the title
+    # @see Wm#set_title
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def set_window_title(title, window: '.')
-      tcl_eval("wm title #{window} {#{title}}")
+      @wm.set_title(title, window: window)
     end
 
     # Get a window's current title.
     # @param window [String] Tk window path
     # @return [String] current title
+    # @see Wm#title
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def window_title(window: '.')
-      tcl_eval("wm title #{window}")
+      @wm.title(window: window)
     end
 
     # Set a window's geometry (e.g. "400x300", "400x300+100+50").
     # @param geometry [String] geometry string
     # @param window [String] Tk window path
     # @return [String] the geometry
+    # @see Wm#set_geometry
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def set_window_geometry(geometry, window: '.')
-      tcl_eval("wm geometry #{window} #{geometry}")
+      @wm.set_geometry(geometry, window: window)
     end
 
     # Get a window's current geometry.
     # @param window [String] Tk window path
     # @return [String] geometry string (e.g. "400x300+0+0")
+    # @see Wm#geometry
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def window_geometry(window: '.')
-      tcl_eval("wm geometry #{window}")
+      @wm.geometry(window: window)
     end
 
     # Set whether a window is resizable.
@@ -768,18 +776,19 @@ module Teek
     # @param height [Boolean] allow vertical resize
     # @param window [String] Tk window path
     # @return [void]
+    # @see Wm#set_resizable
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def set_window_resizable(width, height, window: '.')
-      tcl_eval("wm resizable #{window} #{width ? 1 : 0} #{height ? 1 : 0}")
+      @wm.set_resizable(width, height, window: window)
     end
 
     # Get whether a window is resizable.
     # @param window [String] Tk window path
     # @return [Array(Boolean, Boolean)] [width_resizable, height_resizable]
+    # @see Wm#resizable
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def window_resizable(window: '.')
-      parts = tcl_eval("wm resizable #{window}").split
-      [parts[0] == '1', parts[1] == '1']
+      @wm.resizable(window: window)
     end
 
     # Bind a Tk event on a widget, with optional substitutions forwarded

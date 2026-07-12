@@ -4,7 +4,7 @@
 # family, reached via App#winfo. Grouped behind one accessor rather than
 # a dozen-plus flat App methods, since `winfo` is itself one big,
 # well-known Tcl command namespace - see also test_wm.rb for the sibling
-# `wm` namespace's flat methods (not yet grouped, see teek-jbd).
+# `wm` namespace's Teek::Wm.
 
 require 'minitest/autorun'
 require_relative 'tk_test_helper'

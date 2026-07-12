@@ -178,4 +178,84 @@ class TestWm < Minitest::Test
       app.destroy('.t_b')
     end
   end
+
+  # -- Teek::Wm (app.wm) --
+  #
+  # Grouped, typed wrappers for the `wm` command family, mirroring
+  # Tcl's own subcommand names - see test_winfo.rb for the sibling
+  # `winfo` namespace. App's existing set_window_title/window_geometry/
+  # etc. above are thin delegates to these now, kept as-is so nothing
+  # that already uses them (including gemba) needs to change.
+
+  def test_wm_title_get_and_set
+    assert_tk_app("app.wm.set_title/#title should get and set the window title") do
+      app.wm.set_title('Hello via wm')
+      assert_equal 'Hello via wm', app.wm.title
+    end
+  end
+
+  def test_wm_title_with_unbalanced_brace_reaches_tk_verbatim
+    assert_tk_app("app.wm.set_title should round-trip a title with an unbalanced brace") do
+      value = 'Title } with brace'
+      app.wm.set_title(value)
+
+      assert_equal value, app.wm.title
+    end
+  end
+
+  def test_wm_title_on_a_toplevel
+    assert_tk_app("app.wm.set_title/#title should accept a window: other than the root") do
+      app.tcl_eval('toplevel .t_wm_title')
+      app.wm.set_title('Child', window: '.t_wm_title')
+
+      assert_equal 'Child', app.wm.title(window: '.t_wm_title')
+      app.destroy('.t_wm_title')
+    end
+  end
+
+  def test_wm_geometry_get_and_set
+    assert_tk_app("app.wm.set_geometry/#geometry should get and set the window geometry") do
+      app.show
+      app.update
+      app.wm.set_geometry('400x300')
+      app.update_idletasks
+
+      assert_includes app.wm.geometry, '400x300'
+    end
+  end
+
+  def test_wm_resizable_get_and_set
+    assert_tk_app("app.wm.set_resizable/#resizable should get and set resizable flags") do
+      app.wm.set_resizable(false, true)
+
+      assert_equal [false, true], app.wm.resizable
+    end
+  end
+
+  def test_wm_deiconify_and_withdraw
+    assert_tk_app("app.wm.deiconify/#withdraw should map/unmap the window") do
+      app.wm.deiconify
+      app.update
+
+      assert app.winfo.ismapped?('.')
+
+      app.wm.withdraw
+      app.update
+
+      refute app.winfo.ismapped?('.')
+    end
+  end
+
+  # Regression guard: set_window_title used to build "wm title . {#{title}}"
+  # via raw string interpolation, which broke on an unbalanced brace - it
+  # now delegates to app.wm.set_title (tcl_invoke-based), fixing this for
+  # free.
+  def test_set_window_title_handles_an_unbalanced_brace
+    assert_tk_app("the flat set_window_title should also round-trip an unbalanced brace now") do
+      value = 'Title } with brace'
+      app.set_window_title(value)
+
+      assert_equal value, app.window_title
+    end
+  end
 end
