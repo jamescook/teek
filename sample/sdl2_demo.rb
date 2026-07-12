@@ -127,8 +127,7 @@ class SDL2Demo
       state: :disabled, background: '#1e1e1e', foreground: '#cccccc')
     @log_text.pack(fill: :both, expand: true)
 
-    @app.command(:wm, :protocol, @log_path, 'WM_DELETE_WINDOW',
-                 proc { @app.command(:wm, :withdraw, @log_path) })
+    @app.on_close(window: @log_path) { @app.command(:wm, :withdraw, @log_path) }
   end
 
   def log_event(msg)

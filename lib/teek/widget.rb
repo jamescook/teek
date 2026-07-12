@@ -90,6 +90,15 @@ module Teek
       @app.unbind(@path, event)
     end
 
+    # Register a handler for this window's close button (WM_DELETE_WINDOW).
+    # Meant for toplevels; see {App#on_close} for the full behavior.
+    # @yield called when the window's close button is pressed
+    # @return [void]
+    # @see App#on_close
+    def on_close(&block)
+      @app.on_close(window: @path, &block)
+    end
+
     def inspect
       "#<Teek::Widget #{@path}>"
     end

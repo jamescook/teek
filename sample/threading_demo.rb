@@ -47,11 +47,10 @@ class ThreadingDemo
     @app.set_window_geometry("#{w}x#{h}+0+0")
     @app.set_window_resizable(true, true)
 
-    close_proc = proc { |*|
+    @app.on_close do
       @background_task&.close
       @app.destroy('.')
-    }
-    @app.command(:wm, 'protocol', '.', 'WM_DELETE_WINDOW', close_proc)
+    end
   end
 
   def build_ui

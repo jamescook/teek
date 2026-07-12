@@ -27,8 +27,7 @@ module Teek
       app.command(:wm, 'geometry', TOP, '400x500')
 
       # Don't let closing the debugger kill the app
-      close_proc = proc { |*| app.command(:wm, 'withdraw', TOP) }
-      app.command(:wm, 'protocol', TOP, 'WM_DELETE_WINDOW', close_proc)
+      app.on_close(window: TOP) { app.command(:wm, 'withdraw', TOP) }
 
       setup_ui
       sync_widget_tree

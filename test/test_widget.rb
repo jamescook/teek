@@ -117,6 +117,22 @@ class TestWidget < Minitest::Test
     end
   end
 
+  def test_on_close_delegates_to_app
+    assert_tk_app("Widget#on_close should delegate to App#on_close for this widget's path") do
+      app.tcl_eval('toplevel .t_widget_on_close')
+      top = Teek::Widget.new(app, '.t_widget_on_close')
+      fired = false
+
+      top.on_close { fired = true }
+
+      script = app.tcl_eval('wm protocol .t_widget_on_close WM_DELETE_WINDOW')
+      app.tcl_eval(script)
+
+      assert fired, "Widget#on_close's block did not fire"
+      app.destroy('.t_widget_on_close')
+    end
+  end
+
   def test_inspect
     assert_tk_app("inspect shows class and path") do
       btn = app.create_widget('ttk::button', text: 'Hi')

@@ -82,4 +82,100 @@ class TestWm < Minitest::Test
       assert_equal [true, false], app.window_resizable
     end
   end
+
+  # -- on_close --
+  #
+  # Under Xvfb there's no real window manager reliably sending a genuine
+  # WM_DELETE_WINDOW client message, so these read back the script
+  # on_close registered via `wm protocol` and eval it directly - the
+  # same "read back and invoke" approach already used for treeview
+  # heading commands and canvas item bindings elsewhere in this suite.
+
+  def test_on_close_fires_on_the_root_window_by_default
+    assert_tk_app("on_close with no window: should register on the root window") do
+      fired = false
+      app.on_close { fired = true }
+
+      script = app.tcl_eval('wm protocol . WM_DELETE_WINDOW')
+      app.tcl_eval(script)
+
+      assert fired, "on_close block did not fire"
+    end
+  end
+
+  def test_on_close_does_not_auto_destroy_the_window
+    assert_tk_app("on_close should not implicitly destroy the window - that's the block's call") do
+      app.tcl_eval('toplevel .t_no_destroy')
+      app.on_close(window: '.t_no_destroy') { }
+
+      script = app.tcl_eval('wm protocol .t_no_destroy WM_DELETE_WINDOW')
+      app.tcl_eval(script)
+
+      assert_equal '1', app.tcl_eval('winfo exists .t_no_destroy'),
+        "on_close must not destroy the window itself - only the block should decide that"
+      app.destroy('.t_no_destroy')
+    end
+  end
+
+  def test_on_close_block_can_choose_to_destroy_the_window
+    assert_tk_app("an on_close block that calls destroy should actually close the window") do
+      app.tcl_eval('toplevel .t_destroy')
+      app.on_close(window: '.t_destroy') { app.destroy('.t_destroy') }
+
+      script = app.tcl_eval('wm protocol .t_destroy WM_DELETE_WINDOW')
+      app.tcl_eval(script)
+
+      assert_equal '0', app.tcl_eval('winfo exists .t_destroy')
+    end
+  end
+
+  def test_on_close_releases_its_callback_when_the_window_is_destroyed
+    assert_tk_app("destroying a window should release its on_close callback") do
+      app.tcl_eval('toplevel .t_release')
+      baseline = app.interp.callback_ids.length
+
+      app.on_close(window: '.t_release') { }
+      assert_equal baseline + 1, app.interp.callback_ids.length
+
+      app.destroy('.t_release')
+
+      assert_equal baseline, app.interp.callback_ids.length,
+        "destroying the window should release the on_close callback"
+    end
+  end
+
+  def test_on_close_rebind_does_not_leak_callbacks
+    assert_tk_app("calling on_close again for the same window should replace, not accumulate") do
+      app.tcl_eval('toplevel .t_rebind')
+      baseline = app.interp.callback_ids.length
+
+      app.on_close(window: '.t_rebind') { }
+      5.times { app.on_close(window: '.t_rebind') { } }
+
+      assert_equal baseline + 1, app.interp.callback_ids.length,
+        "rebinding on_close should replace, not accumulate, the registered callback"
+      app.destroy('.t_rebind')
+    end
+  end
+
+  def test_on_close_multiple_toplevels_are_independent
+    assert_tk_app("two toplevels should each get their own independent on_close handler") do
+      app.tcl_eval('toplevel .t_a')
+      app.tcl_eval('toplevel .t_b')
+      fired_a = false
+      fired_b = false
+
+      app.on_close(window: '.t_a') { fired_a = true }
+      app.on_close(window: '.t_b') { fired_b = true }
+
+      script_a = app.tcl_eval('wm protocol .t_a WM_DELETE_WINDOW')
+      app.tcl_eval(script_a)
+
+      assert fired_a, ".t_a's on_close should have fired"
+      refute fired_b, ".t_b's on_close should not have fired from .t_a's close"
+
+      app.destroy('.t_a')
+      app.destroy('.t_b')
+    end
+  end
 end

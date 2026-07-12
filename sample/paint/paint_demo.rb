@@ -218,8 +218,7 @@ class PaintDemo
 
     select_tool(:brush)
 
-    @app.command(:wm, :protocol, @tools_path, 'WM_DELETE_WINDOW',
-                 proc { @app.command(:wm, :withdraw, @tools_path) })
+    @app.on_close(window: @tools_path) { @app.command(:wm, :withdraw, @tools_path) }
   end
 
   def setup_palette_window
@@ -241,8 +240,7 @@ class PaintDemo
       btn.bind('ButtonPress-1') { select_color(color) }
     end
 
-    @app.command(:wm, :protocol, @palette_path, 'WM_DELETE_WINDOW',
-                 proc { @app.command(:wm, :withdraw, @palette_path) })
+    @app.on_close(window: @palette_path) { @app.command(:wm, :withdraw, @palette_path) }
   end
 
   def create_edit_menu(menubar)

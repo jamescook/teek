@@ -840,6 +840,32 @@ module Teek
       @interp.tcl_eval("bind #{widget} #{event_str} {}")
     end
 
+    # Register a handler for the window manager's close button
+    # (WM_DELETE_WINDOW - the titlebar close box, Cmd-W, Alt-F4, etc.,
+    # depending on platform).
+    #
+    # Tk's own default behavior (destroy the window) only applies when
+    # nothing else has claimed this protocol - setting a handler here
+    # replaces it, so the block is entirely responsible for deciding
+    # whether the window actually closes. Call {#destroy} yourself if you
+    # want it to; do nothing (or show a confirmation first) if you don't.
+    #
+    # @example Confirm before quitting
+    #   app.on_close { app.destroy('.') if app.message_box(message: 'Quit?', type: :yesno) == :yes }
+    # @example A toplevel that just hides instead of closing
+    #   app.on_close(window: settings_window) { app.tcl_eval("wm withdraw #{settings_window}") }
+    #
+    # @param window [String] Tk window path (default: the root window)
+    # @yield called when the window's close button is pressed
+    # @return [void]
+    # @see #bind
+    # @see https://www.tcl-lang.org/man/tcl9.0/TkCmd/wm.htm#M46 wm protocol
+    def on_close(window: '.', &block)
+      cb = register_callback(block, relay_break_continue: false)
+      @callback_registry.reconcile([:wm_protocol, window]) { |before| before.merge('WM_DELETE_WINDOW' => cb) }
+      @interp.tcl_eval("wm protocol #{window} WM_DELETE_WINDOW {ruby_callback #{cb}}")
+    end
+
     # Register a widget as a file drop target.
     # After registration, dropping files onto the widget generates a single
     # +<<DropFile>>+ virtual event with all file paths as a Tcl list in the
