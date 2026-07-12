@@ -360,13 +360,19 @@ module Teek
     # actually perform their Tcl work without re-entering dispatch) and by
     # {#command}'s own generic fallback. Any Proc here still gets
     # registered as a real, working callback (positional: bind-shaped,
-    # relay_break_continue: true; kwarg, via {#tcl_value}: option-shaped,
+    # relay_break_continue: true; kwarg, via {#tcl_arg_value}: option-shaped,
     # relay_break_continue: false) - it just isn't tracked for release.
     # Prefer {#command}; call this directly only from within an
     # interceptor.
+    #
+    # Built as a plain argv array passed to {Interp#tcl_invoke}
+    # (Tcl_EvalObjv) rather than a joined string handed to +tcl_eval+, so
+    # no value needs escaping - unbalanced braces, +$+, +[+, newlines,
+    # whatever, all pass through verbatim. There is nothing here for a
+    # value to "break out" of.
     # @return [String] the Tcl result
     def raw_command(cmd, *args, **kwargs)
-      parts = [cmd.to_s]
+      argv = [cmd.to_s]
       i = 0
       while i < args.length
         arg = args[i]
@@ -377,21 +383,21 @@ module Teek
             subs << args[i + 1]
             i += 1
           end
-          parts << if subs.empty?
-                     "{ruby_callback #{id}}"
-                   else
-                     "{ruby_callback #{id} #{subs.join(' ')}}"
-                   end
+          argv << if subs.empty?
+                    "ruby_callback #{id}"
+                  else
+                    "ruby_callback #{id} #{subs.join(' ')}"
+                  end
         else
-          parts << tcl_value(arg)
+          argv << tcl_arg_value(arg)
         end
         i += 1
       end
       kwargs.each do |key, value|
-        parts << "-#{key}"
-        parts << tcl_value(value)
+        argv << "-#{key}"
+        argv << tcl_arg_value(value)
       end
-      @interp.tcl_eval(parts.join(' '))
+      @interp.tcl_invoke(*argv)
     end
 
     # {#command}'s fallback for any call that no registered interceptor
@@ -1030,31 +1036,28 @@ module Teek
       @interp.tcl_eval("bind all <Destroy> {ruby_callback #{@destroy_cb_id} %W}")
     end
 
-    def tcl_value(value)
+    # Resolves a Ruby value to the plain string {#raw_command} passes as
+    # one +tcl_invoke+ argv element - no Tcl quoting of any kind, since
+    # +tcl_invoke+ (Tcl_EvalObjv) never re-parses its arguments.
+    def tcl_arg_value(value)
       case value
       when Proc
-        # A Proc reaching tcl_value is always a kwarg/option value (e.g.
-        # -command), never a bind script - see #register_callback's note
-        # on why break/continue can't be relayed there.
+        # A Proc reaching tcl_arg_value is always a kwarg/option value
+        # (e.g. -command), never a bind script - see #register_callback's
+        # note on why break/continue can't be relayed there.
         id = register_callback(value, relay_break_continue: false)
-        "{ruby_callback #{id}}"
+        "ruby_callback #{id}"
       when Symbol
         value.to_s
       when Array
-        "{#{value.map { |v| tcl_value(v) }.join(' ')}}"
+        # Each element becomes its own well-formed Tcl list element via
+        # make_list (which quotes only where needed), so this produces a
+        # single argv value that Tk parses back out as a proper list -
+        # nested arrays fall out for free, since make_list happily
+        # accepts an already-list-shaped string as one of its elements.
+        make_list(*value.map { |v| tcl_arg_value(v) })
       else
-        tcl_quote_string(value.to_s)
-      end
-    end
-
-    # Brace-quote a string for Tcl, falling back to double-quote quoting
-    # when the string ends with a backslash (Tcl treats \} as an escaped
-    # brace, preventing the closing brace from terminating the group).
-    def tcl_quote_string(s)
-      if s.end_with?('\\')
-        '"' + s.gsub(/[\\\[\]$"]/) { |c| "\\#{c}" } + '"'
-      else
-        "{#{s}}"
+        value.to_s
       end
     end
   end

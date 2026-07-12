@@ -88,7 +88,7 @@ class TestCallbackControlFlow < Minitest::Test
   #
   # App#bind wraps every callback through App#register_callback, which
   # installs the catch/throw machinery above. App#command's own positional
-  # and kwarg Proc handling (and the raw #tcl_value Proc path it shares
+  # and kwarg Proc handling (and the raw #tcl_arg_value Proc path it shares
   # with any caller that isn't create_widget/Widget#command) may register
   # procs directly via Interp#register_callback instead, bypassing that
   # wrapper - so throw :teek_break there wouldn't be caught, and would
