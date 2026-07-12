@@ -98,9 +98,9 @@ class Theremin
 
     # File menu
     file_menu = @app.menu('.menubar.file')
-    menubar.add_cascade(label: 'File', menu: file_menu)
-    file_menu.add_command(label: 'Quit', accelerator: 'Cmd+Q',
-                           command: proc { @running = false; @app.command(:destroy, '.') })
+    menubar.command(:add, :cascade, label: 'File', menu: file_menu)
+    file_menu.command(:add, :command, label: 'Quit', accelerator: 'Cmd+Q',
+                       command: proc { @running = false; @app.command(:destroy, '.') })
   end
 
   def setup_input

@@ -113,14 +113,14 @@ menubar = app.menu('.menubar')
 app.command('.', :configure, menu: menubar)
 
 file_menu = app.menu('.menubar.file')
-menubar.add_cascade(label: 'File', menu: file_menu)
-file_menu.add_command(label: 'Quit', command: proc { app.command(:destroy, '.') })
+menubar.command(:add, :cascade, label: 'File', menu: file_menu)
+file_menu.command(:add, :command, label: 'Quit', command: proc { app.command(:destroy, '.') })
 
 app.show
 app.mainloop
 ```
 
-`app.menu(path)` creates the underlying Tk menu the first time it's called for a given path (tearoff disabled) and just returns a handle to it on later calls, so it's safe to call again whenever you're about to rebuild a menu's entries (e.g. on every right-click). It also tracks each entry's `command:` callback and releases it when the entry is replaced, deleted, or the menu itself is destroyed — building menus with raw `app.command(:menu, ...)` works too, but any `command:` proc attached that way is only released when the menu is destroyed, not when an entry is rebuilt in place.
+`app.menu(path)` creates the underlying Tk menu the first time it's called for a given path (tearoff disabled) and just returns a handle to it on later calls, so it's safe to call again whenever you're about to rebuild a menu's entries (e.g. on every right-click). Every entry-mutating call — `add`, `insert`, `entryconfigure`, `delete` — tracks any `command:` callback and releases it when the entry is replaced, deleted, or the menu itself is destroyed. That's true whether you call it through the `Widget` handle (`menubar.command(:add, ...)`) or as a raw `app.command(path, :add, ...)`; both go through the same tracking, so there's no less-safe way to build a menu.
 
 > **macOS note:** On macOS, Tk always displays a menu bar. If you don't configure one, Tk shows a default menu with items like "Run Widget Demo" that are meant for the Tcl interpreter shell. Attach a custom menu bar (even an empty one) to suppress it. See the [TkDocs menu tutorial](https://tkdocs.com/tutorial/menus.html) for details.
 

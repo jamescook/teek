@@ -242,30 +242,30 @@ class PaintDemo
 
   def create_edit_menu(menubar)
     edit_menu = @app.menu("#{menubar}.edit")
-    menubar.add_cascade(label: 'Edit', menu: edit_menu)
-    edit_menu.add_command(label: 'Undo', accelerator: 'Ctrl+Z', command: proc { undo })
-    edit_menu.add_command(label: 'Redo', accelerator: 'Ctrl+Shift+Z', command: proc { redo_action })
-    edit_menu.add_separator
-    edit_menu.add_command(label: 'Clear Layer', command: proc { clear_active_layer })
-    edit_menu.add_command(label: 'Clear All Layers', command: proc { clear_canvas })
+    menubar.command(:add, :cascade, label: 'Edit', menu: edit_menu)
+    edit_menu.command(:add, :command, label: 'Undo', accelerator: 'Ctrl+Z', command: proc { undo })
+    edit_menu.command(:add, :command, label: 'Redo', accelerator: 'Ctrl+Shift+Z', command: proc { redo_action })
+    edit_menu.command(:add, :separator)
+    edit_menu.command(:add, :command, label: 'Clear Layer', command: proc { clear_active_layer })
+    edit_menu.command(:add, :command, label: 'Clear All Layers', command: proc { clear_canvas })
   end
 
   def create_layer_menu(menubar)
     layer_menu = @app.menu("#{menubar}.layer")
-    menubar.add_cascade(label: 'Layer', menu: layer_menu)
-    layer_menu.add_command(label: 'Add Layer', command: proc { add_layer })
-    layer_menu.add_command(label: 'Delete Layer', command: proc { delete_layer })
-    layer_menu.add_separator
-    layer_menu.add_command(label: 'Toggle Visibility', command: proc { toggle_layer_visibility })
-    layer_menu.add_separator
-    layer_menu.add_command(label: 'Flatten All', command: proc { flatten_layers })
+    menubar.command(:add, :cascade, label: 'Layer', menu: layer_menu)
+    layer_menu.command(:add, :command, label: 'Add Layer', command: proc { add_layer })
+    layer_menu.command(:add, :command, label: 'Delete Layer', command: proc { delete_layer })
+    layer_menu.command(:add, :separator)
+    layer_menu.command(:add, :command, label: 'Toggle Visibility', command: proc { toggle_layer_visibility })
+    layer_menu.command(:add, :separator)
+    layer_menu.command(:add, :command, label: 'Flatten All', command: proc { flatten_layers })
   end
 
   def create_window_menu(menubar)
     window_menu = @app.menu("#{menubar}.window")
-    menubar.add_cascade(label: 'Window', menu: window_menu)
-    window_menu.add_command(label: 'Show Tools', command: proc { @app.command(:wm, :deiconify, @tools_path) })
-    window_menu.add_command(label: 'Show Colors', command: proc { @app.command(:wm, :deiconify, @palette_path) })
+    menubar.command(:add, :cascade, label: 'Window', menu: window_menu)
+    window_menu.command(:add, :command, label: 'Show Tools', command: proc { @app.command(:wm, :deiconify, @tools_path) })
+    window_menu.command(:add, :command, label: 'Show Colors', command: proc { @app.command(:wm, :deiconify, @palette_path) })
   end
 
   def add_tooltip(widget, text)

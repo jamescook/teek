@@ -15,31 +15,32 @@ class TestMenuStress < Minitest::Test
     assert_tk_app("menu should survive many mixed mutations without crashing or leaking") do
       baseline = app.interp.callback_ids.length
 
-      app.tcl_eval("menu .stress")
       menu = app.menu('.stress')
       fired = 0
+
+      empty = -> { app.tcl_eval("#{menu} index end") == 'none' }
 
       300.times do |i|
         case i % 7
         when 0
-          menu.clear
+          menu.command(:delete, 0, :end) unless empty.call
         when 1
-          menu.add_command(label: "cmd#{i}", command: proc { fired += 1 })
+          menu.command(:add, :command, label: "cmd#{i}", command: proc { fired += 1 })
         when 2
-          menu.add_checkbutton(label: "chk#{i}", command: proc { fired += 1 })
+          menu.command(:add, :checkbutton, label: "chk#{i}", command: proc { fired += 1 })
         when 3
-          menu.add_radiobutton(label: "rad#{i}", command: proc { fired += 1 })
+          menu.command(:add, :radiobutton, label: "rad#{i}", command: proc { fired += 1 })
         when 4
-          menu.add_separator
-          menu.add_command(label: "post_sep#{i}", command: proc { fired += 1 })
-          menu.insert(0, :command, label: "inserted#{i}", command: proc { fired += 1 }) unless menu.empty?
+          menu.command(:add, :separator)
+          menu.command(:add, :command, label: "post_sep#{i}", command: proc { fired += 1 })
+          menu.command(:insert, 0, :command, label: "inserted#{i}", command: proc { fired += 1 }) unless empty.call
         when 5
-          unless menu.empty?
-            menu.entryconfigure(0, command: proc { fired += 1 })
+          unless empty.call
+            menu.command(:entryconfigure, 0, command: proc { fired += 1 })
           end
         when 6
-          unless menu.empty?
-            menu.delete(0)
+          unless empty.call
+            menu.command(:delete, 0)
           end
         end
       end

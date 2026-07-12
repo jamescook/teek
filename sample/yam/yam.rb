@@ -127,41 +127,41 @@ class Minesweeper
 
   # Tk menus: app.menu(path) creates the menu widget (or hands back the
   # existing one at that path), attach it to the window with "configure
-  # -menu", then add items. Each item's command: proc is registered as a
-  # callback under the hood -- "ruby_callback <id>" in Tcl invokes the
-  # corresponding Ruby proc -- and app.menu tracks and releases it if the
-  # entry is later replaced or the menu is rebuilt.
+  # -menu", then add items with plain app.command calls. Each item's
+  # command: proc is registered as a callback under the hood --
+  # "ruby_callback <id>" in Tcl invokes the corresponding Ruby proc -- and
+  # app.command tracks and releases it if the entry is later replaced or
+  # the menu is rebuilt.
   def build_menu
     menubar = @app.menu('.menubar')
     @app.command('.', :configure, menu: menubar)
     game_menu = @app.menu('.menubar.game')
-    menubar.add_cascade(label: 'Game', menu: game_menu)
+    menubar.command(:add, :cascade, label: 'Game', menu: game_menu)
 
-    # "add_command" creates a clickable menu item.
+    # "add command" creates a clickable menu item.
     # -accelerator is cosmetic (shows "F2" in the menu) -- the actual
     # keybinding is set separately with "bind".
-    # With app.menu(), procs passed as command: are auto-registered as
-    # callbacks -- no need to manually call register_callback + interpolate
-    # the ID.
+    # Procs passed as command: are auto-registered as callbacks -- no need
+    # to manually call register_callback + interpolate the ID.
     new_game_proc = proc { |*| new_game }
-    game_menu.add_command(label: 'New Game', accelerator: 'F2', command: new_game_proc)
+    game_menu.command(:add, :command, label: 'New Game', accelerator: 'F2', command: new_game_proc)
     @app.command(:bind, '.', '<F2>', new_game_proc)
 
-    game_menu.add_separator
+    game_menu.command(:add, :separator)
 
-    # "add_radiobutton" items share a Tcl variable -- Tk automatically shows
+    # "add radiobutton" items share a Tcl variable -- Tk automatically shows
     # a bullet next to the selected one. The -variable points to a global
     # Tcl variable (:: prefix), and -value is what gets stored when selected.
     @level_var = '::ms_level'
     @app.command(:set, @level_var, @level)
     LEVELS.each_key do |lvl|
-      game_menu.add_radiobutton(label: lvl.capitalize, variable: @level_var, value: lvl,
-                                 command: proc { |*| change_level(lvl) })
+      game_menu.command(:add, :radiobutton, label: lvl.capitalize, variable: @level_var, value: lvl,
+                         command: proc { |*| change_level(lvl) })
     end
 
-    game_menu.add_separator
+    game_menu.command(:add, :separator)
 
-    game_menu.add_command(label: 'Exit', command: proc { |*| @app.command(:destroy, '.') })
+    game_menu.command(:add, :command, label: 'Exit', command: proc { |*| @app.command(:destroy, '.') })
   end
 
   # The header bar uses "pack" geometry: mine counter on the left, face

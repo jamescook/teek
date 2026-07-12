@@ -6,10 +6,9 @@ require_relative 'teek/platform'
 require_relative 'teek/ractor_support'
 require_relative 'teek/widget'
 require_relative 'teek/callback_registry'
-require_relative 'teek/tag_bindable'
-require_relative 'teek/menu_behavior'
-require_relative 'teek/text_behavior'
-require_relative 'teek/treeview_behavior'
+require_relative 'teek/command_interceptors'
+require_relative 'teek/menu_interceptor'
+require_relative 'teek/tag_bind_interceptor'
 require_relative 'teek/photo'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
@@ -34,6 +33,13 @@ require_relative 'teek/photo'
 # @see Teek::App
 # @see Teek::BackgroundWork
 module Teek
+
+  # Raised by App#command when more than one registered CommandInterceptor
+  # claims the same call. The message names each matching interceptor's
+  # label so it's clear which ones collided - built-in shape-matching bug,
+  # a custom interceptor overlapping a built-in one, or two custom
+  # interceptors overlapping each other.
+  class AmbiguousCommandError < RuntimeError; end
 
   def self.bool_to_tcl(val)
     val ? "1" : "0"
@@ -63,8 +69,7 @@ module Teek
       @widgets = {}
       @widget_counters = Hash.new(0)
       @callback_registry = Teek::CallbackRegistry.new(self)
-      @menu_command_warned = {}
-      @tag_bind_warned = {}
+      @widget_types_by_path = {}
       @_pending_exception = nil
       debug ||= !!ENV['TEEK_DEBUG']
       track_widgets = true if debug
@@ -83,6 +88,14 @@ module Teek
     # Prefer {#command} for building commands from Ruby values; use this
     # when you need Tcl-level features like variable substitution or
     # inline expressions that {#command} can't express.
+    # @note Any callback embedded in +script+ (e.g. a hand-built
+    #   +ruby_callback <id>+) is on you to register and release - none of
+    #   {#command}'s tracking applies here. Creating a widget this way
+    #   (instead of via {#command}/{#create_widget}/{#menu}) also means its
+    #   type is never recorded, so a registered {CommandInterceptors} entry
+    #   won't engage for it even on later, ordinary {#command} calls -
+    #   create widgets through those methods and reach for +tcl_eval+ for
+    #   everything else.
     # @param script [String] Tcl code to evaluate
     # @return [String] the Tcl result
     def tcl_eval(script)
@@ -271,34 +284,57 @@ module Teek
       Teek.bool_to_tcl(val)
     end
 
-    # Tk menu entry types that take a `-command` option, for the
-    # unmanaged-menu-callback warning in {#command}.
-    MENU_ENTRY_TYPES = %w[command cascade checkbutton radiobutton separator].freeze
-    private_constant :MENU_ENTRY_TYPES
-
-    # Build and evaluate a Tcl command from Ruby values.
-    # Positional args are converted: Symbols pass bare, Procs become
-    # callbacks, everything else is brace-quoted. Keyword args become
-    # +-key value+ option pairs.
+    # Build and evaluate a Tcl command from Ruby values. Positional args
+    # are converted: Symbols pass bare, Procs become callbacks, everything
+    # else is brace-quoted. Keyword args become +-key value+ option pairs.
+    #
+    # Any Proc-valued arg or kwarg is tracked and released on overwrite,
+    # explicit removal, or the owning widget's destruction - there is no
+    # unsafe way to attach a callback through this method, regardless of
+    # whether the call happens to match a registered per-widget-type
+    # interceptor (see {CommandInterceptors}) or falls through to the
+    # generic default. Widget type is inferred automatically from calls
+    # shaped like widget creation (a {WIDGET_COMMANDS} name as +cmd+, the
+    # new path as the first positional arg) - not tied to +track_widgets+.
     # @example
     #   app.command(:pack, '.btn', side: :left, padx: 10)
     #   # evaluates: pack .btn -side left -padx {10}
-    #
-    # @note This is a dumb, general-purpose Tcl builder - it does not
-    #   understand menus. Passing a `command:` Proc to a menu's `add`,
-    #   `insert`, or `entryconfigure` here registers a real, working
-    #   callback, but nothing ever releases it if the entry is later
-    #   replaced or the menu is rebuilt in place. teek warns (once per
-    #   path) when it recognizes this shape; use {#menu} instead, which
-    #   tracks and releases these automatically.
     # @param cmd [Symbol, String] the Tcl command name
     # @param args positional arguments
     # @param kwargs keyword arguments mapped to +-key value+ pairs
     # @return [String] the Tcl result
+    # @raise [AmbiguousCommandError] if more than one registered
+    #   interceptor claims the same call - see {CommandInterceptors}
     def command(cmd, *args, **kwargs)
-      warn_if_unmanaged_menu_command(cmd, args, kwargs)
-      warn_if_unmanaged_tag_bind(cmd, args)
+      record_widget_type(cmd, args)
 
+      type = @widget_types_by_path[cmd.to_s]
+      entries = type ? CommandInterceptors.for_type(type) : []
+      matches = entries.map { |entry| [entry.label, entry.block.call(self, cmd, args, kwargs)] }
+                        .reject { |_label, result| result.nil? }
+
+      case matches.size
+      when 0 then raw_command(cmd, *args, **track_widget_option_callbacks(cmd, args, kwargs))
+      when 1 then matches.first.last
+      else
+        labels = matches.map(&:first).join(', ')
+        raise AmbiguousCommandError,
+          "#{matches.size} command interceptors (#{labels}) matched #{cmd.inspect} #{args.inspect} " \
+          "for widget type #{type.inspect}"
+      end
+    end
+
+    # The dumb Tcl builder underneath {#command} - no interceptor lookup,
+    # no per-widget-type awareness. Used internally by interceptors (to
+    # actually perform their Tcl work without re-entering dispatch) and by
+    # {#command}'s own generic fallback. Any Proc here still gets
+    # registered as a real, working callback (positional: bind-shaped,
+    # relay_break_continue: true; kwarg, via {#tcl_value}: option-shaped,
+    # relay_break_continue: false) - it just isn't tracked for release.
+    # Prefer {#command}; call this directly only from within an
+    # interceptor.
+    # @return [String] the Tcl result
+    def raw_command(cmd, *args, **kwargs)
       parts = [cmd.to_s]
       i = 0
       while i < args.length
@@ -327,29 +363,60 @@ module Teek
       @interp.tcl_eval(parts.join(' '))
     end
 
-    # Register any Proc-valued kwarg (e.g. command:, validatecommand:) as a
-    # callback tracked under +path+, releasing it if reconfigured or when
-    # the widget is destroyed. The tracked-callback equivalent of {#bind}
-    # for widget-level options instead of event bindings - a widget's own
-    # options are never silently renumbered or invalidated out from under
-    # us the way menu entries are, so this reuses bind's cheap in-memory
-    # {CallbackRegistry#reconcile} style rather than menu's live-scan one.
+    # {#command}'s fallback for any call that no registered interceptor
+    # claimed: registers any Proc-valued kwarg (e.g. command:,
+    # validatecommand:) as a callback tracked under +cmd+, releasing it if
+    # reconfigured or when the widget is destroyed. A widget's own options
+    # are never silently renumbered or invalidated out from under us the
+    # way menu entries are, so this uses a cheap in-memory
+    # {CallbackRegistry#reconcile} rather than a live-scan one.
     #
-    # Called by {#create_widget} and {Widget#command}, which both know
-    # +path+ unambiguously; not meant to be called directly. Building a Tcl
-    # command via the raw {#command} with a widget path you construct
-    # yourself does not go through this - see {#command}'s note.
-    # @param path [String] the widget path these kwargs configure
-    # @param kwargs [Hash] keyword arguments about to be passed to {#command}
+    # Tracked under the widget's own path, by +[*context, key]+, where
+    # +context+ is +args+ normalized to strings - except a bare +configure+
+    # (or widget creation - the container is the new widget's path, not the
+    # +cmd+ used to create it) normalizes to an empty context, since all
+    # three address the same underlying option namespace and must replace
+    # each other. Any other subcommand (e.g. a treeview's +heading col+)
+    # keeps its own args as part of the key, so two different targets
+    # sharing an option name (two columns both using +command:+) don't
+    # collide.
     # @return [Hash] +kwargs+ with any Proc values swapped for the Tcl
-    #   script {#command} embeds
-    def track_widget_option_callbacks(path, kwargs)
+    #   script {#raw_command} embeds
+    def track_widget_option_callbacks(cmd, args, kwargs)
       proc_kwargs = kwargs.select { |_, value| value.is_a?(Proc) }
       return kwargs if proc_kwargs.empty?
 
-      ids = proc_kwargs.transform_values { |value| register_callback(value, relay_break_continue: false) }
-      @callback_registry.reconcile([:widget_option, path]) { |before| before.merge(ids) }
-      kwargs.merge(ids.transform_values { |id| "ruby_callback #{id}" })
+      if WIDGET_COMMANDS.include?(cmd.to_s) && args[0].is_a?(String)
+        widget_path = args[0]
+        context = []
+      else
+        widget_path = cmd.to_s
+        context = (args.empty? || args[0].to_s == 'configure') ? [] : args.map(&:to_s)
+      end
+
+      ids = {}
+      replacements = {}
+      proc_kwargs.each do |key, value|
+        id = register_callback(value, relay_break_continue: false)
+        ids[context + [key.to_s]] = id
+        replacements[key] = "ruby_callback #{id}"
+      end
+      @callback_registry.reconcile([:widget_option, widget_path]) { |before| before.merge(ids) }
+      kwargs.merge(replacements)
+    end
+
+    # Records that +args[0]+ is a widget of type +cmd+, if this call looks
+    # like widget creation (+cmd+ is a known {WIDGET_COMMANDS} entry). Not
+    # tied to +track_widgets+ - this is what lets {#command} look up a
+    # registered interceptor for a bare path string on any later call,
+    # regardless of how the widget was created.
+    # @return [void]
+    def record_widget_type(cmd, args)
+      return unless WIDGET_COMMANDS.include?(cmd.to_s)
+      path = args[0]
+      return unless path.is_a?(String)
+
+      @widget_types_by_path[path] = cmd.to_s
     end
 
     # Create a Tk widget and return a {Widget} wrapper.
@@ -365,8 +432,7 @@ module Teek
     #   stable, caller-chosen path and reused across many calls (see {#menu})
     #   rather than freshly created each time
     # @param kwargs keyword arguments passed to the Tk widget command
-    # @return [Widget] the created widget, extended with whatever behavior
-    #   module is registered for +type+ (see {Widget.register_behavior})
+    # @return [Widget] the created widget
     #
     # @example Auto-named
     #   btn = app.create_widget('ttk::button', text: 'Click')
@@ -383,13 +449,16 @@ module Teek
     def create_widget(type, path = nil, parent: nil, idempotent: false, **kwargs)
       type_s = type.to_s
       path ||= next_widget_path(type_s, parent)
-      unless idempotent && tcl_eval("winfo exists #{path}") == '1'
-        command(type_s, path, **track_widget_option_callbacks(path, kwargs))
+      if idempotent && tcl_eval("winfo exists #{path}") == '1'
+        # Still record the type even though creation itself is skipped - a
+        # path that already existed (e.g. built with a raw tcl_eval) is
+        # otherwise never seen by #command, so no interceptor could ever
+        # engage for it.
+        record_widget_type(type_s, [path])
+      else
+        command(type_s, path, **kwargs)
       end
-      widget = Widget.new(self, path)
-      behavior = Widget.behavior_for(type_s)
-      widget.extend(behavior) if behavior
-      widget
+      Widget.new(self, path)
     end
 
     # Wrap a Tk menu at the given path, creating it (tearoff disabled) if
@@ -399,8 +468,7 @@ module Teek
     # @param path [String] Tk menu path (e.g. ".card.ctx")
     # @param kwargs extra options for the underlying `menu` command, used
     #   only the first time this path is created
-    # @return [Widget] extended with menu entry methods (add_command, delete, ...)
-    # @see MenuBehavior
+    # @return [Widget]
     def menu(path, **kwargs)
       create_widget(:menu, path, idempotent: true, tearoff: 0, **kwargs)
     end
@@ -903,46 +971,6 @@ module Teek
         end
       })
       @interp.tcl_eval("bind all <Destroy> {ruby_callback #{@destroy_cb_id} %W}")
-    end
-
-    # Diagnostic only - registers nothing, tracks nothing, changes no
-    # behavior. Recognizes a `-command` Proc being attached to a menu entry
-    # through the raw command() path (bypassing #menu) and warns once per
-    # path, since that Proc will leak the moment this entry is replaced or
-    # the menu is rebuilt.
-    def warn_if_unmanaged_menu_command(path, args, kwargs)
-      return unless kwargs[:command].is_a?(Proc)
-      return if @menu_command_warned[path]
-
-      sub = args[0].to_s
-      looks_like_menu_entry =
-        case sub
-        when 'add' then MENU_ENTRY_TYPES.include?(args[1].to_s)
-        when 'insert' then MENU_ENTRY_TYPES.include?(args[2].to_s)
-        when 'entryconfigure' then true
-        else false
-        end
-      return unless looks_like_menu_entry
-
-      @menu_command_warned[path] = true
-      warn "teek: command: proc passed to app.command(#{path.inspect}, :#{sub}, ...) is not " \
-           "tracked and will leak if this entry is replaced or the menu is rebuilt in place. " \
-           "Use app.menu(#{path.inspect}) instead - it releases these automatically."
-    end
-
-    # Diagnostic only - same rationale as {#warn_if_unmanaged_menu_command}.
-    # Recognizes a Proc being attached to a `tag bind` call through the raw
-    # command() path (bypassing a widget's #tag_bind) and warns once per
-    # path.
-    def warn_if_unmanaged_tag_bind(path, args)
-      return if @tag_bind_warned[path]
-      return unless args[0].to_s == 'tag' && args[1].to_s == 'bind'
-      return unless args.any? { |a| a.is_a?(Proc) }
-
-      @tag_bind_warned[path] = true
-      warn "teek: a Proc passed to app.command(#{path.inspect}, :tag, :bind, ...) is not " \
-           "tracked and will leak if this tag binding is replaced or the tag is deleted. " \
-           "Use the widget's #tag_bind instead - it releases these automatically."
     end
 
     def tcl_value(value)

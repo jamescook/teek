@@ -146,7 +146,7 @@ class TestCallbackControlFlow < Minitest::Test
     assert_tk_app("throw :teek_break in a menu entry's command should not raise") do
       fired = false
       menu = app.menu('.m_break')
-      menu.add_command(label: 'Go', command: proc { |*|
+      menu.command(:add, :command, label: 'Go', command: proc { |*|
         fired = true
         throw :teek_break
       })

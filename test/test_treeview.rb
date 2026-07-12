@@ -1,16 +1,17 @@
 # frozen_string_literal: true
 
-# Tests for ttk::treeview callback cleanup across its two independent leak
-# surfaces:
+# Tests for ttk::treeview callback tracking across its two independent leak
+# surfaces, both reached through plain app.command() calls - there's no
+# separate wrapper method to know about.
 #
-# - Tag bindings (tag_bind/tag_unbind/tag_delete) come from Teek::TagBindable
-#   (shared with Text - confirmed byte-identical Tcl shape via tag bind/tag
-#   names on both widgets), so this suite doesn't re-prove the shared
-#   mechanism as exhaustively as test_text_tags.rb already does - just that
-#   it really works on a treeview too.
-# - Column heading commands (#heading) are a separate, option-replacement
-#   shaped surface, tracked per column so two columns' commands can't
-#   collide - this suite covers that in full.
+# - Tag bindings: recognized by the shared text/treeview tag-bind
+#   interceptor (byte-identical Tcl shape to Text's) - this suite doesn't
+#   re-prove the shared mechanism as exhaustively as test_text_tags.rb
+#   already does, just that it really works on a treeview too.
+# - Column heading commands are a plain widget-option shape (`heading col
+#   command: proc{}`), handled by app.command's generic option-callback
+#   tracking - the column is part of the tracking key, so two columns'
+#   commands can't collide - this suite covers that in full.
 #
 # Interp#callback_ids is a plain reader on the interpreter's callback
 # table - see also test_bind.rb, test_menu.rb, test_text_tags.rb.
@@ -21,22 +22,22 @@ require_relative 'tk_test_helper'
 class TestTreeview < Minitest::Test
   include TeekTestHelper
 
-  # -- tag bindings (shared TagBindable mechanism) ---------------------------
+  # -- tag bindings -----------------------------------------------------------
 
   def test_tag_bind_fires_for_the_focused_item
-    assert_tk_app("tag_bind should fire for the item that currently has treeview focus") do
+    assert_tk_app("a tag binding added via raw app.command should fire for the item that currently has treeview focus") do
       app.show
-      tv = app.create_widget('ttk::treeview')
-      tv.pack
-      item = tv.command(:insert, '', :end, text: 'Row 1', tags: 'important')
+      app.command('ttk::treeview', '.tv1')
+      app.command(:pack, '.tv1')
+      item = app.command('.tv1', :insert, '', :end, text: 'Row 1', tags: 'important')
 
       fired = false
-      tv.tag_bind('important', 'Key-a') { fired = true }
+      app.command('.tv1', 'tag', 'bind', 'important', '<Key-a>', proc { fired = true })
 
-      tv.command(:focus, item)
-      app.tcl_eval("focus -force #{tv.path}")
+      app.command('.tv1', :focus, item)
+      app.tcl_eval("focus -force .tv1")
       app.update
-      app.tcl_eval("event generate #{tv.path} <Key-a>")
+      app.tcl_eval("event generate .tv1 <Key-a>")
       app.update
 
       assert fired, "tag binding did not fire"
@@ -44,13 +45,13 @@ class TestTreeview < Minitest::Test
   end
 
   def test_tag_bind_rebind_does_not_leak_callbacks
-    assert_tk_app("rebinding the same tag+event should not grow callback count") do
-      tv = app.create_widget('ttk::treeview')
+    assert_tk_app("rebinding the same tag+event via raw app.command should not grow callback count") do
+      app.command('ttk::treeview', '.tv2')
 
-      tv.tag_bind('mytag', 'Button-1') { }
+      app.command('.tv2', 'tag', 'bind', 'mytag', '<Button-1>', proc { })
       baseline = app.interp.callback_ids.length
 
-      5.times { tv.tag_bind('mytag', 'Button-1') { } }
+      5.times { app.command('.tv2', 'tag', 'bind', 'mytag', '<Button-1>', proc { }) }
 
       assert_equal baseline, app.interp.callback_ids.length,
         "rebinding should replace, not accumulate, the registered callback"
@@ -58,14 +59,14 @@ class TestTreeview < Minitest::Test
   end
 
   def test_tag_delete_releases_callbacks
-    assert_tk_app("tag_delete should release that tag's bound callbacks") do
-      tv = app.create_widget('ttk::treeview')
+    assert_tk_app("deleting a tag via raw app.command should release that tag's bound callbacks") do
+      app.command('ttk::treeview', '.tv3')
       baseline = app.interp.callback_ids.length
 
-      tv.tag_bind('mytag', 'Button-1') { }
+      app.command('.tv3', 'tag', 'bind', 'mytag', '<Button-1>', proc { })
       assert_equal baseline + 1, app.interp.callback_ids.length
 
-      tv.tag_delete('mytag')
+      app.command('.tv3', 'tag', 'delete', 'mytag')
 
       assert_equal baseline, app.interp.callback_ids.length
     end
@@ -74,15 +75,15 @@ class TestTreeview < Minitest::Test
   # -- column heading commands ------------------------------------------------
 
   def test_heading_command_still_fires
-    assert_tk_app("a tracked heading command should still actually fire") do
+    assert_tk_app("a heading command set via raw app.command should still actually fire") do
       fired = false
-      tv = app.create_widget('ttk::treeview', columns: 'col1')
-      tv.heading('#0', text: 'Tree', command: proc { fired = true })
+      app.command('ttk::treeview', '.tv4', columns: 'col1')
+      app.command('.tv4', 'heading', '#0', text: 'Tree', command: proc { fired = true })
 
       # Tk has no "invoke this heading" command - read back the embedded
       # script and eval it directly, mirroring what Tk itself runs on a
       # real header click.
-      script = app.tcl_eval("#{tv.path} heading #0 -command")
+      script = app.tcl_eval(".tv4 heading #0 -command")
       app.tcl_eval(script)
 
       assert fired, "heading command did not fire"
@@ -90,28 +91,28 @@ class TestTreeview < Minitest::Test
   end
 
   def test_heading_columns_tracked_independently
-    assert_tk_app("two columns' heading commands should be tracked independently") do
-      tv = app.create_widget('ttk::treeview', columns: 'col1 col2')
+    assert_tk_app("two columns' heading commands set via raw app.command should be tracked independently") do
+      app.command('ttk::treeview', '.tv5', columns: 'col1 col2')
       baseline = app.interp.callback_ids.length
 
-      tv.heading('#0', text: 'Tree', command: proc { })
-      tv.heading('col1', text: 'One', command: proc { })
+      app.command('.tv5', 'heading', '#0', text: 'Tree', command: proc { })
+      app.command('.tv5', 'heading', 'col1', text: 'One', command: proc { })
       assert_equal baseline + 2, app.interp.callback_ids.length,
         "both columns' heading commands should register their own callback"
 
-      tv.heading('#0', text: 'Tree', command: proc { })
+      app.command('.tv5', 'heading', '#0', text: 'Tree', command: proc { })
       assert_equal baseline + 2, app.interp.callback_ids.length,
         "replacing #0's heading command should not touch col1's"
     end
   end
 
   def test_heading_command_replace_releases_old_callback
-    assert_tk_app("reconfiguring a column's heading command should release the old callback") do
-      tv = app.create_widget('ttk::treeview', columns: 'col1')
-      tv.heading('col1', text: 'One', command: proc { })
+    assert_tk_app("reconfiguring a column's heading command via raw app.command should release the old callback") do
+      app.command('ttk::treeview', '.tv6', columns: 'col1')
+      app.command('.tv6', 'heading', 'col1', text: 'One', command: proc { })
       baseline = app.interp.callback_ids.length
 
-      tv.heading('col1', text: 'One', command: proc { })
+      app.command('.tv6', 'heading', 'col1', text: 'One', command: proc { })
 
       assert_equal baseline, app.interp.callback_ids.length,
         "reconfiguring should replace, not accumulate, the tracked callback"
@@ -120,11 +121,11 @@ class TestTreeview < Minitest::Test
 
   def test_heading_without_command_kwarg_does_not_affect_tracking
     assert_tk_app("a heading call that doesn't touch command: should not affect tracked callbacks") do
-      tv = app.create_widget('ttk::treeview', columns: 'col1')
-      tv.heading('col1', text: 'One', command: proc { })
+      app.command('ttk::treeview', '.tv7', columns: 'col1')
+      app.command('.tv7', 'heading', 'col1', text: 'One', command: proc { })
       baseline = app.interp.callback_ids.length
 
-      tv.heading('col1', text: 'One (renamed)')
+      app.command('.tv7', 'heading', 'col1', text: 'One (renamed)')
 
       assert_equal baseline, app.interp.callback_ids.length,
         "changing only text: should not release the still-live command"
@@ -134,15 +135,15 @@ class TestTreeview < Minitest::Test
   # -- destroy releases both surfaces -----------------------------------------
 
   def test_destroy_releases_both_tag_and_heading_callbacks
-    assert_tk_app("destroying a treeview should release both tag and heading callbacks") do
-      tv = app.create_widget('ttk::treeview', columns: 'col1')
+    assert_tk_app("destroying a treeview should release both tag and heading callbacks registered via raw app.command") do
+      app.command('ttk::treeview', '.tv8', columns: 'col1')
       baseline = app.interp.callback_ids.length
 
-      tv.tag_bind('mytag', 'Button-1') { }
-      tv.heading('col1', text: 'One', command: proc { })
+      app.command('.tv8', 'tag', 'bind', 'mytag', '<Button-1>', proc { })
+      app.command('.tv8', 'heading', 'col1', text: 'One', command: proc { })
       assert_equal baseline + 2, app.interp.callback_ids.length
 
-      tv.destroy
+      app.destroy('.tv8')
 
       assert_equal baseline, app.interp.callback_ids.length,
         "destroy should release tracked callbacks from both surfaces"
