@@ -50,9 +50,44 @@ module Teek
         @counter += 1
         "teek_photo#{@counter}"
       end
+
+      # @api private
+      #
+      # Builds the proc registered as this instance's finalizer. Must not
+      # close over +self+ (the Photo instance) or any of its ivars
+      # directly - a finalizer that references its own object keeps that
+      # object permanently reachable, so it would never actually be
+      # collected. +name+/+app+ are plain local captures instead.
+      #
+      # Finalizers can run on any thread, so the delete goes through
+      # {Interp#queue_for_main} (fire-and-forget) rather than #tcl_eval,
+      # which would block on a cross-thread queue wait if called from a
+      # background thread - risky from inside a GC finalizer. The +catch+
+      # means a concurrent explicit #delete (or an interpreter that's
+      # already torn down by the time this runs) is a silent no-op, not
+      # an error with nowhere to go.
+      def finalizer_for(name, app)
+        proc do
+          begin
+            app.interp.queue_for_main(proc { app.tcl_eval("catch {image delete #{name}}") })
+          rescue Teek::TclError
+            # interpreter already torn down - nothing to clean up
+          end
+        end
+      end
     end
 
     # Create a new photo image.
+    #
+    # The underlying Tk image is automatically deleted once this Photo
+    # object is garbage collected and nothing else references it - keep
+    # it around (an ivar, a collection, etc.) for as long as you need the
+    # image, the same contract as File or Socket. If only the image
+    # *name* is kept (e.g. passed into a widget's +image:+) and this
+    # wrapper is dropped, the image can be reclaimed out from under that
+    # reference; Tk shows a broken image rather than crashing, but the
+    # image won't come back - call {#delete} explicitly rather than
+    # relying on GC timing if you need deterministic cleanup.
     #
     # @param app [Teek::App] the application instance
     # @param name [String, nil] Tcl image name (auto-generated if nil)
@@ -78,6 +113,21 @@ module Teek
       kwargs[:gamma] = gamma if gamma
 
       @app.command(:image, :create, :photo, @name, **kwargs)
+      ObjectSpace.define_finalizer(self, self.class.finalizer_for(@name, @app))
+    end
+
+    # Invoke a photo subcommand not covered by a dedicated method above
+    # (e.g. +copy+, +read+, +write+). Prepends the image name as the Tcl
+    # command, exactly like {Widget#command} does for widgets.
+    #
+    # @example Subsample a copy of another photo
+    #   thumb = Teek::Photo.new(app)
+    #   thumb.command(:copy, source_photo, subsample: 4)
+    # @param args positional arguments
+    # @param kwargs keyword arguments mapped to +-key value+ pairs
+    # @return [String] the Tcl result
+    def command(*args, **kwargs)
+      @app.command(@name, *args, **kwargs)
     end
 
     # Write RGBA pixel data to the image.
@@ -197,8 +247,13 @@ module Teek
 
     # Delete this photo image and free its resources.
     #
+    # Cancels the GC finalizer registered by {#initialize} - otherwise a
+    # later collection could delete an unrelated image if this name gets
+    # reused (e.g. an explicit +name:+ passed to a later Photo).
+    #
     # @return [void]
     def delete
+      ObjectSpace.undefine_finalizer(self)
       @app.tcl_eval("image delete #{@name}")
     end
 
