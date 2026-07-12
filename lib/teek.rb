@@ -12,6 +12,7 @@ require_relative 'teek/tag_bind_interceptor'
 require_relative 'teek/canvas_bind_interceptor'
 require_relative 'teek/photo'
 require_relative 'teek/dialogs'
+require_relative 'teek/winfo'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
 # with Ruby callbacks, event bindings, and background work support.
@@ -88,7 +89,7 @@ module Teek
   ].freeze
 
   class App
-    attr_reader :interp, :widgets, :debugger, :callback_registry
+    attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo
     attr_writer :_pending_exception # @api private
 
     def initialize(title: nil, track_widgets: true, debug: false, &block)
@@ -98,6 +99,7 @@ module Teek
       @widgets = {}
       @widget_counters = Hash.new(0)
       @callback_registry = Teek::CallbackRegistry.new(self)
+      @winfo = Teek::Winfo.new(self)
       @widget_types_by_path = {}
       @_pending_exception = nil
       debug ||= !!ENV['TEEK_DEBUG']
@@ -478,7 +480,7 @@ module Teek
     def create_widget(type, path = nil, parent: nil, idempotent: false, **kwargs)
       type_s = type.to_s
       path ||= next_widget_path(type_s, parent)
-      if idempotent && tcl_eval("winfo exists #{path}") == '1'
+      if idempotent && @winfo.exists?(path)
         # Still record the type even though creation itself is skipped - a
         # path that already existed (e.g. built with a raw tcl_eval) is
         # otherwise never seen by #command, so no interceptor could ever

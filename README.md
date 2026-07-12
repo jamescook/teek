@@ -139,6 +139,19 @@ app.message_box(message: 'Really delete this?', type: :yesno, icon: :warning) # 
 
 File/color pickers return `nil` when cancelled (an array of paths if `multiple: true`); `message_box` returns the pressed button as a symbol. See `sample/dialogs/dialogs_demo.rb` for a runnable demo of all five.
 
+## Window info
+
+`app.winfo` groups typed wrappers for Tk's `winfo` command family — one method per query, coerced to the right Ruby type:
+
+```ruby
+app.winfo.width(btn)      # => 90 (Integer)
+app.winfo.exists?(btn)    # => true / false
+app.winfo.class_name(btn) # => "TButton"
+app.winfo.pointerx        # => current mouse x, screen pixels
+```
+
+Every method accepts a path string or anything with a matching `to_s` (a `Widget`, for instance). `Widget` also has `#width`, `#height`, and `#exist?` convenience methods that delegate here for its own path.
+
 ## List operations
 
 Convert between Ruby arrays and Tcl list strings:

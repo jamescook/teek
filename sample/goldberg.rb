@@ -267,8 +267,7 @@ class TkGoldberg_Demo
   end
 
   def show_ctrl
-    mapped = @app.tcl_eval("winfo ismapped #{@ctrl}")
-    if mapped != '0'
+    if @app.winfo.ismapped?(@ctrl)
       @app.tcl_eval("pack forget #{@ctrl}")
       @app.tcl_eval("#{@show} configure -text >>")
     else

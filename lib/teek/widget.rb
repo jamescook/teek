@@ -53,7 +53,19 @@ module Teek
     # Check if this widget still exists in the Tk interpreter.
     # @return [Boolean]
     def exist?
-      @app.tcl_eval("winfo exists #{@path}") == '1'
+      @app.winfo.exists?(@path)
+    end
+
+    # @return [Integer] current width in pixels
+    # @see Winfo#width
+    def width
+      @app.winfo.width(@path)
+    end
+
+    # @return [Integer] current height in pixels
+    # @see Winfo#height
+    def height
+      @app.winfo.height(@path)
     end
 
     # Pack this widget.

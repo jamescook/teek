@@ -108,8 +108,8 @@ class DialogsDemo
   end
 
   def demo_popup_menu
-    x = @app.tcl_eval('winfo pointerx .')
-    y = @app.tcl_eval('winfo pointery .')
+    x = @app.winfo.pointerx
+    y = @app.winfo.pointery
     @app.popup_menu(@context_menu, x: x, y: y)
     log("popup_menu shown at #{x},#{y}")
   end

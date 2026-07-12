@@ -94,8 +94,8 @@ module TeekDemo
 
       try_signal = proc do
         app.tcl_eval('update idletasks')
-        width = app.tcl_eval("winfo width #{window}").to_i
-        height = app.tcl_eval("winfo height #{window}").to_i
+        width = app.winfo.width(window)
+        height = app.winfo.height(window)
 
         if width >= 10 && height >= 10
           @_recording_ready_sent = true

@@ -65,6 +65,18 @@ class TestWidget < Minitest::Test
     end
   end
 
+  def test_width_and_height_delegate_to_app_winfo
+    assert_tk_app("Widget#width/#height should delegate to App#winfo for this widget's path") do
+      app.show
+      frame = app.create_widget('ttk::frame', width: 90, height: 60)
+      frame.pack
+      app.update
+
+      assert_equal 90, frame.width
+      assert_equal 60, frame.height
+    end
+  end
+
   def test_interop_with_app_command
     assert_tk_app("widget works with app.command") do
       btn = app.create_widget('ttk::button', text: 'Hi')

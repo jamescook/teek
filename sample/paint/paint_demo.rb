@@ -278,8 +278,8 @@ class PaintDemo
       @app.command(:wm, :overrideredirect, '.tooltip', 1)
       @app.tcl_eval('catch {wm attributes .tooltip -type tooltip}')
       @app.tcl_eval('catch {wm attributes .tooltip -transparent true}')
-      x = @app.tcl_eval('winfo pointerx .').to_i + 15
-      y = @app.tcl_eval('winfo pointery .').to_i + 10
+      x = @app.winfo.pointerx + 15
+      y = @app.winfo.pointery + 10
       @app.command(:wm, :geometry, '.tooltip', "+#{x}+#{y}")
       @app.create_widget(:frame, '.tooltip.f',
                          background: '#FFFFE0', relief: :solid,
