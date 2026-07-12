@@ -11,6 +11,7 @@ require_relative 'teek/menu_interceptor'
 require_relative 'teek/tag_bind_interceptor'
 require_relative 'teek/canvas_bind_interceptor'
 require_relative 'teek/photo'
+require_relative 'teek/dialogs'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
 # with Ruby callbacks, event bindings, and background work support.

@@ -399,7 +399,7 @@ class TkGoldberg_Demo
     msg += "(Reproduced by kind permission of the author)\n\n"
     msg += "Man will always find a difficult means to perform a simple task"
     msg += "\nRube Goldberg"
-    @app.tcl_eval("tk_messageBox -message {#{msg}} -title About")
+    @app.message_box(message: msg, title: 'About')
   end
 
   ################################################################

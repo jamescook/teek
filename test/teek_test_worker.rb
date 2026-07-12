@@ -171,6 +171,19 @@ class Teek::TestWorker
       end
       result
     end
+
+    # Parse a Tcl arg list of the form "-flag1 value1 -flag2 value2 ..."
+    # (e.g. a stubbed command's captured $args - see test_dialogs.rb) into
+    # a Ruby Hash, so assertions don't depend on the order a wrapper
+    # method happens to build its flags in.
+    #
+    # Only fits strictly alternating flag/value pairs: raises ArgumentError
+    # on an odd element count, and silently keeps only the last value for
+    # a repeated flag. Not a fit for commands with positional arguments
+    # (e.g. tk_popup) or bare boolean switches with no value.
+    def tcl_flag_hash(list_str)
+      Hash[*@app.split_list(list_str)]
+    end
   end
 
   # Server-side: runs in subprocess

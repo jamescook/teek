@@ -124,6 +124,21 @@ app.mainloop
 
 > **macOS note:** On macOS, Tk always displays a menu bar. If you don't configure one, Tk shows a default menu with items like "Run Widget Demo" that are meant for the Tcl interpreter shell. Attach a custom menu bar (even an empty one) to suppress it. See the [TkDocs menu tutorial](https://tkdocs.com/tutorial/menus.html) for details.
 
+## Dialogs
+
+`App` has safe wrappers for the standard Tk dialogs — `choose_open_file`, `choose_save_file`, `message_box`, `choose_color`, and `popup_menu` — built without any string interpolation, so titles, paths, and messages containing spaces or braces are passed through correctly:
+
+```ruby
+path = app.choose_open_file(
+  title: 'Open Image',
+  filetypes: [['Images', ['.png', '.jpg']], ['All Files', '*']]
+)
+
+app.message_box(message: 'Really delete this?', type: :yesno, icon: :warning) # => :yes / :no
+```
+
+File/color pickers return `nil` when cancelled (an array of paths if `multiple: true`); `message_box` returns the pressed button as a symbol. See `sample/dialogs/dialogs_demo.rb` for a runnable demo of all five.
+
 ## List operations
 
 Convert between Ruby arrays and Tcl list strings:

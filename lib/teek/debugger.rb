@@ -256,7 +256,7 @@ module Teek
           set item [#{vars_tree} identify item [winfo pointerx #{vars_tree}] [winfo pointery #{vars_tree}]]
           if {$item ne {}} { #{vars_tree} selection set $item }
         ")
-        @app.tcl_eval("tk_popup #{vars_ctx} #{@app.tcl_eval('winfo pointerx .')} #{@app.tcl_eval('winfo pointery .')}")
+        @app.popup_menu(vars_ctx, x: @app.tcl_eval('winfo pointerx .'), y: @app.tcl_eval('winfo pointery .'))
       })
 
       # Double-click to watch
@@ -538,7 +538,7 @@ module Teek
           set item [#{watch_tree} identify item [winfo pointerx #{watch_tree}] [winfo pointery #{watch_tree}]]
           if {$item ne {}} { #{watch_tree} selection set $item }
         ")
-        @app.tcl_eval("tk_popup #{watches_ctx} #{@app.tcl_eval('winfo pointerx .')} #{@app.tcl_eval('winfo pointery .')}")
+        @app.popup_menu(watches_ctx, x: @app.tcl_eval('winfo pointerx .'), y: @app.tcl_eval('winfo pointery .'))
       })
     end
 
