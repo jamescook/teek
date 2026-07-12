@@ -598,6 +598,57 @@ interp_callback_ids(VALUE self)
 }
 
 /* ---------------------------------------------------------
+ * Raise Teek::TclError for a Tcl_Eval/Tcl_EvalObjv failure, attaching
+ * errorInfo/errorCode via Tcl_GetReturnOptions - the return options are
+ * tied to the specific result code just returned, not the mutable
+ * ::errorInfo/::errorCode globals, so this is safe even though it runs
+ * after control has already left Tcl_Eval/Tcl_EvalObjv.
+ * --------------------------------------------------------- */
+
+static VALUE
+tclobj_to_rb_str_or_nil(Tcl_Obj *obj)
+{
+    Tcl_Size len;
+    const char *str;
+
+    if (obj == NULL) return Qnil;
+    str = Tcl_GetStringFromObj(obj, &len);
+    return rb_utf8_str_new(str, len);
+}
+
+NORETURN(static void raise_tcl_error(Tcl_Interp *interp, int code));
+
+static void
+raise_tcl_error(Tcl_Interp *interp, int code)
+{
+    Tcl_Obj *options, *einfo_key, *ecode_key;
+    Tcl_Obj *einfo_val = NULL, *ecode_val = NULL;
+    VALUE msg, backtrace, error_code, exc;
+
+    options = Tcl_GetReturnOptions(interp, code);
+    Tcl_IncrRefCount(options);
+
+    einfo_key = Tcl_NewStringObj("-errorinfo", -1);
+    ecode_key = Tcl_NewStringObj("-errorcode", -1);
+    Tcl_IncrRefCount(einfo_key);
+    Tcl_IncrRefCount(ecode_key);
+
+    Tcl_DictObjGet(interp, options, einfo_key, &einfo_val);
+    Tcl_DictObjGet(interp, options, ecode_key, &ecode_val);
+
+    msg = rb_utf8_str_new_cstr(Tcl_GetStringResult(interp));
+    backtrace = tclobj_to_rb_str_or_nil(einfo_val);
+    error_code = tclobj_to_rb_str_or_nil(ecode_val);
+
+    Tcl_DecrRefCount(einfo_key);
+    Tcl_DecrRefCount(ecode_key);
+    Tcl_DecrRefCount(options);
+
+    exc = rb_funcall(eTclError, rb_intern("new"), 3, msg, backtrace, error_code);
+    rb_exc_raise(exc);
+}
+
+/* ---------------------------------------------------------
  * Thread-safe event queue: run Ruby proc on main Tcl thread
  *
  * Background threads cannot safely call Tcl/Tk directly.
@@ -619,7 +670,7 @@ execute_queued_eval(VALUE arg)
     int result = Tcl_Eval(tip->interp, script_cstr);
 
     if (result != TCL_OK) {
-        rb_raise(eTclError, "%s", Tcl_GetStringResult(tip->interp));
+        raise_tcl_error(tip->interp, result);
     }
     return rb_utf8_str_new_cstr(Tcl_GetStringResult(tip->interp));
 }
@@ -660,7 +711,7 @@ execute_queued_invoke(VALUE arg)
     }
 
     if (result != TCL_OK) {
-        rb_raise(eTclError, "%s", Tcl_GetStringResult(tip->interp));
+        raise_tcl_error(tip->interp, result);
     }
     return rb_utf8_str_new_cstr(Tcl_GetStringResult(tip->interp));
 }
@@ -831,7 +882,7 @@ interp_tcl_eval(VALUE self, VALUE script)
     result = Tcl_Eval(tip->interp, script_cstr);
 
     if (result != TCL_OK) {
-        rb_raise(eTclError, "%s", Tcl_GetStringResult(tip->interp));
+        raise_tcl_error(tip->interp, result);
     }
 
     return rb_utf8_str_new_cstr(Tcl_GetStringResult(tip->interp));
@@ -896,7 +947,7 @@ interp_tcl_invoke(int argc, VALUE *argv, VALUE self)
     }
 
     if (result != TCL_OK) {
-        rb_raise(eTclError, "%s", Tcl_GetStringResult(tip->interp));
+        raise_tcl_error(tip->interp, result);
     }
 
     ret = rb_utf8_str_new_cstr(Tcl_GetStringResult(tip->interp));

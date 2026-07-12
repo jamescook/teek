@@ -35,6 +35,33 @@ require_relative 'teek/photo'
 # @see Teek::BackgroundWork
 module Teek
 
+  # Raised on a Tcl error (TCL_ERROR) from #tcl_eval, #tcl_invoke, or
+  # anything built on them. +message+ is the same short one-line Tcl
+  # result this exception has always carried; {#tcl_backtrace} and
+  # {#tcl_error_code} additionally expose Tcl's own +errorInfo+/+errorCode+
+  # for the failing call - captured immediately after the failing
+  # Tcl_Eval/Tcl_EvalObjv via Tcl_GetReturnOptions, before anything else
+  # can run and disturb them. Both are +nil+ for the handful of Ruby-level
+  # guard errors (e.g. "interpreter has been deleted") that never actually
+  # reached Tcl.
+  class TclError < RuntimeError
+    # @return [String, nil] Tcl's +errorInfo+ for the failing call - a
+    #   multi-line trace with a "while executing"/"invoked from within"
+    #   frame for each level of Tcl proc call the error unwound through
+    attr_reader :tcl_backtrace
+
+    # @return [String, nil] Tcl's +errorCode+ for the failing call (a Tcl
+    #   list, typically "NONE" unless the failing command set one explicitly)
+    attr_reader :tcl_error_code
+
+    # @api private
+    def initialize(message, tcl_backtrace = nil, tcl_error_code = nil)
+      super(message)
+      @tcl_backtrace = tcl_backtrace
+      @tcl_error_code = tcl_error_code
+    end
+  end
+
   # Raised by App#command when more than one registered CommandInterceptor
   # claims the same call. The message names each matching interceptor's
   # label so it's clear which ones collided - built-in shape-matching bug,
