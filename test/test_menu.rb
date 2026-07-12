@@ -13,6 +13,15 @@
 #
 # Interp#callback_ids is a plain reader on the interpreter's callback
 # table - see also test_bind.rb.
+#
+# Every raw `menu` creation here passes tearoff: 0. -tearoff defaults to
+# on for X11 and Windows (off on Aqua), which inserts a real entry at
+# index 0 for the tear-off handle - every other index shifts down by
+# one. These tests address entries by index, so without this every
+# index-based assertion is off by one on a platform where tearoff
+# defaults on - confirmed as the cause of a Windows-only "menu entry
+# command did not fire" failure. App#menu already sets this by default;
+# raw app.command(:menu, ...) does not, so it must be passed explicitly.
 
 require 'minitest/autorun'
 require_relative 'tk_test_helper'
@@ -23,18 +32,10 @@ class TestMenu < Minitest::Test
   def test_add_command_invoke_fires_proc
     assert_tk_app("a proc added via raw app.command should fire on invoke") do
       fired = false
-      app.command(:menu, '.m1')
+      app.command(:menu, '.m1', tearoff: 0)
 
       app.command('.m1', :add, :command, label: 'Go', command: proc { fired = true })
       app.tcl_eval(".m1 invoke 0")
-
-      # menu invoke evaluates the entry's -command synchronously (confirmed
-      # against Tk source - TkInvokeMenu reads commandPtr straight off the
-      # entry struct, no platform-specific deferral), so this should never
-      # need to wait. Seen flaky on Windows CI with no clear mechanism found
-      # yet; wait_until is a cheap hedge that costs nothing when it really
-      # is already true.
-      wait_until(timeout: 2.0) { fired }
 
       assert fired, "menu entry command did not fire"
     end
@@ -42,7 +43,7 @@ class TestMenu < Minitest::Test
 
   def test_rebuild_does_not_leak_callbacks
     assert_tk_app("rebuilding a menu via raw app.command should not grow callback count") do
-      app.command(:menu, '.m2')
+      app.command(:menu, '.m2', tearoff: 0)
 
       app.command('.m2', :add, :command, label: 'One', command: proc { })
       app.command('.m2', :add, :command, label: 'Two', command: proc { })
@@ -63,7 +64,7 @@ class TestMenu < Minitest::Test
 
   def test_reconciles_exactly_through_insert_entryconfigure_and_partial_delete
     assert_tk_app("insert/entryconfigure/partial-delete via raw app.command should reconcile by live value, not index") do
-      app.command(:menu, '.m3')
+      app.command(:menu, '.m3', tearoff: 0)
 
       before = app.interp.callback_ids
       app.command('.m3', :add, :command, label: 'A', command: proc { })
@@ -105,7 +106,7 @@ class TestMenu < Minitest::Test
 
   def test_destroy_releases_all_tracked_callbacks
     assert_tk_app("destroying a menu should release all its tracked callbacks, built via raw app.command") do
-      app.command(:menu, '.m4')
+      app.command(:menu, '.m4', tearoff: 0)
 
       baseline = app.interp.callback_ids.length
       app.command('.m4', :add, :command, label: 'One', command: proc { })
@@ -121,7 +122,7 @@ class TestMenu < Minitest::Test
 
   def test_clear_then_destroy_does_not_double_release
     assert_tk_app("clearing a menu then destroying it should not error or double-release, via raw app.command") do
-      app.command(:menu, '.m5')
+      app.command(:menu, '.m5', tearoff: 0)
 
       app.command('.m5', :add, :command, label: 'One', command: proc { })
       baseline = app.interp.callback_ids.length
@@ -138,14 +139,14 @@ class TestMenu < Minitest::Test
 
   def test_reused_path_after_destroy_starts_clean
     assert_tk_app("a menu rebuilt at a reused path should not inherit stale tracking, via raw app.command") do
-      app.command(:menu, '.m7')
+      app.command(:menu, '.m7', tearoff: 0)
       app.command('.m7', :add, :command, label: 'Old', command: proc { })
       baseline_before_destroy = app.interp.callback_ids.length
 
       app.destroy('.m7')
       assert_equal baseline_before_destroy - 1, app.interp.callback_ids.length
 
-      app.command(:menu, '.m7')
+      app.command(:menu, '.m7', tearoff: 0)
       before = app.interp.callback_ids.length
       app.command('.m7', :add, :command, label: 'New', command: proc { })
 
