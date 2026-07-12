@@ -91,7 +91,10 @@ module Teek
     # is what {#live_command_ids} looks for via entrycget.
     def prepare(kwargs)
       return kwargs unless kwargs[:command].is_a?(Proc)
-      id = app.register_callback(kwargs[:command])
+      # A menu entry's command is invoked as a plain script, not through
+      # Tk's bind dispatch - see App#register_callback's note on why
+      # break/continue can't be relayed there.
+      id = app.register_callback(kwargs[:command], relay_break_continue: false)
       kwargs.merge(command: "ruby_callback #{id}")
     end
 

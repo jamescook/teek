@@ -83,4 +83,91 @@ class TestCallbackControlFlow < Minitest::Test
       assert_includes app.get_variable('errmsg'), "boom"
     end
   end
+
+  # -- control-flow parity between App#bind and App#command/menu/widget-option procs --
+  #
+  # App#bind wraps every callback through App#register_callback, which
+  # installs the catch/throw machinery above. App#command's own positional
+  # and kwarg Proc handling (and the raw #tcl_value Proc path it shares
+  # with any caller that isn't create_widget/Widget#command) may register
+  # procs directly via Interp#register_callback instead, bypassing that
+  # wrapper - so throw :teek_break there wouldn't be caught, and would
+  # surface as an uncaught-throw error instead of the intended Tcl control
+  # flow. These tests check each App#command-adjacent path independently.
+
+  def test_break_in_command_positional_proc_actually_stops_propagation
+    assert_tk_app("throw :teek_break in a command()-embedded positional proc should really stop propagation, not just silently error") do
+      app.show
+      app.tcl_eval("entry .e_pos")
+      app.tcl_eval("pack .e_pos")
+      first_fired = false
+      second_fired = false
+
+      app.command(:bind, '.e_pos', '<Key-a>', proc { |*|
+        first_fired = true
+        throw :teek_break
+      })
+      app.bind('Entry', 'Key-a') { second_fired = true }
+
+      app.tcl_eval("focus -force .e_pos")
+      app.update
+      _, err = capture_io do
+        app.tcl_eval("event generate .e_pos <Key-a>")
+        app.update
+      end
+
+      assert first_fired, "first callback did not fire"
+      refute second_fired, "second callback fired despite break - the throw was not turned into a real TCL_BREAK, " \
+        "it just errored and got silently swallowed by bgerror"
+      assert_empty err, "throw :teek_break should not produce any bgerror output - it should be real TCL_BREAK, " \
+        "not an error that happens to also halt binding propagation"
+
+      app.unbind('Entry', 'Key-a')
+    end
+  end
+
+  def test_break_in_raw_command_kwarg_proc_does_not_raise
+    assert_tk_app("throw :teek_break in a raw app.command kwarg proc should not raise") do
+      app.tcl_eval("button .b_raw_kw")
+      fired = false
+
+      app.command('.b_raw_kw', :configure, command: proc { |*|
+        fired = true
+        throw :teek_break
+      })
+
+      app.tcl_eval(".b_raw_kw invoke")
+
+      assert fired, "callback did not fire"
+    end
+  end
+
+  def test_break_in_menu_entry_command_does_not_raise
+    assert_tk_app("throw :teek_break in a menu entry's command should not raise") do
+      fired = false
+      menu = app.menu('.m_break')
+      menu.add_command(label: 'Go', command: proc { |*|
+        fired = true
+        throw :teek_break
+      })
+
+      app.tcl_eval(".m_break invoke 0")
+
+      assert fired, "menu command did not fire"
+    end
+  end
+
+  def test_break_in_widget_option_command_does_not_raise
+    assert_tk_app("throw :teek_break in a create_widget command: proc should not raise") do
+      fired = false
+      btn = app.create_widget('ttk::button', text: 'Go', command: proc { |*|
+        fired = true
+        throw :teek_break
+      })
+
+      btn.command(:invoke)
+
+      assert fired, "button command did not fire"
+    end
+  end
 end

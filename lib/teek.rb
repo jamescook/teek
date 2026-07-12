@@ -98,10 +98,25 @@ module Teek
     #   throw :teek_break    - stop event propagation (like Tcl "break")
     #   throw :teek_continue - Tcl TCL_CONTINUE
     #   throw :teek_return   - Tcl TCL_RETURN
+    #
+    # +:teek_break+/+:teek_continue+ only mean something when Tcl actually
+    # dispatches the result through a context that knows how to handle
+    # TCL_BREAK/TCL_CONTINUE - Tk's bind mechanism does; a plain script
+    # invocation (a menu entry's or widget's `-command`) does not, and
+    # returning either code there is a Tcl error ("invoked break/continue
+    # outside of a loop"), not a no-op. +relay_break_continue: false+ is
+    # for exactly those non-bind callers: +throw+ is still caught (so it
+    # can't crash as an uncaught throw), but is treated as the callback
+    # simply finishing, instead of being relayed to Tcl. +:teek_return+ is
+    # always relayed either way - TCL_RETURN is safe in any context.
     # @param callable [#call] a Proc or lambda to invoke from Tcl
+    # @param relay_break_continue [Boolean] whether a caught :teek_break/
+    #   :teek_continue is relayed to Tcl as TCL_BREAK/TCL_CONTINUE (true,
+    #   for bind-dispatched callbacks) or silently absorbed (false, for
+    #   callbacks invoked as a plain script - menu/widget -command options)
     # @return [Integer] callback ID, usable as +ruby_callback <id>+ in Tcl
     # @see #unregister_callback
-    def register_callback(callable)
+    def register_callback(callable, relay_break_continue: true)
       wrapped = proc { |*args|
         caught = nil
         catch(:teek_break) do
@@ -115,7 +130,9 @@ module Teek
           caught ||= :continue
         end
         caught ||= :break
-        caught == :_none ? nil : caught
+        next nil if caught == :_none
+        next caught if caught == :return
+        relay_break_continue ? caught : nil
       }
       @interp.register_callback(wrapped)
     end
@@ -282,7 +299,7 @@ module Teek
       while i < args.length
         arg = args[i]
         if arg.is_a?(Proc)
-          id = @interp.register_callback(arg)
+          id = register_callback(arg)
           subs = []
           while i + 1 < args.length && args[i + 1].is_a?(String) && args[i + 1].start_with?('%')
             subs << args[i + 1]
@@ -325,7 +342,7 @@ module Teek
       proc_kwargs = kwargs.select { |_, value| value.is_a?(Proc) }
       return kwargs if proc_kwargs.empty?
 
-      ids = proc_kwargs.transform_values { |value| register_callback(value) }
+      ids = proc_kwargs.transform_values { |value| register_callback(value, relay_break_continue: false) }
       @callback_registry.reconcile([:widget_option, path]) { |before| before.merge(ids) }
       kwargs.merge(ids.transform_values { |id| "ruby_callback #{id}" })
     end
@@ -907,7 +924,10 @@ module Teek
     def tcl_value(value)
       case value
       when Proc
-        id = @interp.register_callback(value)
+        # A Proc reaching tcl_value is always a kwarg/option value (e.g.
+        # -command), never a bind script - see #register_callback's note
+        # on why break/continue can't be relayed there.
+        id = register_callback(value, relay_break_continue: false)
         "{ruby_callback #{id}}"
       when Symbol
         value.to_s
