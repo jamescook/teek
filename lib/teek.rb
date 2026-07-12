@@ -6,7 +6,9 @@ require_relative 'teek/platform'
 require_relative 'teek/ractor_support'
 require_relative 'teek/widget'
 require_relative 'teek/callback_registry'
+require_relative 'teek/tag_bindable'
 require_relative 'teek/menu_behavior'
+require_relative 'teek/text_behavior'
 require_relative 'teek/photo'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
@@ -61,6 +63,7 @@ module Teek
       @widget_counters = Hash.new(0)
       @callback_registry = Teek::CallbackRegistry.new(self)
       @menu_command_warned = {}
+      @tag_bind_warned = {}
       @_pending_exception = nil
       debug ||= !!ENV['TEEK_DEBUG']
       track_widgets = true if debug
@@ -293,6 +296,7 @@ module Teek
     # @return [String] the Tcl result
     def command(cmd, *args, **kwargs)
       warn_if_unmanaged_menu_command(cmd, args, kwargs)
+      warn_if_unmanaged_tag_bind(cmd, args)
 
       parts = [cmd.to_s]
       i = 0
@@ -923,6 +927,21 @@ module Teek
       warn "teek: command: proc passed to app.command(#{path.inspect}, :#{sub}, ...) is not " \
            "tracked and will leak if this entry is replaced or the menu is rebuilt in place. " \
            "Use app.menu(#{path.inspect}) instead - it releases these automatically."
+    end
+
+    # Diagnostic only - same rationale as {#warn_if_unmanaged_menu_command}.
+    # Recognizes a Proc being attached to a `tag bind` call through the raw
+    # command() path (bypassing a widget's #tag_bind) and warns once per
+    # path.
+    def warn_if_unmanaged_tag_bind(path, args)
+      return if @tag_bind_warned[path]
+      return unless args[0].to_s == 'tag' && args[1].to_s == 'bind'
+      return unless args.any? { |a| a.is_a?(Proc) }
+
+      @tag_bind_warned[path] = true
+      warn "teek: a Proc passed to app.command(#{path.inspect}, :tag, :bind, ...) is not " \
+           "tracked and will leak if this tag binding is replaced or the tag is deleted. " \
+           "Use the widget's #tag_bind instead - it releases these automatically."
     end
 
     def tcl_value(value)

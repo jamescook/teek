@@ -104,28 +104,24 @@ module Teek
       self
     end
 
-    # Defines the Tcl-side scan helper on first use (idempotent - the
-    # guard is in Tcl itself so no Ruby-side "have I installed this yet"
-    # state is needed), then runs it and extracts the ruby_callback ids
-    # still referenced by a live entry.
-    def live_command_ids
-      raw = app.tcl_eval(<<~TCL)
-        if {[info procs ::teek_menu_live_commands] eq {}} {
-          proc ::teek_menu_live_commands {p} {
-            set result {}
-            if {![winfo exists $p]} { return $result }
-            set last [$p index end]
-            if {$last eq "none"} { return $result }
-            for {set i 0} {$i <= $last} {incr i} {
-              set cmd ""
-              catch {set cmd [$p entrycget $i -command]}
-              lappend result $cmd
-            }
-            return $result
-          }
+    LIVE_COMMANDS_TCL_PROC = <<~TCL.freeze
+      proc ::teek_menu_live_commands {path} {
+        set result {}
+        if {![winfo exists $path]} { return $result }
+        set last [$path index end]
+        if {$last eq "none"} { return $result }
+        for {set i 0} {$i <= $last} {incr i} {
+          set cmd ""
+          catch {set cmd [$path entrycget $i -command]}
+          lappend result $cmd
         }
-        ::teek_menu_live_commands #{path}
-      TCL
+        return $result
+      }
+    TCL
+
+    def live_command_ids
+      app.ensure_tcl_helper(:menu_live_commands) { LIVE_COMMANDS_TCL_PROC }
+      raw = app.tcl_eval("::teek_menu_live_commands #{path}")
       app.split_list(raw).each_with_object({}) do |cmd, ids|
         if (m = cmd.match(/\Aruby_callback (\S+)\z/))
           ids[m[1]] = m[1]
