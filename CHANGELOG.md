@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `App#create_widget` accepts `idempotent: true` to skip widget creation when a widget already exists at the given path, and extends the returned `Widget` with any behavior module registered for that widget type via `Widget.register_behavior` — the mechanism `App#menu` is built on, open to third-party or application-specific widget behaviors.
 - `Teek::CallbackRegistry` — shared internal tracking for callbacks scoped to something narrower than a whole widget (event bindings, menu entries, widget option callbacks, text tag bindings), released on overwrite, explicit removal, or the owning widget's destruction, regardless of which feature registered them.
 - Text widgets get `#tag_bind`/`#tag_unbind`/`#tag_delete`, tracking each tag's bound callback the same way `App#menu` tracks entries — released on rebind, `tag_delete`, or the text widget's destruction. `App#command` warns once per path if it detects a raw `tag bind ... {ruby_callback ...}` Proc attached the old, unmanaged way.
+- `ttk::treeview` widgets get the same `#tag_bind`/`#tag_unbind`/`#tag_delete` as Text (identical Tcl-level shape), plus `#heading(column, **kwargs)`, which tracks a Proc passed as `command:` per column so two columns' heading commands can't collide or leak into each other.
 
 ### Fixed
 

@@ -9,6 +9,7 @@ require_relative 'teek/callback_registry'
 require_relative 'teek/tag_bindable'
 require_relative 'teek/menu_behavior'
 require_relative 'teek/text_behavior'
+require_relative 'teek/treeview_behavior'
 require_relative 'teek/photo'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
