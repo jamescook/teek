@@ -108,7 +108,21 @@ module Teek
       # container's arrangement step too, since they have no realized path.
       NON_WIDGET_TYPES = %i[root raw_op].freeze
 
+      # menu_bar/context_menu are the two entry points into a menu subtree -
+      # everything under them (nested :menu cascades, :menu_item/
+      # :menu_separator/:menu_checkbox/:menu_radio entries) is built in one
+      # shot by create_menu_tree, in menu-add order, rather than through the
+      # generic per-node create/link passes every other node type uses -
+      # menu entries have no Tk path or geometry-managed arrangement of
+      # their own to visit separately.
+      MENU_ROOT_TYPES = %i[menu_bar context_menu].freeze
+
       def create(node, parent_path)
+        if MENU_ROOT_TYPES.include?(node.type)
+          create_menu_tree(node, parent_path)
+          return
+        end
+
         path =
           if NON_WIDGET_TYPES.include?(node.type)
             parent_path
@@ -127,7 +141,46 @@ module Teek
         node.children.each { |child| create(child, path) }
       end
 
+      # Builds one menu widget (a menu_bar, a nested cascade, or a
+      # standalone context_menu) plus every entry it holds, recursing into
+      # nested cascades depth-first so a cascade's own menu exists before
+      # the `add cascade` entry that references it is added to its parent.
+      # A menu_bar additionally attaches itself to parent_path's own -menu
+      # option once its whole subtree is built.
+      def create_menu_tree(node, parent_path)
+        path = allocate_path(node, parent_path)
+        @app.menu(path)
+        node.realized = RealizedNode.new(app: @app, path: path)
+
+        node.children.each do |child|
+          case child.type
+          when :menu
+            create_menu_tree(child, path)
+            @app.command(path, :add, :cascade, **child.opts, menu: child.realized.path)
+          when :menu_item
+            @app.command(path, :add, :command, **menu_entry_opts(child))
+          when :menu_separator
+            @app.command(path, :add, :separator)
+          when :menu_checkbox
+            @app.command(path, :add, :checkbutton, **menu_entry_opts(child))
+          when :menu_radio
+            @app.command(path, :add, :radiobutton, **menu_entry_opts(child))
+          else
+            raise ArgumentError, "#{describe(child)} isn't valid inside a menu"
+          end
+        end
+
+        @app.command(parent_path, :configure, menu: path) if node.type == :menu_bar
+      end
+
+      def menu_entry_opts(node)
+        bind = node.opts[:bind]
+        bind ? node.opts.except(:bind).merge(variable: bind.name) : node.opts
+      end
+
       def link(node)
+        return if MENU_ROOT_TYPES.include?(node.type)
+
         arrange_children(node)
         node.events.each { |binding| wire_event(node, binding) }
         run_raw_op(node) if node.type == :raw_op
@@ -144,11 +197,12 @@ module Teek
       end
 
       # Children a geometry manager should never touch: :raw_op has no
-      # realized path at all, and :window (a toplevel) is placed by the
-      # window manager, not by whatever pack/grid strategy its nominal
-      # parent uses - packing/gridding a toplevel into its parent is a Tk
-      # error ("it's a top-level window").
-      NOT_ARRANGED_TYPES = %i[raw_op window].freeze
+      # realized path at all; :window (a toplevel) is placed by the window
+      # manager, not by whatever pack/grid strategy its nominal parent uses
+      # (packing/gridding a toplevel into its parent is a Tk error, "it's a
+      # top-level window"); :menu_bar/:context_menu attach via their own
+      # -menu config / on_right_click wiring, never via pack/grid either.
+      NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu].freeze
 
       def arrange_children(node)
         arrangeable = node.children.reject { |child| NOT_ARRANGED_TYPES.include?(child.type) }

@@ -5,8 +5,8 @@ require 'teek/ui/node'
 require 'teek/ui/handle'
 
 class TestHandle < Minitest::Test
-  FakeApp = Struct.new(:calls, :binds, :on_closes) do
-    def initialize(calls = [], binds = [], on_closes = [])
+  FakeApp = Struct.new(:calls, :binds, :on_closes, :popups) do
+    def initialize(calls = [], binds = [], on_closes = [], popups = [])
       super
     end
 
@@ -20,6 +20,10 @@ class TestHandle < Minitest::Test
 
     def on_close(window:, &block)
       on_closes << { window: window, block: block }
+    end
+
+    def popup_menu(menu, x:, y:, entry: nil)
+      popups << { menu: menu, x: x, y: y, entry: entry }
     end
   end
 
@@ -162,5 +166,60 @@ class TestHandle < Minitest::Test
 
     error = assert_raises(ArgumentError) { handle.on_close { } }
     assert_match(/window/i, error.message)
+  end
+
+  def test_on_right_click_with_a_menu_queues_root_coordinate_bindings_before_realize
+    node = Teek::UI::Node.new(type: :canvas, name: :board)
+    handle = Teek::UI::Handle.new(node)
+    menu_node = Teek::UI::Node.new(type: :context_menu, name: :ctx)
+    menu_handle = Teek::UI::Handle.new(menu_node)
+
+    result = handle.on_right_click(menu_handle)
+
+    assert_same handle, result, "on_right_click should return self for chaining"
+    assert_equal 3, node.events.length
+    assert_equal ['<Button-2>', '<Button-3>', '<Control-Button-1>'], node.events.map(&:event)
+    node.events.each { |binding| assert_equal %i[root_x root_y], binding.subs }
+  end
+
+  def test_on_right_click_with_a_menu_pops_up_at_the_events_root_coordinates
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :canvas, name: :board)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.board')
+    handle = Teek::UI::Handle.new(node)
+    menu_node = Teek::UI::Node.new(type: :context_menu, name: :ctx)
+    menu_node.realized = Teek::UI::RealizedNode.new(app: app, path: '.ctx')
+    menu_handle = Teek::UI::Handle.new(menu_node)
+
+    handle.on_right_click(menu_handle)
+    app.binds.first[:block].call(50, 60)
+
+    assert_equal 1, app.popups.length
+    assert_equal({ menu: '.ctx', x: 50, y: 60, entry: nil }, app.popups.first)
+  end
+
+  def test_on_right_click_with_a_menu_handle_of_the_wrong_type_raises
+    node = Teek::UI::Node.new(type: :canvas, name: :board)
+    handle = Teek::UI::Handle.new(node)
+    not_a_menu = Teek::UI::Handle.new(Teek::UI::Node.new(type: :button, name: :go))
+
+    error = assert_raises(ArgumentError) { handle.on_right_click(not_a_menu) }
+    assert_match(/menu/i, error.message)
+  end
+
+  def test_on_right_click_with_neither_a_menu_nor_a_block_raises
+    node = Teek::UI::Node.new(type: :canvas, name: :board)
+    handle = Teek::UI::Handle.new(node)
+
+    assert_raises(ArgumentError) { handle.on_right_click }
+  end
+
+  def test_on_right_click_with_both_a_menu_and_a_block_raises
+    node = Teek::UI::Node.new(type: :canvas, name: :board)
+    handle = Teek::UI::Handle.new(node)
+    menu_handle = Teek::UI::Handle.new(Teek::UI::Node.new(type: :menu, name: :m))
+
+    error = assert_raises(ArgumentError) { handle.on_right_click(menu_handle) { } }
+    assert_match(/either/i, error.message)
   end
 end

@@ -4,7 +4,7 @@ A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar o
 
 **This is the recommended entry point for building a teek app.** teek-ui depends on teek — installing teek-ui brings teek in automatically — and everything here compiles down to plain teek calls (`App#command`, `#bind`, and friends). Reach for bare teek directly only if you're embedding Tk in an existing app or building your own abstraction on top; most app authors want the DSL here instead.
 
-> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `column`/`row`/`grid` lay them out without touching Tk's own geometry vocabulary, `on_click`/`on_key`/etc. wire real events, and `ui.var` gives widgets a shared reactive value - overlay layout isn't built yet.
+> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `column`/`row`/`grid` lay them out without touching Tk's own geometry vocabulary, `on_click`/`on_key`/etc. wire real events, `ui.var` gives widgets a shared reactive value, and `ui.menu_bar`/`ui.context_menu` cover menus - overlay layout isn't built yet.
 
 ## Quick Start
 
@@ -142,6 +142,43 @@ session.run
 ```
 
 `var.value`/`var.value =` read and write it directly (typed to match the initial value - Integer/Float/Boolean, else String); `var.on_change { |v| }` fires with the coerced value on every change, regardless of whether Ruby or a bound widget caused it. `bind:` is mapped per widget type (`text_box`/`label`/`dropdown`/`number_box` use `-textvariable`; `checkbox`/`slider`/`progress` use `-variable`) - widgets without a sensible single bindable value (`text_area`, `list`, `table`/`tree`, `radio`, containers) raise if you try.
+
+## Menus
+
+`ui.menu_bar { }` declares a window's menu bar - the row of dropdowns (File/Edit/...) along its top edge - attaching automatically to whichever window it's declared in (the top level of the build, or directly inside `ui.window`). `.menu(label:) { }` is one recursive method for every dropdown, nested cascade, or submenu - there's no separate Tk `cascade`/`tearoff` vocabulary to learn:
+
+```ruby
+Teek::UI.app(title: 'Editor') do |ui|
+  wrap = ui.var(false)
+
+  ui.menu_bar do |mb|
+    mb.menu(label: 'File') do |file|
+      file.item(label: 'Open...', accelerator: 'Cmd+O') { open_file }
+      file.separator
+      file.menu(label: 'Recent') do |recent|
+        recent.item(label: 'notes.txt') { open_recent('notes.txt') }
+      end
+      file.item(label: 'Quit') { exit }
+    end
+    mb.menu(label: 'Edit') do |edit|
+      edit.checkbox(label: 'Word Wrap', bind: wrap)
+    end
+  end
+end.run
+```
+
+Inside a `menu_bar`/`menu`/`context_menu` block, `item`/`separator`/`checkbox`/`radio` build entries - a deliberately separate, small vocabulary from the top-level widget DSL (`checkbox`/`radio` here mean menu entries, not the `ttk::checkbutton`/`ttk::radiobutton` *widgets* of the same name one level up). `checkbox`/`radio` reuse the same `bind:` reactive-variable convention widgets do; `radio` entries sharing one `bind:` var each set it to their own `value:` when chosen.
+
+A **context menu** is a standalone popup, built the same way but not attached to anything automatically - wire it to a widget with `on_right_click`:
+
+```ruby
+Teek::UI.app(title: 'Editor') do |ui|
+  ctx = ui.context_menu(:card_menu) { |m| m.item(label: 'Delete') { delete_card } }
+  ui.canvas(:board).on_right_click(ctx)
+end.run
+```
+
+`on_right_click` still takes a plain block too, same as before - a menu handle and a block are alternatives, not both at once.
 
 ## Escape Hatch
 

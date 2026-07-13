@@ -2,6 +2,7 @@
 
 require_relative 'handle'
 require_relative 'var'
+require_relative 'menu_builder'
 
 module Teek
   module UI
@@ -116,6 +117,45 @@ module Teek
         grid_node.opts[:stretch_rows] = Array(rows) if rows.any?
       end
 
+      # Node types a menu_bar is allowed to attach to - the root window
+      # itself, or a ui.window toplevel. Attaching a -menu to anything else
+      # (a plain frame) isn't a real Tk option, so this fails fast at
+      # declaration time rather than surfacing as a cryptic Tcl error later.
+      MENU_BAR_HOSTS = %i[root window].freeze
+
+      # A window's menu bar - the row of top-level dropdowns (File/Edit/...)
+      # along its top edge. Valid at the top level of a build or directly
+      # inside `ui.window` - attaches to whichever of those it's declared
+      # in once realized.
+      # @param name [Symbol, nil]
+      # @yieldparam mb [MenuBuilder]
+      # @return [Handle]
+      # @raise [ArgumentError] if declared anywhere other than the top level or directly inside ui.window
+      def menu_bar(name = nil, **opts, &block)
+        parent = @stack.last
+        unless MENU_BAR_HOSTS.include?(parent.type)
+          raise ArgumentError, "menu_bar can only be declared at the top level of a build or directly inside ui.window"
+        end
+
+        node = @document.create(type: :menu_bar, name: name, opts: opts)
+        parent.add_child(node)
+        build_menu_subtree(node, &block)
+        Handle.new(node)
+      end
+
+      # A standalone popup menu - built the same declarative way as a
+      # menu_bar's dropdowns, but not attached to anything automatically.
+      # Wire it to a widget with `handle.on_right_click(this)`.
+      # @param name [Symbol, nil]
+      # @yieldparam m [MenuBuilder]
+      # @return [Handle]
+      def context_menu(name = nil, **opts, &block)
+        node = @document.create(type: :context_menu, name: name, opts: opts)
+        @stack.last.add_child(node)
+        build_menu_subtree(node, &block)
+        Handle.new(node)
+      end
+
       # The build-time escape hatch. A widget has no Tk path yet during
       # build, so `app.command(handle.path, ...)` mid-build can't work -
       # `ui.raw` defers the block instead, running it at realize with the
@@ -147,6 +187,17 @@ module Teek
       end
 
       private
+
+      def build_menu_subtree(node, &block)
+        return unless block
+
+        @stack.push(node)
+        begin
+          block.call(MenuBuilder.new(@document, @stack))
+        ensure
+          @stack.pop
+        end
+      end
 
       def append_leaf(type, name, opts)
         opts, layout = extract_layout(resolve_bind(type, opts))

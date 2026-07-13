@@ -15,6 +15,7 @@ module Teek
     # object drives the real widget through it.
     class Handle
       RIGHT_CLICK_EVENTS = %w[<Button-2> <Button-3> <Control-Button-1>].freeze
+      MENU_HANDLE_TYPES = %i[menu context_menu].freeze
 
       # @api private
       def initialize(node)
@@ -53,11 +54,30 @@ module Teek
       end
 
       # Fires on a right click, however the platform spells it (Button-3 on
-      # Linux/Windows, Button-2 or Control-Button-1 on macOS).
-      # @yield called with no arguments
+      # Linux/Windows, Button-2 or Control-Button-1 on macOS). Either handle
+      # it yourself with a block, or hand it a `:menu`/`:context_menu`
+      # handle to pop up at the click's screen position - not both.
+      # @param menu [Handle, nil] a `:menu` or `:context_menu` handle to tk_popup
+      # @yield called with no arguments (only when +menu+ isn't given)
       # @return [self]
-      def on_right_click(&block)
-        RIGHT_CLICK_EVENTS.each { |event| bind_event(event, block) }
+      # @raise [ArgumentError] if given neither or both, or +menu+ isn't a menu handle
+      def on_right_click(menu = nil, &block)
+        if menu && block
+          raise ArgumentError, "on_right_click takes either a menu handle or a block, not both"
+        elsif menu
+          unless MENU_HANDLE_TYPES.include?(menu.type)
+            raise ArgumentError, "on_right_click(menu) needs a :menu or :context_menu handle (got a :#{menu.type})"
+          end
+
+          popup = lambda do |root_x, root_y|
+            realized.app.popup_menu(menu.path, x: root_x, y: root_y)
+          end
+          RIGHT_CLICK_EVENTS.each { |event| bind_event(event, popup, subs: %i[root_x root_y]) }
+        elsif block
+          RIGHT_CLICK_EVENTS.each { |event| bind_event(event, block) }
+        else
+          raise ArgumentError, "on_right_click needs either a menu handle or a block"
+        end
         self
       end
 
