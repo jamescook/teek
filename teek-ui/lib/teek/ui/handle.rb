@@ -2,15 +2,20 @@
 
 require_relative 'errors'
 require_relative 'realized_node'
+require_relative 'event_binding'
+require_relative 'keysyms'
 
 module Teek
   module UI
     # The single handle type for a node, valid across both phases (Resolved
     # decision #3 in the architecture doc - no separate build-time NodeRef).
-    # During build you compose/name it; live methods (#path, #configure) raise
-    # {NotRealizedError} until the node's +realized+ slot is filled in by the
-    # realizer, then the same Handle object drives the real widget through it.
+    # During build you compose/name/record-events on it; live methods
+    # (#path, #configure) raise {NotRealizedError} until the node's
+    # +realized+ slot is filled in by the realizer, then the same Handle
+    # object drives the real widget through it.
     class Handle
+      RIGHT_CLICK_EVENTS = %w[<Button-2> <Button-3> <Control-Button-1>].freeze
+
       # @api private
       def initialize(node)
         @node = node
@@ -39,10 +44,81 @@ module Teek
         realized.app.command(realized.path, :configure, **opts)
       end
 
+      # Fires on a left click.
+      # @yield called with no arguments
+      # @return [self]
+      def on_click(&block)
+        bind_event('<Button-1>', block)
+        self
+      end
+
+      # Fires on a right click, however the platform spells it (Button-3 on
+      # Linux/Windows, Button-2 or Control-Button-1 on macOS).
+      # @yield called with no arguments
+      # @return [self]
+      def on_right_click(&block)
+        RIGHT_CLICK_EVENTS.each { |event| bind_event(event, block) }
+        self
+      end
+
+      # Fires while dragging (left button held down and moving). Delivers
+      # Integer x/y, converted through the widget's own canvasx/canvasy when
+      # bound to a canvas so callers never have to remember to do that
+      # themselves.
+      # @yield [x, y] Integer coordinates
+      # @return [self]
+      def on_drag(&block)
+        drag_type = type
+        wrapped = lambda do |raw_x, raw_y|
+          block.call(*convert_drag_coords(drag_type, raw_x, raw_y))
+        end
+        bind_event('<B1-Motion>', wrapped, subs: %i[x y])
+        self
+      end
+
+      # Fires on a key press. +spec+ is either a friendly Symbol (+:enter+,
+      # +:escape+, +:up+, ...) or a "Modifier-Modifier-Key" String
+      # (+"Ctrl-s"+, +"Ctrl-Shift-s"+) - see {Keysyms}.
+      # @param spec [Symbol, String]
+      # @yield called with no arguments
+      # @return [self]
+      def on_key(spec, &block)
+        modifiers, keysym = Keysyms.resolve(spec)
+        Keysyms.patterns_for(modifiers, keysym).each { |event| bind_event(event, block) }
+        self
+      end
+
       private
 
       def realized
         @node.realized or raise NotRealizedError
+      end
+
+      def bind_event(event, handler, subs: [])
+        binding = EventBinding.new(event: event, handler: handler, subs: subs)
+
+        if @node.realized
+          wire(@node.realized, binding)
+        else
+          @node.events << binding
+        end
+      end
+
+      def wire(realized_node, binding)
+        realized_node.app.bind(realized_node.path, binding.event, *binding.subs) { |*args|
+          binding.handler.call(*args)
+        }
+      end
+
+      def convert_drag_coords(drag_type, raw_x, raw_y)
+        if drag_type == :canvas
+          info = @node.realized
+          x = info.app.command(info.path, :canvasx, raw_x).to_f.round
+          y = info.app.command(info.path, :canvasy, raw_y).to_f.round
+          [x, y]
+        else
+          [raw_x.to_i, raw_y.to_i]
+        end
       end
     end
   end

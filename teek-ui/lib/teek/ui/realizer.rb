@@ -102,7 +102,7 @@ module Teek
             node
           end
 
-        @app.bind(target_node.realized.path, binding.event) { binding.handler.call }
+        @app.bind(target_node.realized.path, binding.event, *binding.subs) { |*args| binding.handler.call(*args) }
       end
 
       def allocate_path(node, parent_path)

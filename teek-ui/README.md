@@ -2,7 +2,7 @@
 
 A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar over teek, not a wall around it.
 
-> **Alpha**: teek-ui is early. Widgets declare into a real tree and `.run` realizes them into live Tk widgets - but layout is a placeholder (children just pack top-to-bottom; there's no `gap`/`align`/`grow` yet) and there's no `on_click`-style event DSL yet either.
+> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, and `on_click`/`on_key`/etc. wire real events - but layout is still a placeholder (children just pack top-to-bottom; there's no `gap`/`align`/`grow` yet).
 
 ## Quick Start
 
