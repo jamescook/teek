@@ -2,7 +2,7 @@
 
 A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar over teek, not a wall around it.
 
-> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `column`/`row` lay them out without touching Tk's own geometry vocabulary, `on_click`/`on_key`/etc. wire real events, and `ui.var` gives widgets a shared reactive value - grid and overlay layout aren't built yet.
+> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `column`/`row`/`grid` lay them out without touching Tk's own geometry vocabulary, `on_click`/`on_key`/etc. wire real events, and `ui.var` gives widgets a shared reactive value - overlay layout isn't built yet.
 
 ## Quick Start
 
@@ -79,7 +79,26 @@ end.run
 - `grow: true` on any child (leaf or container) - it consumes leftover space along the main axis.
 - `spacer` - a flexible gap (`grow: true` baked in) - the named replacement for the classic invisible "spring row" trick.
 
-Every other container (`panel`/`group`/`canvas`/`window`) still just packs its children top-to-bottom with no options - reach for `column`/`row` when you actually want control over spacing/alignment. Grid and overlay layout aren't built yet.
+`ui.grid` is for the minority of screens flow doesn't fit - a labeled-field form, a table of inputs:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.grid(:form, gap: 4) do |g|
+    g.cell(row: 0, col: 0) { g.label(text: 'Name:') }
+    g.cell(row: 0, col: 1) { g.text_box(:name_field) }
+    g.cell(row: 1, col: 0) { g.label(text: 'Email:') }
+    g.cell(row: 1, col: 1) { g.text_box(:email_field) }
+    g.stretch(columns: [1]) # the input column absorbs extra width
+  end
+end.run
+```
+
+- `g.cell(row:, col:, span: 1) { }` - positions the single widget its block declares. `span:` covers multiple columns.
+- `g.stretch(columns:, rows:)` - which columns/rows absorb leftover space, in English instead of `columnconfigure -weight`.
+
+`cell`/`stretch` only work directly inside a `ui.grid` block - both raise otherwise.
+
+Every other container (`panel`/`group`/`canvas`/`window`) still just packs its children top-to-bottom with no options - reach for `column`/`row`/`grid` when you actually want control over spacing/alignment/positions. Overlay layout isn't built yet.
 
 ## Events
 

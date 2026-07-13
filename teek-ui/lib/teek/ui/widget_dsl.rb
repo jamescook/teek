@@ -33,9 +33,10 @@ module Teek
       #
       # `column`/`row` additionally get flow-layout packing from the
       # realizer (see {Realizer::FLOW}) driven by their own `gap:`/`align:`/
-      # `pad:` options; the others keep the plain unconditional pack every
-      # container has always gotten.
-      CONTAINER_TYPES = %i[panel group canvas window column row].freeze
+      # `pad:` options; `grid` gets real Tk grid arrangement driven by
+      # `#cell`/`#stretch` (below); the others keep the plain unconditional
+      # pack every container has always gotten.
+      CONTAINER_TYPES = %i[panel group canvas window column row grid].freeze
 
       # Widget type -> the Tk option a bound {Var} plugs into. Not every
       # widget can be bound this way (text_area/list/table/tree/divider have
@@ -81,6 +82,40 @@ module Teek
         node && Handle.new(node)
       end
 
+      # Position the single widget declared in the block at (row, col) in
+      # the enclosing `ui.grid`. Only valid directly inside a grid's block.
+      # @param row [Integer]
+      # @param col [Integer]
+      # @param span [Integer] how many columns this cell spans
+      # @return [void]
+      def cell(row:, col:, span: 1)
+        grid_node = current_grid!('cell')
+
+        before = grid_node.children.length
+        yield self if block_given?
+        placed = grid_node.children[before..]
+
+        unless placed.length == 1
+          raise ArgumentError, "cell needs exactly one widget declared in its block (got #{placed.length})"
+        end
+
+        node = placed.first
+        node.layout = (node.layout || {}).merge(cell: { row: row, col: col, span: span })
+      end
+
+      # Mark which columns/rows of the enclosing `ui.grid` absorb leftover
+      # space - the named replacement for `grid columnconfigure -weight`.
+      # Only valid directly inside a grid's block.
+      # @param columns [Array<Integer>]
+      # @param rows [Array<Integer>]
+      # @return [void]
+      def stretch(columns: [], rows: [])
+        grid_node = current_grid!('stretch')
+
+        grid_node.opts[:stretch_columns] = Array(columns) if columns.any?
+        grid_node.opts[:stretch_rows] = Array(rows) if rows.any?
+      end
+
       # Declare a reactive variable. Its Tcl variable name is allocated now
       # (no interpreter needed - it's just a string); the variable itself
       # only becomes real at realize. Bind it to widgets with `bind:`.
@@ -121,6 +156,15 @@ module Teek
         return [opts, nil] unless opts.key?(:grow)
 
         [opts.reject { |k, _| k == :grow }, { grow: opts[:grow] }]
+      end
+
+      def current_grid!(method_name)
+        grid_node = @stack.last
+        unless grid_node.type == :grid
+          raise ArgumentError, "##{method_name} can only be used directly inside ui.grid"
+        end
+
+        grid_node
       end
 
       def append_container(type, name, opts)

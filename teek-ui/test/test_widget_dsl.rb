@@ -242,4 +242,82 @@ class TestWidgetDsl < Minitest::Test
     assert_equal({ grow: true }, spacer_node.layout)
     assert_equal [], spacer_node.children
   end
+
+  def test_grid_is_a_container_type
+    session = build_session
+
+    session.grid(:g, gap: 6) { |g| g.cell(row: 0, col: 0) { g.label(text: 'User') } }
+
+    node = session.document.root.children.first
+    assert_equal :grid, node.type
+    assert_equal({ gap: 6 }, node.opts)
+  end
+
+  def test_cell_tags_the_single_widget_it_creates_with_row_col_span
+    session = build_session
+
+    session.grid(:g) { |g| g.cell(row: 1, col: 2, span: 3) { g.label(:l, text: 'x') } }
+
+    label_node = session.document.root.children.first.children.first
+    assert_equal({ row: 1, col: 2, span: 3 }, label_node.layout[:cell])
+  end
+
+  def test_cell_span_defaults_to_1
+    session = build_session
+
+    session.grid(:g) { |g| g.cell(row: 0, col: 0) { g.label(:l, text: 'x') } }
+
+    label_node = session.document.root.children.first.children.first
+    assert_equal 1, label_node.layout[:cell][:span]
+  end
+
+  def test_cell_merges_with_an_existing_grow_layout_intent
+    session = build_session
+
+    session.grid(:g) { |g| g.cell(row: 0, col: 0) { g.text_box(:t, grow: true) } }
+
+    node = session.document.root.children.first.children.first
+    assert_equal true, node.layout[:grow]
+    assert_equal({ row: 0, col: 0, span: 1 }, node.layout[:cell])
+  end
+
+  def test_cell_raises_if_its_block_creates_no_widget
+    session = build_session
+
+    error = assert_raises(ArgumentError) { session.grid(:g) { |g| g.cell(row: 0, col: 0) { } } }
+    assert_match(/exactly one widget/, error.message)
+  end
+
+  def test_cell_raises_if_its_block_creates_more_than_one_widget
+    session = build_session
+
+    error = assert_raises(ArgumentError) do
+      session.grid(:g) { |g| g.cell(row: 0, col: 0) { g.label(:a); g.label(:b) } }
+    end
+    assert_match(/exactly one widget/, error.message)
+  end
+
+  def test_cell_outside_a_grid_raises
+    session = build_session
+
+    error = assert_raises(ArgumentError) { session.cell(row: 0, col: 0) { } }
+    assert_match(/grid/, error.message)
+  end
+
+  def test_stretch_sets_stretch_columns_and_rows_on_the_grid_nodes_opts
+    session = build_session
+
+    session.grid(:g) { |g| g.stretch(columns: [1], rows: [0]) }
+
+    node = session.document.root.children.first
+    assert_equal [1], node.opts[:stretch_columns]
+    assert_equal [0], node.opts[:stretch_rows]
+  end
+
+  def test_stretch_outside_a_grid_raises
+    session = build_session
+
+    error = assert_raises(ArgumentError) { session.stretch(columns: [0]) }
+    assert_match(/grid/, error.message)
+  end
 end

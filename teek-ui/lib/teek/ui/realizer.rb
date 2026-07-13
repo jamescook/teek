@@ -19,10 +19,10 @@ module Teek
     # teek's interceptor/leak-cleanup layer applies automatically.
     #
     # @note Layout is real for +:column+/+:row+ (flow packing driven by
-    #   +gap:+/+align:+/+pad:+ and each child's +grow:+), but still a
+    #   +gap:+/+align:+/+pad:+ and each child's +grow:+) and +:grid+ (real Tk
+    #   grid arrangement driven by +#cell+/+#stretch+), but still a
     #   placeholder for every other container type - their children just
-    #   pack top-to-bottom with no options. There's no grid/overlay layout
-    #   yet either.
+    #   pack top-to-bottom with no options. There's no overlay layout yet.
     class Realizer
       # DSL node type -> Tk widget-creation command.
       TK_COMMANDS = {
@@ -47,12 +47,14 @@ module Teek
         column: 'ttk::frame',
         row: 'ttk::frame',
         spacer: 'ttk::frame',
+        grid: 'ttk::frame',
       }.freeze
 
-      # gap:/align:/pad: are layout-DSL keywords, not real Tk options - never
-      # passed through to a widget-creation call, on any node type (no Tk
-      # widget has options actually named -gap/-align/-pad).
-      LAYOUT_ONLY_OPTIONS = %i[gap align pad].freeze
+      # gap:/align:/pad:/stretch_columns/stretch_rows are layout-DSL
+      # keywords, not real Tk options - never passed through to a
+      # widget-creation call, on any node type (no Tk widget has options
+      # actually named -gap/-align/-pad/-stretch_columns/-stretch_rows).
+      LAYOUT_ONLY_OPTIONS = %i[gap align pad stretch_columns stretch_rows].freeze
 
       # :column/:row flow-packing config, mirrored across the main axis
       # (stack direction) and cross axis (perpendicular to it).
@@ -111,15 +113,23 @@ module Teek
       end
 
       def link(node)
-        pack_children(node)
+        arrange_children(node)
         node.events.each { |binding| wire_event(node, binding) }
         node.children.each { |child| link(child) }
       end
 
-      def pack_children(node)
-        flow = FLOW[node.type]
-        return node.children.each { |child| @app.command(:pack, child.realized.path) } unless flow
+      def arrange_children(node)
+        if FLOW.key?(node.type)
+          arrange_flow(node)
+        elsif node.type == :grid
+          arrange_grid(node)
+        else
+          node.children.each { |child| @app.command(:pack, child.realized.path) }
+        end
+      end
 
+      def arrange_flow(node)
+        flow = FLOW[node.type]
         gap = node.opts.fetch(:gap, 0)
         align = node.opts.fetch(:align, :start)
         pad = node.opts.fetch(:pad, 0)
@@ -132,6 +142,29 @@ module Teek
           )
           @app.command(:pack, child.realized.path, **opts)
         end
+      end
+
+      def arrange_grid(node)
+        gap = node.opts.fetch(:gap, 0)
+
+        node.children.each do |child|
+          cell = child.layout && child.layout[:cell]
+          unless cell
+            raise ArgumentError, "#{describe(child)} is a direct child of a grid but was never placed with " \
+                                  "g.cell(row:, col:) { ... }"
+          end
+
+          opts = { row: cell[:row], column: cell[:col], sticky: 'ew', padx: gap, pady: gap }
+          opts[:columnspan] = cell[:span] if cell[:span].to_i > 1
+          @app.command(:grid, child.realized.path, **opts)
+        end
+
+        Array(node.opts[:stretch_columns]).each { |col| @app.command(:grid, :columnconfigure, node.realized.path, col, weight: 1) }
+        Array(node.opts[:stretch_rows]).each { |row| @app.command(:grid, :rowconfigure, node.realized.path, row, weight: 1) }
+      end
+
+      def describe(node)
+        node.name ? "##{node.type}(:#{node.name})" : "an unnamed ##{node.type}"
       end
 
       def flow_pack_opts(flow:, child:, index:, last_index:, gap:, align:, pad:)
