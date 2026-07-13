@@ -3,6 +3,7 @@
 require_relative 'errors'
 require_relative 'document'
 require_relative 'widget_dsl'
+require_relative 'realizer'
 
 module Teek
   module UI
@@ -13,11 +14,8 @@ module Teek
     # Building is Tk-free: {Teek::UI.app} never constructs a {Teek::App}, so
     # the block runs (and #document is buildable/inspectable) with no
     # interpreter at all. Nothing talks to Tk until #realize (called by #run
-    # and #run_async, or directly) actually creates one.
-    #
-    # Realizing the tree itself (walking Document nodes into live Tk widgets)
-    # isn't built yet - #realize currently only creates the App. Once the
-    # realizer exists, realizing walks and applies the tree here too.
+    # and #run_async, or directly) actually creates one and walks the tree
+    # into it via {Realizer}.
     class Session
       include WidgetDSL
 
@@ -42,11 +40,27 @@ module Teek
         @app
       end
 
-      # Create the underlying {Teek::App} if it doesn't exist yet. Idempotent -
-      # calling it again after the first time just returns the same app.
+      # Create the underlying {Teek::App} and realize the build tree into it,
+      # if that hasn't happened yet. Idempotent - calling it again after the
+      # first time just returns the same app.
+      #
+      # Atomic: the app's root window starts (and stays) withdrawn until the
+      # whole tree is realized, so a mid-realize error never leaves a
+      # half-built window visible. On failure the partially-built app is
+      # destroyed and the session is left exactly as if #realize had never
+      # been called - it isn't left half-realized.
       # @return [Teek::App]
       def realize
-        @app ||= Teek::App.new(title: @title, **@app_opts)
+        return @app if @app
+
+        app = Teek::App.new(title: @title, **@app_opts)
+        begin
+          Realizer.realize(app, @document)
+        rescue
+          app.destroy
+          raise
+        end
+        @app = app
       end
 
       # Realize, show the window, and enter the Tk event loop. Blocks until

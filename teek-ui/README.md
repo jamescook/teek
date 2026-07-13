@@ -2,7 +2,7 @@
 
 A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar over teek, not a wall around it.
 
-> **Alpha**: teek-ui is early. Widgets can be declared and form a real tree, but nothing realizes that tree into live Tk widgets yet - the layout and event DSL, and the realizer that actually creates widgets on `.run`, are still being built out.
+> **Alpha**: teek-ui is early. Widgets declare into a real tree and `.run` realizes them into live Tk widgets - but layout is a placeholder (children just pack top-to-bottom; there's no `gap`/`align`/`grow` yet) and there's no `on_click`-style event DSL yet either.
 
 ## Quick Start
 
@@ -34,21 +34,30 @@ session.app.command(:label, '.greeting', text: 'Hi there') # fine now
 
 ## Widgets
 
-`ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk (there's no realizer yet, so `.run` doesn't put anything on screen). A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:
+`ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
+session = Teek::UI.app(title: 'Hello') do |ui|
   ui.panel(:controls) do |p|
     p.text_box(:query)
     p.button(:go, text: 'Go')
   end
 end
+session.run # realizes the tree - .controls, .controls.query, .controls.go now exist and are visible
 ```
 
-`ui[:query]` (from anywhere in the build, not just inside the block that declared it) returns a `Handle` - `.path`/`.configure` raise `Teek::UI::NotRealizedError` until a realizer exists to fill them in; `.type`/`.name` work at any point.
+Paths are hierarchical and derived from widget names, not auto-incremented junk like `.ttkbtn7` - `ui[:go].path` above is `.controls.go`. An unnamed widget still gets a valid (if less meaningful) auto-generated path segment.
+
+`ui[:query]` (from anywhere in the build, not just inside the block that declared it) returns a `Handle` - `.path`/`.configure` raise `Teek::UI::NotRealizedError` until realized, then act on the live widget:
+
+```ruby
+session[:query].configure(width: 40) # after session.run/.run_async/.realize
+```
 
 Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
 Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`.
+
+Layout is a placeholder today - realize just packs each container's children top-to-bottom, with no options. The real layout DSL (`gap`/`align`/`grow`) replaces this later.
 
 ## Escape Hatch
 

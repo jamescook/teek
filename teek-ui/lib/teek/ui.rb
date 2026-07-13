@@ -2,6 +2,7 @@
 
 require "teek"
 require_relative "ui/version"
+require_relative "ui/event_binding"
 require_relative "ui/session"
 
 module Teek
