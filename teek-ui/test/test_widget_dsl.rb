@@ -320,4 +320,23 @@ class TestWidgetDsl < Minitest::Test
     error = assert_raises(ArgumentError) { session.stretch(columns: [0]) }
     assert_match(/grid/, error.message)
   end
+
+  def test_raw_creates_a_raw_op_node_attached_to_the_current_parent
+    session = build_session
+
+    session.column(:c) { |c| c.raw { |_app| } }
+
+    node = session.document.root.children.first.children.first
+    assert_equal :raw_op, node.type
+    assert_kind_of Proc, node.opts[:block]
+  end
+
+  def test_raw_does_not_execute_the_block_during_build
+    session = build_session
+    executed = false
+
+    session.raw { |_app| executed = true }
+
+    refute executed, "ui.raw should defer its block to realize, not run it during build"
+  end
 end

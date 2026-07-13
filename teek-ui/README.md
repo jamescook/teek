@@ -136,13 +136,26 @@ session.run
 
 ## Escape Hatch
 
-Once realized, every session exposes the underlying `Teek::App` - nothing here is a sandbox:
+Nothing here is a sandbox - the DSL is sugar, not a wall, and there are two ways to drop to plain teek depending on when you need it.
+
+**After realize**, every session exposes the live `Teek::App` directly:
 
 ```ruby
 session = Teek::UI.app(title: 'Hello').run_async
 session.app.command(:label, '.greeting', text: 'Hi there')
 session.app.tcl_eval('pack .greeting')
 ```
+
+**During build**, `session.app` doesn't exist yet (see "Building vs. Realizing" above) - a widget doesn't have a Tk path yet either, so there's nothing for `app.command(handle.path, ...)` to act on mid-build. `ui.raw { |app| ... }` is the build-time escape hatch instead: it records the block and defers it to realize, where it runs with the real, live app. It's a closure, so it can still reference sibling widgets by name even if they're declared later in the build - by the time any `ui.raw` block runs, the whole tree has already been realized once over, the same forward-reference guarantee event `target:` gets:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.raw { |app| app.command(ui[:later].path, :configure, text: 'Changed by raw') } # runs at realize
+  ui.button(:later, text: 'Original') # declared after, still resolves - forward reference
+end.run
+```
+
+So: `ui.raw` for build-time raw work, `session.app` (or a realized `Handle`) for anything after.
 
 ## Interactive / REPL Use
 

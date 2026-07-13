@@ -93,15 +93,20 @@ module Teek
 
       private
 
+      # Node types with no Tk representation of their own - skipped by
+      # create's widget-creation step, and (for :raw_op) by every
+      # container's arrangement step too, since they have no realized path.
+      NON_WIDGET_TYPES = %i[root raw_op].freeze
+
       def create(node, parent_path)
         path =
-          if node.type == :root
+          if NON_WIDGET_TYPES.include?(node.type)
             parent_path
           else
             allocate_path(node, parent_path)
           end
 
-        unless node.type == :root
+        unless NON_WIDGET_TYPES.include?(node.type)
           tk_command = TK_COMMANDS.fetch(node.type) {
             raise ArgumentError, "no Tk command mapped for node type :#{node.type}"
           }
@@ -115,27 +120,36 @@ module Teek
       def link(node)
         arrange_children(node)
         node.events.each { |binding| wire_event(node, binding) }
+        run_raw_op(node) if node.type == :raw_op
         node.children.each { |child| link(child) }
       end
 
+      def run_raw_op(node)
+        node.opts[:block].call(@app)
+      end
+
       def arrange_children(node)
+        # :raw_op children aren't widgets - they have no realized path, so
+        # they'd break every arrangement strategy below if treated as one.
+        arrangeable = node.children.reject { |child| child.type == :raw_op }
+
         if FLOW.key?(node.type)
-          arrange_flow(node)
+          arrange_flow(node, arrangeable)
         elsif node.type == :grid
-          arrange_grid(node)
+          arrange_grid(node, arrangeable)
         else
-          node.children.each { |child| @app.command(:pack, child.realized.path) }
+          arrangeable.each { |child| @app.command(:pack, child.realized.path) }
         end
       end
 
-      def arrange_flow(node)
+      def arrange_flow(node, children)
         flow = FLOW[node.type]
         gap = node.opts.fetch(:gap, 0)
         align = node.opts.fetch(:align, :start)
         pad = node.opts.fetch(:pad, 0)
-        last_index = node.children.length - 1
+        last_index = children.length - 1
 
-        node.children.each_with_index do |child, index|
+        children.each_with_index do |child, index|
           opts = flow_pack_opts(
             flow: flow, child: child, index: index, last_index: last_index,
             gap: gap, align: align, pad: pad
@@ -144,10 +158,10 @@ module Teek
         end
       end
 
-      def arrange_grid(node)
+      def arrange_grid(node, children)
         gap = node.opts.fetch(:gap, 0)
 
-        node.children.each do |child|
+        children.each do |child|
           cell = child.layout && child.layout[:cell]
           unless cell
             raise ArgumentError, "#{describe(child)} is a direct child of a grid but was never placed with " \

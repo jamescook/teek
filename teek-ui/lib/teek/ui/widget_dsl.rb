@@ -116,6 +116,23 @@ module Teek
         grid_node.opts[:stretch_rows] = Array(rows) if rows.any?
       end
 
+      # The build-time escape hatch. A widget has no Tk path yet during
+      # build, so `app.command(handle.path, ...)` mid-build can't work -
+      # `ui.raw` defers the block instead, running it at realize with the
+      # live app in scope. It's a closure, so it can still reference sibling
+      # widgets by name (`ui[:other].path`) even if they're declared later -
+      # by the time any raw block runs, the whole tree has already been
+      # realized once over (same forward-reference guarantee event target:
+      # gets). For anything after realize, a live {Handle}/`session.app` is
+      # the escape hatch instead - see the README for the full split.
+      # @yieldparam app [Teek::App]
+      # @return [nil]
+      def raw(&block)
+        node = @document.create(type: :raw_op, opts: { block: block })
+        @stack.last.add_child(node)
+        nil
+      end
+
       # Declare a reactive variable. Its Tcl variable name is allocated now
       # (no interpreter needed - it's just a string); the variable itself
       # only becomes real at realize. Bind it to widgets with `bind:`.
