@@ -214,6 +214,7 @@ COPY test/ test/
 COPY sample/ sample/
 COPY teek-sdl2/test/ teek-sdl2/test/
 COPY teek-sdl2/assets/ teek-sdl2/assets/
+COPY teek-ui/ teek-ui/
 COPY screenshots/blessed/ screenshots/blessed/
 
 COPY docker-entrypoint.sh /usr/local/bin/

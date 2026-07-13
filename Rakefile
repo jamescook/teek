@@ -293,6 +293,15 @@ namespace :sdl2 do
   task test: 'sdl2:compile'
 end
 
+namespace :ui do
+  Rake::TestTask.new(:test) do |t|
+    t.libs << 'teek-ui/test' << 'teek-ui/lib'
+    t.test_files = FileList['teek-ui/test/**/test_*.rb'] - FileList['teek-ui/test/test_helper.rb']
+    t.ruby_opts << '-r test_helper'
+    t.verbose = true
+  end
+end
+
 task :default => :compile
 
 namespace :release do
@@ -510,6 +519,31 @@ namespace :docker do
       sh cmd
     end
 
+    desc "Run teek-ui tests in Docker"
+    task ui: :build do
+      tcl_version = tcl_version_from_env
+      ruby_version = ruby_version_from_env
+      image_name = docker_image_name(tcl_version, ruby_version)
+
+      require 'fileutils'
+      FileUtils.mkdir_p('coverage')
+
+      warn_if_containers_running(image_name)
+
+      puts "Running teek-ui tests in Docker (Ruby #{ruby_version}, Tcl #{tcl_version})..."
+      cmd = "docker run --rm --init"
+      cmd += " -v #{Dir.pwd}/coverage:/app/coverage"
+      cmd += " -e TCL_VERSION=#{tcl_version}"
+      if ENV['COVERAGE'] == '1'
+        cmd += " -e COVERAGE=1"
+        cmd += " -e COVERAGE_NAME=#{ENV['COVERAGE_NAME'] || 'ui'}"
+      end
+      cmd += " #{image_name}"
+      cmd += " xvfb-run -a bundle exec rake ui:test"
+
+      sh cmd
+    end
+
     desc "Run all tests (teek + teek-sdl2) with coverage and generate report"
     task all: 'docker:build' do
       tcl_version = tcl_version_from_env
@@ -520,7 +554,7 @@ namespace :docker do
       FileUtils.rm_rf('coverage')
       FileUtils.mkdir_p('coverage/results')
 
-      # Run all three test suites with coverage enabled and distinct COVERAGE_NAMEs
+      # Run all test suites with coverage enabled and distinct COVERAGE_NAMEs
       ENV['COVERAGE'] = '1'
 
       ENV['COVERAGE_NAME'] = 'main'
@@ -530,6 +564,11 @@ namespace :docker do
       Rake::Task['docker:test:sdl2'].reenable
       Rake::Task['docker:build'].reenable
       Rake::Task['docker:test:sdl2'].invoke
+
+      ENV['COVERAGE_NAME'] = 'ui'
+      Rake::Task['docker:test:ui'].reenable
+      Rake::Task['docker:build'].reenable
+      Rake::Task['docker:test:ui'].invoke
 
       # Collate inside Docker (paths match /app/lib/...)
       puts "Collating coverage results..."

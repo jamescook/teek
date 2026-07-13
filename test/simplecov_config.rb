@@ -25,6 +25,7 @@ module SimpleCovConfig
   def self.apply_groups(simplecov_context)
     simplecov_context.add_group 'Core', 'lib/teek.rb'
     simplecov_context.add_group 'SDL2', 'lib/teek/sdl2'
+    simplecov_context.add_group 'UI', 'lib/teek/ui'
   end
 
   # Generate add_filter code lines from FILTERS array (for subprocess preamble)
