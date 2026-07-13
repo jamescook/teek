@@ -11,6 +11,14 @@
 # building further on it. This is a starting point, not a full port of
 # goldberg's physics simulation - see sample/goldberg.rb for the original.
 #
+# The menu bar and status-label context menu aren't ported from anything -
+# goldberg.rb has no menus at all - they're here to exercise the menu DSL
+# (ui.menu_bar/.menu/.item/.checkbox/on_right_click) against this same
+# real screen, sharing the reset/show_about logic with the equivalent
+# buttons and the Edit > Details checkbox with the ctrl panel's own
+# Details checkbox - both bound to the same var, so they stay in sync via
+# Tk's own -variable machinery, no extra glue code needed.
+#
 # Run: ruby sample/goldberg_ui.rb
 
 # Load the local checkouts, not whatever teek/teek-ui gems happen to be
@@ -26,8 +34,45 @@ Teek::UI.app(title: 'Goldberg Control Panel (teek-ui)') do |ui|
   message = ui.var('')
   speed = ui.var(5)
 
+  details.on_change { |shown| mode.value = "Details #{shown ? 'shown' : 'hidden'}" }
+
+  reset = lambda {
+    mode.value = 'Ready'
+    pause.value = false
+    message.value = ''
+    speed.value = 5
+  }
+
+  show_about = lambda {
+    ui.app.message_box(
+      title: 'About',
+      message: "Goldberg Control Panel (teek-ui port)",
+      detail: 'A teek-ui DSL port of goldberg.rb\'s control panel - column/row, ' \
+              'gap/align/spacer, on_click/on_key, and reactive vars, no raw tcl_eval.'
+    )
+  }
+
+  ui.menu_bar do |mb|
+    mb.menu(label: 'File') do |file|
+      file.item(label: 'Reset') { reset.call }
+      file.separator
+      file.item(label: 'Quit') { ui.app.destroy }
+    end
+    mb.menu(label: 'Edit') do |edit|
+      edit.checkbox(label: 'Details', bind: details)
+    end
+    mb.menu(label: 'Help') do |help|
+      help.item(label: 'About') { show_about.call }
+    end
+  end
+
   ui.column(:root, gap: 10, align: :stretch, pad: 10) do |c|
-    c.label(:status, bind: mode)
+    ctx = ui.context_menu(:status_menu) do |m|
+      m.item(label: 'Reset') { reset.call }
+      m.item(label: 'About') { show_about.call }
+    end
+
+    c.label(:status, bind: mode).on_right_click(ctx)
     c.divider
 
     c.column(:ctrl, gap: 4, align: :stretch, relief: 'ridge', borderwidth: 2, padding: [5, 5]) do |ctrl|
@@ -39,15 +84,9 @@ Teek::UI.app(title: 'Goldberg Control Panel (teek-ui)') do |ui|
       ctrl.button(:step, text: 'Single Step').on_click { mode.value = 'Stepped' }
       ctrl.button(:bstep, text: 'Big Step').on_click { mode.value = 'Big stepped' }
 
-      ctrl.button(:reset, text: 'Reset').on_click {
-        mode.value = 'Ready'
-        pause.value = false
-        message.value = ''
-        speed.value = 5
-      }
+      ctrl.button(:reset, text: 'Reset').on_click { reset.call }
 
       ctrl.checkbox(:details, text: 'Details', bind: details)
-        .on_click { mode.value = "Details #{details.value ? 'shown' : 'hidden'}" }
 
       ctrl.spacer
 
@@ -60,14 +99,7 @@ Teek::UI.app(title: 'Goldberg Control Panel (teek-ui)') do |ui|
         r.slider(:speed_scale, from: 1, to: 10, bind: speed)
       end
 
-      ctrl.button(:about, text: 'About').on_click {
-        ui.app.message_box(
-          title: 'About',
-          message: "Goldberg Control Panel (teek-ui port)",
-          detail: 'A teek-ui DSL port of goldberg.rb\'s control panel - column/row, ' \
-                  'gap/align/spacer, on_click/on_key, and reactive vars, no raw tcl_eval.'
-        )
-      }
+      ctrl.button(:about, text: 'About').on_click { show_about.call }
     end
   end
 end.run
