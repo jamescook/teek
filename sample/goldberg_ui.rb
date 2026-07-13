@@ -30,7 +30,7 @@ Teek::UI.app(title: 'Goldberg Control Panel (teek-ui)') do |ui|
     c.label(:status, bind: mode)
     c.divider
 
-    c.column(:ctrl, gap: 4, align: :stretch) do |ctrl|
+    c.column(:ctrl, gap: 4, align: :stretch, relief: 'ridge', borderwidth: 2, padding: [5, 5]) do |ctrl|
       ctrl.button(:start, text: 'Start').on_click { mode.value = 'Running' }
 
       ctrl.checkbox(:pause, text: 'Pause', bind: pause)
@@ -51,7 +51,7 @@ Teek::UI.app(title: 'Goldberg Control Panel (teek-ui)') do |ui|
 
       ctrl.spacer
 
-      ctrl.text_box(:msg_entry, bind: message)
+      ctrl.text_box(:msg_entry, bind: message, justify: :center)
         .on_key(:enter) { mode.value = "Message: #{message.value}" }
 
       ctrl.row(:speed_row, gap: 6, align: :center) do |r|
