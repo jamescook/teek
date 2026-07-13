@@ -148,4 +148,25 @@ class TestUI < Minitest::Test
       session.app.destroy
     end
   end
+
+  def test_realize_validates_before_constructing_any_interpreter
+    assert_tk_app("a validation failure should prevent any Teek::App/Interp from being constructed at all") do
+      require 'teek/ui'
+
+      baseline = Teek::Interp.instance_count
+      session = Teek::UI.app(title: 'Validation Test') do |ui|
+        ui.grid(:g) do |g|
+          g.cell(row: 0, col: 0) { g.label(:a, text: 'A') }
+          g.cell(row: 0, col: 0) { g.label(:b, text: 'B') }
+        end
+      end
+
+      error = assert_raises(Teek::UI::ValidationError) { session.realize }
+      assert_match(/row 0, col 0/, error.message)
+
+      assert_equal baseline, Teek::Interp.instance_count,
+        "a doomed build should never construct an interpreter, not even one that gets destroyed afterward"
+      assert_raises(Teek::UI::NotRealizedError) { session.app }
+    end
+  end
 end

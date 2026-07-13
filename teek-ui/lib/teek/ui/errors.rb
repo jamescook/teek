@@ -12,5 +12,11 @@ module Teek
         super
       end
     end
+
+    # Raised by {Validator#validate!} when the build tree has one or more
+    # raise-level problems. The message lists every one found, not just the
+    # first, so a build can be fixed in one pass instead of a cycle of
+    # "run, hit the next cryptic Tcl error, fix, repeat."
+    class ValidationError < StandardError; end
   end
 end

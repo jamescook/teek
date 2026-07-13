@@ -52,6 +52,18 @@ module Teek
         root.each(&block)
       end
 
+      # Every named node, regardless of whether it's actually attached
+      # anywhere in the tree - see {Validator}'s orphan check, which is
+      # exactly the reason this differs from {#each_node}.
+      # @yieldparam name [Symbol]
+      # @yieldparam node [Node]
+      # @return [Enumerator] if no block given
+      def each_named_node(&block)
+        return enum_for(:each_named_node) unless block
+
+        @index.each(&block)
+      end
+
       private
 
       def register(node)

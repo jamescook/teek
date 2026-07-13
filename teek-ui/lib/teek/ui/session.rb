@@ -4,6 +4,7 @@ require_relative 'errors'
 require_relative 'document'
 require_relative 'widget_dsl'
 require_relative 'realizer'
+require_relative 'validator'
 
 module Teek
   module UI
@@ -44,18 +45,23 @@ module Teek
         @app
       end
 
-      # Create the underlying {Teek::App} and realize the build tree into it,
-      # if that hasn't happened yet. Idempotent - calling it again after the
-      # first time just returns the same app.
+      # Validate the build tree, then create the underlying {Teek::App} and
+      # realize the tree into it, if that hasn't happened yet. Idempotent -
+      # calling it again after the first time just returns the same app.
       #
-      # Atomic: the app's root window starts (and stays) withdrawn until the
-      # whole tree is realized, so a mid-realize error never leaves a
-      # half-built window visible. On failure the partially-built app is
-      # destroyed and the session is left exactly as if #realize had never
-      # been called - it isn't left half-realized.
+      # Atomic in two senses: a validation failure means no interpreter is
+      # ever constructed at all, and even once realizing starts, the app's
+      # root window stays withdrawn until the whole tree is realized, so a
+      # mid-realize error never leaves a half-built window visible either
+      # way. On failure the session is left exactly as if #realize had never
+      # been called - it isn't left half-realized (or half-validated).
+      # @param strict [Boolean] see {Validator.validate!}
       # @return [Teek::App]
-      def realize
+      # @raise [ValidationError] if the build tree has problems
+      def realize(strict: false)
         return @app if @app
+
+        Validator.validate!(@document, strict: strict)
 
         app = Teek::App.new(title: @title, **@app_opts)
         begin
@@ -72,9 +78,10 @@ module Teek
 
       # Realize, show the window, and enter the Tk event loop. Blocks until
       # the app exits.
+      # @param strict [Boolean] see {Validator.validate!}
       # @return [void]
-      def run
-        realize
+      def run(strict: false)
+        realize(strict: strict)
         @app.show
         @app.mainloop
       end
@@ -88,9 +95,10 @@ module Teek
       #   {Teek::App#mainloop}'s own REPL warning documents. A REPL session
       #   helper that services the loop for you on its own is future work,
       #   not built yet.
+      # @param strict [Boolean] see {Validator.validate!}
       # @return [self]
-      def run_async
-        realize
+      def run_async(strict: false)
+        realize(strict: strict)
         @app.show
         self
       end
