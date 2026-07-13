@@ -2,30 +2,66 @@
 
 module Teek
   module UI
-    # The object yielded to (and returned by) {Teek::UI.app} - the DSL's
-    # app-lifecycle surface. Everything else the DSL adds (widgets, layout,
-    # events, ...) builds on top of this in later teek-ui work; for now it
-    # owns #run/#run_async, the escape hatch to the underlying Teek::App,
-    # and thin timer delegates.
+    # Raised by any runtime-only Session method (#app, #every, #after) called
+    # before the session has been realized. These don't queue for later - the
+    # whole point of a Tk-free build phase is that nothing is pretending to
+    # talk to an interpreter that doesn't exist yet.
+    class NotRealizedError < StandardError
+      def initialize(msg = "not realized yet - call #run, #run_async, or #realize first")
+        super
+      end
+    end
+
+    # The object yielded to (and returned by) {Teek::UI.app} - owns the
+    # build-phase {Document} and the realize/run lifecycle.
+    #
+    # Building is Tk-free: {Teek::UI.app} never constructs a {Teek::App}, so
+    # the block runs (and #document is buildable/inspectable) with no
+    # interpreter at all. Nothing talks to Tk until #realize (called by #run
+    # and #run_async, or directly) actually creates one.
+    #
+    # Realizing the tree itself (walking Document nodes into live Tk widgets)
+    # isn't built yet - #realize currently only creates the App. Once the
+    # widget/layout DSL exists, realizing walks and applies the tree here too.
     class Session
-      # @return [Teek::App] the underlying app - the DSL's escape hatch.
-      #   Anything the DSL doesn't wrap yet is one call away: `ui.app.command(...)`.
-      attr_reader :app
+      # @return [Document] the build-phase tree - constructible and
+      #   traversable with no interpreter, before or after realize.
+      attr_reader :document
 
       # @api private
-      def initialize(app)
-        @app = app
+      def initialize(title: nil, app_opts: {})
+        @title = title
+        @app_opts = app_opts
+        @document = Document.new
+        @app = nil
       end
 
-      # Show the window and enter the Tk event loop. Blocks until the app exits.
+      # @return [Teek::App] the underlying app - the DSL's escape hatch.
+      #   Anything the DSL doesn't wrap yet is one call away: `ui.app.command(...)`.
+      # @raise [NotRealizedError] if called before #realize
+      def app
+        raise_unless_realized!
+        @app
+      end
+
+      # Create the underlying {Teek::App} if it doesn't exist yet. Idempotent -
+      # calling it again after the first time just returns the same app.
+      # @return [Teek::App]
+      def realize
+        @app ||= Teek::App.new(title: @title, **@app_opts)
+      end
+
+      # Realize, show the window, and enter the Tk event loop. Blocks until
+      # the app exits.
       # @return [void]
       def run
+        realize
         @app.show
         @app.mainloop
       end
 
-      # Show the window without entering the event loop, for interactive/REPL
-      # use. Returns immediately.
+      # Realize and show the window without entering the event loop, for
+      # interactive/REPL use. Returns immediately.
       #
       # @note this does not (yet) service the event loop automatically between
       #   REPL prompts - call `ui.app.update` yourself to process pending
@@ -35,18 +71,29 @@ module Teek
       #   not built yet.
       # @return [self]
       def run_async
+        realize
         @app.show
         self
       end
 
       # @see Teek::App#every
+      # @raise [NotRealizedError] if called before #realize
       def every(ms, on_error: :raise, &block)
+        raise_unless_realized!
         @app.every(ms, on_error: on_error, &block)
       end
 
       # @see Teek::App#after
+      # @raise [NotRealizedError] if called before #realize
       def after(ms, on_error: :raise, &block)
+        raise_unless_realized!
         @app.after(ms, on_error: on_error, &block)
+      end
+
+      private
+
+      def raise_unless_realized!
+        raise NotRealizedError unless @app
       end
     end
   end
