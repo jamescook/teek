@@ -1,19 +1,14 @@
 # frozen_string_literal: true
 
+require_relative 'errors'
+require_relative 'document'
+require_relative 'widget_dsl'
+
 module Teek
   module UI
-    # Raised by any runtime-only Session method (#app, #every, #after) called
-    # before the session has been realized. These don't queue for later - the
-    # whole point of a Tk-free build phase is that nothing is pretending to
-    # talk to an interpreter that doesn't exist yet.
-    class NotRealizedError < StandardError
-      def initialize(msg = "not realized yet - call #run, #run_async, or #realize first")
-        super
-      end
-    end
-
     # The object yielded to (and returned by) {Teek::UI.app} - owns the
-    # build-phase {Document} and the realize/run lifecycle.
+    # build-phase {Document} and the realize/run lifecycle, and (via
+    # {WidgetDSL}) the `ui.<widget>` build surface itself.
     #
     # Building is Tk-free: {Teek::UI.app} never constructs a {Teek::App}, so
     # the block runs (and #document is buildable/inspectable) with no
@@ -22,8 +17,10 @@ module Teek
     #
     # Realizing the tree itself (walking Document nodes into live Tk widgets)
     # isn't built yet - #realize currently only creates the App. Once the
-    # widget/layout DSL exists, realizing walks and applies the tree here too.
+    # realizer exists, realizing walks and applies the tree here too.
     class Session
+      include WidgetDSL
+
       # @return [Document] the build-phase tree - constructible and
       #   traversable with no interpreter, before or after realize.
       attr_reader :document
@@ -33,6 +30,7 @@ module Teek
         @title = title
         @app_opts = app_opts
         @document = Document.new
+        @stack = [@document.root]
         @app = nil
       end
 

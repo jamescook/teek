@@ -2,8 +2,6 @@
 
 require "teek"
 require_relative "ui/version"
-require_relative "ui/node"
-require_relative "ui/document"
 require_relative "ui/session"
 
 module Teek

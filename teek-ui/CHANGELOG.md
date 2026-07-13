@@ -8,13 +8,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
-### Added
+Nothing has shipped yet - this section is a snapshot of the current API, not a running log. It gets folded/rewritten as the shape settles rather than appended to bead-by-bead.
 
-- `Teek::UI.app(title:, **app_opts, &block)` — builds a `Teek::UI::Session` and yields it to the block, and returns that same session so `.run`/`.run_async` can be chained directly off the call. Building is Tk-free: no `Teek::App`/interpreter is constructed until realize, so the block runs (and `session.document` is buildable/inspectable) with nothing touching Tk yet.
-- `Teek::UI::Node` / `Teek::UI::Document` — the retained-mode tree the DSL builds into: plain Ruby, no Tk, so a build can be constructed and traversed with no interpreter (headless-testable). `Document#create` constructs and name-indexes a node without attaching it anywhere; the caller attaches it into the tree via `Node#add_child`. Duplicate explicit names raise immediately; unnamed nodes get a distinct auto-generated key. `Node#each` / `Document#each_node` give depth-first, pre-order traversal.
-- `Session#document` — the build-phase tree, readable before or after realize.
-- `Session#realize` — creates the underlying `Teek::App` (idempotent - safe to call more than once). Tree realization (walking `Document` nodes into live Tk widgets) isn't built yet; realize currently only creates the app.
-- `Session#run` — realizes, shows the window, and enters the Tk event loop (blocks until the app exits).
-- `Session#run_async` — realizes, shows the window, and returns immediately, for interactive/REPL use. Does not yet service the event loop automatically between prompts; call `ui.app.update` yourself in the meantime.
-- `Session#app` — the escape hatch to the underlying `Teek::App`. Raises `Teek::UI::NotRealizedError` if called before realize.
-- `Session#every` / `Session#after` — thin delegates to `Teek::App#every`/`#after`. Also raise `Teek::UI::NotRealizedError` before realize, rather than queuing.
+- **Retained-mode build.** `Teek::UI.app(title:, **app_opts, &block)` builds a `Session` and yields it - Tk-free, no interpreter exists yet. `session.document` (a `Node`/`Document` tree) is constructible and traversable with no display, which is what makes UI structure testable headlessly.
+- **Widgets.** `ui.<widget>` methods declare widgets into the tree. Leaf: `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`. Containers (block-scoped children): `panel`/`box`, `group`, `canvas`, `window`. A name makes a widget addressable later via `ui[:name]`, without holding a reference.
+- **Realize.** `#realize` (also called by `#run`/`#run_async`) creates the underlying `Teek::App`, idempotently. Walking the tree into live Tk widgets isn't built yet - only the app itself gets created so far.
+- **Handles.** One handle type across both phases - `.path`/`.configure` raise `NotRealizedError` until a widget is realized, then act on the live thing.
+- **Runtime escape hatch.** `session.app`, `#every`, `#after` reach the real `Teek::App` - all raise `NotRealizedError` before realize rather than queuing.
