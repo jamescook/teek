@@ -23,12 +23,16 @@ module Teek
       #   traversable with no interpreter, before or after realize.
       attr_reader :document
 
+      # @return [Array<Var>] reactive variables declared in this build
+      attr_reader :vars
+
       # @api private
       def initialize(title: nil, app_opts: {})
         @title = title
         @app_opts = app_opts
         @document = Document.new
         @stack = [@document.root]
+        @vars = []
         @app = nil
       end
 
@@ -55,6 +59,9 @@ module Teek
 
         app = Teek::App.new(title: @title, **@app_opts)
         begin
+          # vars realize first, so a widget bound to one displays its
+          # initial value immediately instead of starting blank.
+          @vars.each { |v| v.realize(app) }
           Realizer.realize(app, @document)
         rescue
           app.destroy

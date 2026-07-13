@@ -136,4 +136,50 @@ class TestWidgetDsl < Minitest::Test
       assert_equal [:label], node.children.map(&:type)
     end
   end
+
+  def test_var_is_tracked_on_the_session
+    session = build_session
+
+    speed = session.var(5)
+
+    assert_kind_of Teek::UI::Var, speed
+    assert_includes session.vars, speed
+  end
+
+  def test_var_names_are_unique_within_a_session
+    session = build_session
+
+    a = session.var(1)
+    b = session.var(2)
+
+    refute_equal a.name, b.name
+  end
+
+  def test_bind_translates_to_the_variable_option_for_a_slider
+    session = build_session
+    speed = session.var(5)
+
+    session.slider(:s, from: 1, to: 10, bind: speed)
+
+    node = session.document.root.children.first
+    assert_equal speed.name, node.opts[:variable]
+    refute node.opts.key?(:bind), "bind: should not leak through to the realized widget options"
+  end
+
+  def test_bind_translates_to_the_textvariable_option_for_a_text_box
+    session = build_session
+    speed = session.var(5)
+
+    session.text_box(:t, bind: speed)
+
+    node = session.document.root.children.first
+    assert_equal speed.name, node.opts[:textvariable]
+  end
+
+  def test_bind_on_an_unsupported_widget_type_raises
+    session = build_session
+    speed = session.var(5)
+
+    assert_raises(ArgumentError) { session.divider(:d, bind: speed) }
+  end
 end

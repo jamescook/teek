@@ -2,7 +2,7 @@
 
 A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar over teek, not a wall around it.
 
-> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, and `on_click`/`on_key`/etc. wire real events - but layout is still a placeholder (children just pack top-to-bottom; there's no `gap`/`align`/`grow` yet).
+> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `on_click`/`on_key`/etc. wire real events, and `ui.var` gives widgets a shared reactive value - but layout is still a placeholder (children just pack top-to-bottom; there's no `gap`/`align`/`grow` yet).
 
 ## Quick Start
 
@@ -58,6 +58,36 @@ Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbo
 Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`.
 
 Layout is a placeholder today - realize just packs each container's children top-to-bottom, with no options. The real layout DSL (`gap`/`align`/`grow`) replaces this later.
+
+## Events
+
+A handle's `on_*` methods wire real Tk events - intent-named, so nobody needs to know Tk's own event syntax:
+
+```ruby
+session[:go].on_click { puts 'clicked' }
+session[:go].on_right_click { show_context_menu }
+session[:area].on_drag { |x, y| puts "#{x},#{y}" }        # Integer, canvas-converted when bound to a canvas
+session[:query].on_key(:enter) { search }                  # friendly keysym
+session[:query].on_key('Ctrl-s') { save }                   # "Ctrl"/"Alt"/"Shift"/"Cmd", spelled the obvious way
+```
+
+Called before realize (the normal case, right after declaring a widget), these queue on the widget and wire once the whole tree realizes. Called after, they wire immediately - same method, correct behavior either way.
+
+## Reactive Variables
+
+`ui.var(initial)` wraps a Tcl variable - bind it to more than one widget and they stay in sync for free, via Tk's own `-textvariable`/`-variable` machinery, no manual event wiring needed:
+
+```ruby
+session = Teek::UI.app(title: 'Hello') do |ui|
+  speed = ui.var(5)
+  ui.slider(:speed_slider, from: 1, to: 10, bind: speed)
+  ui.label(:speed_label, bind: speed)     # updates automatically as the slider moves
+  speed.on_change { |v| puts "speed is now #{v}" }
+end
+session.run
+```
+
+`var.value`/`var.value =` read and write it directly (typed to match the initial value - Integer/Float/Boolean, else String); `var.on_change { |v| }` fires with the coerced value on every change, regardless of whether Ruby or a bound widget caused it. `bind:` is mapped per widget type (`text_box`/`label`/`dropdown`/`number_box` use `-textvariable`; `checkbox`/`slider`/`progress` use `-variable`) - widgets without a sensible single bindable value (`text_area`, `list`, `table`/`tree`, `radio`, containers) raise if you try.
 
 ## Escape Hatch
 
