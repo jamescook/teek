@@ -15,3 +15,4 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `Session#run_async` — shows the window and returns immediately, for interactive/REPL use. Does not yet service the event loop automatically between prompts; call `ui.app.update` yourself in the meantime.
 - `Session#app` — the escape hatch to the underlying `Teek::App`.
 - `Session#every` / `Session#after` — thin delegates to `Teek::App#every`/`#after`.
+- `Teek::UI::Node` / `Teek::UI::Document` — the retained-mode tree the DSL builds into: plain Ruby, no Tk, so a build can be constructed and traversed with no interpreter (headless-testable). `Document#create` constructs and name-indexes a node without attaching it anywhere; the caller attaches it into the tree via `Node#add_child`. Duplicate explicit names raise immediately; unnamed nodes get a distinct auto-generated key. `Node#each` / `Document#each_node` give depth-first, pre-order traversal.
