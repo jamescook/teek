@@ -6,8 +6,8 @@ require_relative 'tk_test_helper'
 # grab_set/grab_release are thin 1:1 wrappers over Tcl's `grab` command
 # family (a separate command namespace from `wm`, so they live directly
 # on App/Widget rather than inside Wm - see Wm's own doc comment).
-# #modal is the composite ergonomic helper gemba's ChildWindow/ModalStack
-# hand-roll today: grabs input and sets focus immediately, then releases
+# #modal is the composite ergonomic helper for grab-and-focus dialog
+# behavior: grabs input and sets focus immediately, then releases
 # either when the caller explicitly calls grab_release (their own
 # dismiss/hide handler), when the window is destroyed while still
 # grabbed (a <Destroy> safety net - a crash mid-modal must never leave a

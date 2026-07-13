@@ -148,7 +148,7 @@ class TestMenuRealize < Minitest::Test
   end
 
   def test_rebuilding_a_menu_does_not_leak_entry_callbacks
-    assert_tk_app("rebuilding a context menu's contents (the gemba per-right-click pattern) should not accumulate entry callbacks") do
+    assert_tk_app("rebuilding a context menu's contents on every right-click should not accumulate entry callbacks") do
       require 'teek/ui'
 
       session = Teek::UI.app(title: 'Menu Realize Test') { |ui| ui.panel(:host) }

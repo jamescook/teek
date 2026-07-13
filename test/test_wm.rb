@@ -185,7 +185,7 @@ class TestWm < Minitest::Test
   # Tcl's own subcommand names - see test_winfo.rb for the sibling
   # `winfo` namespace. App's existing set_window_title/window_geometry/
   # etc. above are thin delegates to these now, kept as-is so nothing
-  # that already uses them (including gemba) needs to change.
+  # that already uses them needs to change.
 
   def test_wm_title_get_and_set
     assert_tk_app("app.wm.set_title/#title should get and set the window title") do

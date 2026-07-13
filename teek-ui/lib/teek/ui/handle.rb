@@ -38,6 +38,12 @@ module Teek
         realized.path
       end
 
+      # @return [Teek::App] the underlying app this widget was realized into
+      # @raise [NotRealizedError] before realize
+      def app
+        realized.app
+      end
+
       # Mutate the live widget's options.
       # @param opts [Hash] widget options, e.g. +text: "Go"+
       # @raise [NotRealizedError] before realize
@@ -169,8 +175,7 @@ module Teek
       # it's nested under (root, or another window if this one's nested
       # inside it), deiconifies, raises it to the front, and - only if
       # this window was declared `modal: true` - grabs input and focuses
-      # it too (via {#modal}). Generalizes gemba's ChildWindow#show_window/
-      # #show_modal. Only valid on a `ui.window` handle.
+      # it too (via {#modal}). Only valid on a `ui.window` handle.
       # @return [self]
       # @raise [ArgumentError] if this handle isn't a window
       # @raise [NotRealizedError] before realize
@@ -188,8 +193,7 @@ module Teek
 
       # Hide the window: releases any grab {#show} set (a no-op if it
       # wasn't modal - {Teek::Window#grab_release} is always safe to call)
-      # and withdraws it. Generalizes gemba's ChildWindow#hide_window.
-      # Only valid on a `ui.window` handle.
+      # and withdraws it. Only valid on a `ui.window` handle.
       # @return [self]
       # @raise [ArgumentError] if this handle isn't a window
       # @raise [NotRealizedError] before realize

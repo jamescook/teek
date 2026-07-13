@@ -3,6 +3,7 @@
 require_relative 'handle'
 require_relative 'var'
 require_relative 'menu_builder'
+require_relative 'screens'
 
 module Teek
   module UI
@@ -193,6 +194,13 @@ module Teek
         v = Var.new("::teek_ui_var_#{@var_count}", initial)
         @vars << v
         v
+      end
+
+      # A push/pop stack for content screens - see {Screens}. One stack per
+      # build, created on first access.
+      # @return [Screens]
+      def screens
+        @screens ||= Screens.new
       end
 
       private

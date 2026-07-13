@@ -126,6 +126,21 @@ session[:confirm].show   # grabs and focuses automatically - it's a dialog
 
 Every other container (`panel`/`group`/`canvas`) still just packs its children top-to-bottom with no options - reach for `column`/`row`/`grid` when you actually want control over spacing/alignment/positions. Overlay layout isn't built yet.
 
+## Screens
+
+`ui.screens` is a push/pop stack for swapping which content is on display - pushing conceals whatever screen was on top (if any) before revealing the new one; popping reverses that. It works directly against ordinary handles, so there's no bespoke per-screen class to write:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.panel(:picker) { |p| p.button(:play, text: 'Play').on_click { ui.screens.push(:emulator, ui[:emulator]) } }
+  ui.panel(:emulator) { |p| p.button(:back, text: 'Back').on_click { ui.screens.pop } }
+end.run
+```
+
+A `ui.window` screen is revealed/concealed through its own `.show`/`.hide` (deiconify/raise/modal, or grab-release/withdraw); any other handle (`panel`/`box`/`group`/...) is packed to fill its parent, or pack-forgotten - the plain `pack`/`pack forget` primitive. `ui.screens.replace_current(handle)` swaps the current screen in-place without changing stack depth (same name, new content); `.current`/`.current_screen`/`.size`/`.active?` read the stack's state without mutating it.
+
+A container is packed the normal way as soon as it's realized, regardless of `ui.screens` - so two sibling panels declared as candidate screens are *both* visible until `ui.screens` has touched them. Push every candidate once during setup (each push conceals whichever came before, so only the last one stays visible), or use `ui.window` for screens that shouldn't show up until pushed - it starts withdrawn already, with no setup-time push needed.
+
 ## Events
 
 A handle's `on_*` methods wire real Tk events - intent-named, so nobody needs to know Tk's own event syntax:

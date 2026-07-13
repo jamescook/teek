@@ -3,13 +3,12 @@
 require 'minitest/autorun'
 require_relative '../../test/tk_test_helper'
 
-# ui.window/ui.dialog generalize gemba's ChildWindow module (build_toplevel/
-# position_near_parent/show_window/hide_window) into a DSL primitive: title/
-# geometry/resizable/transient setup at realize, withdrawn by default (like
-# ChildWindow's own build_toplevel), shown/hidden via Handle#show/#hide -
-# which position near their parent, deiconify+raise, and (when declared
-# modal: true) grab+focus/release, reusing the modal primitive already
-# built on the handle rather than reimplementing any of it.
+# ui.window/ui.dialog are a DSL primitive for managed toplevels: title/
+# geometry/resizable/transient setup at realize, withdrawn by default,
+# shown/hidden via Handle#show/#hide - which position near their parent,
+# deiconify+raise, and (when declared modal: true) grab+focus/release,
+# reusing the modal primitive already built on the handle rather than
+# reimplementing any of it.
 class TestManagedWindow < Minitest::Test
   include TeekTestHelper
 

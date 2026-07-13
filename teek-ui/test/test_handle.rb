@@ -63,6 +63,22 @@ class TestHandle < Minitest::Test
     assert_raises(Teek::UI::NotRealizedError) { handle.configure(text: 'Go') }
   end
 
+  def test_app_raises_before_realize
+    node = Teek::UI::Node.new(type: :button, name: :save)
+    handle = Teek::UI::Handle.new(node)
+
+    assert_raises(Teek::UI::NotRealizedError) { handle.app }
+  end
+
+  def test_app_returns_the_realized_app_once_realized
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :button, name: :save)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.win.save')
+    handle = Teek::UI::Handle.new(node)
+
+    assert_same app, handle.app
+  end
+
   def test_path_returns_the_real_path_once_realized
     node = Teek::UI::Node.new(type: :button, name: :save)
     node.realized = Teek::UI::RealizedNode.new(app: FakeApp.new([]), path: '.win.save')

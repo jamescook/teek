@@ -146,16 +146,15 @@ module Teek
         node.children.each { |child| create(child, path) }
       end
 
-      # Generalizes gemba's ChildWindow#build_toplevel: title/geometry/
-      # resizable setup, transient-to-parent (the parent it's actually
-      # nested under in this build, not always the root - computed from
-      # parent_path, which is '.' for a top-level ui.window and another
-      # window's own path when nested inside one), the macOS shared-
-      # menubar quirk (each platform other than macOS gets its own menu
-      # bar per window; macOS has a single app-wide menu bar, so without
-      # this a new window falls back to Tk's default "wish" menu instead
-      # of the parent's), and withdrawn by default - shown explicitly via
-      # Handle#show, same as ChildWindow's own build-then-withdraw order.
+      # Sets up a freshly created toplevel: title/geometry/resizable setup,
+      # transient-to-parent (the parent it's actually nested under in this
+      # build, not always the root - computed from parent_path, which is
+      # '.' for a top-level ui.window and another window's own path when
+      # nested inside one), the macOS shared-menubar quirk (each platform
+      # other than macOS gets its own menu bar per window; macOS has a
+      # single app-wide menu bar, so without this a new window falls back
+      # to Tk's default "wish" menu instead of the parent's), and withdrawn
+      # by default - shown explicitly via Handle#show.
       def setup_window(node, path, parent_path)
         opts = node.opts
         window = @app.window(path)
