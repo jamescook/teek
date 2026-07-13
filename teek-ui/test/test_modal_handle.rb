@@ -8,6 +8,10 @@ require_relative '../../test/tk_test_helper'
 # reimplemented here. These confirm the DSL layer actually wires through
 # to the real thing end to end, using the same grab current/status style
 # base teek's own tests use.
+#
+# A ui.window is withdrawn (not viewable) until shown - Tk's own `grab
+# set` requires a viewable window, so every test below calls .show first,
+# the same way a real caller would before making a window modal.
 class TestModalHandle < Minitest::Test
   include TeekTestHelper
 
@@ -19,6 +23,7 @@ class TestModalHandle < Minitest::Test
       session.run_async
       session.app.update
 
+      session[:settings].show
       session[:settings].modal
 
       path = session[:settings].path
@@ -38,6 +43,7 @@ class TestModalHandle < Minitest::Test
       session.run_async
       session.app.update
 
+      session[:settings].show
       session[:settings].modal
       session[:settings].grab_release
 
@@ -55,6 +61,7 @@ class TestModalHandle < Minitest::Test
       session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
       session.run_async
       session.app.update
+      session[:settings].show
 
       path = session[:settings].path
       error = assert_raises(RuntimeError) { session[:settings].modal { raise 'boom' } }
@@ -73,6 +80,7 @@ class TestModalHandle < Minitest::Test
       session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
       session.run_async
       session.app.update
+      session[:settings].show
 
       ran = false
       session[:settings].modal { ran = true }
@@ -93,6 +101,7 @@ class TestModalHandle < Minitest::Test
       session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
       session.run_async
       session.app.update
+      session[:settings].show
 
       path = session[:settings].path
       session[:settings].modal

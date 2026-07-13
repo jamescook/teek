@@ -52,10 +52,14 @@ module Teek
 
       # DSL-reserved opts keys - layout keywords (gap:/align:/pad:/
       # stretch_columns/stretch_rows) plus other entries the DSL stashes on
-      # node.opts for the realizer to pick up later (on_close:) - none of
-      # these are real Tk options, so none are ever passed through to a
-      # widget-creation call.
-      RESERVED_OPTIONS = %i[gap align pad stretch_columns stretch_rows on_close].freeze
+      # node.opts for the realizer to pick up later (on_close:, and title:/
+      # geometry:/resizable:/transient:/modal: for :window nodes, applied by
+      # #setup_window) - none of these are real Tk options, so none are
+      # ever passed through to a widget-creation call.
+      RESERVED_OPTIONS = %i[
+        gap align pad stretch_columns stretch_rows on_close
+        title geometry resizable transient modal
+      ].freeze
 
       # :column/:row flow-packing config, mirrored across the main axis
       # (stack direction) and cross axis (perpendicular to it).
@@ -136,9 +140,43 @@ module Teek
           }
           @app.command(tk_command, path, **node.opts.except(*RESERVED_OPTIONS))
           node.realized = RealizedNode.new(app: @app, path: path)
+          setup_window(node, path, parent_path) if node.type == :window
         end
 
         node.children.each { |child| create(child, path) }
+      end
+
+      # Generalizes gemba's ChildWindow#build_toplevel: title/geometry/
+      # resizable setup, transient-to-parent (the parent it's actually
+      # nested under in this build, not always the root - computed from
+      # parent_path, which is '.' for a top-level ui.window and another
+      # window's own path when nested inside one), the macOS shared-
+      # menubar quirk (each platform other than macOS gets its own menu
+      # bar per window; macOS has a single app-wide menu bar, so without
+      # this a new window falls back to Tk's default "wish" menu instead
+      # of the parent's), and withdrawn by default - shown explicitly via
+      # Handle#show, same as ChildWindow's own build-then-withdraw order.
+      def setup_window(node, path, parent_path)
+        opts = node.opts
+        window = @app.window(path)
+
+        window.set_title(opts[:title]) if opts[:title]
+        window.set_geometry(opts[:geometry]) if opts[:geometry]
+        if opts.key?(:resizable)
+          pair = opts[:resizable]
+          width, height = pair.is_a?(Array) ? pair : [pair, pair]
+          window.set_resizable(width, height)
+        end
+        @app.command(:wm, :transient, path, parent_path) unless opts[:transient] == false
+        share_macos_menu(path, parent_path) if Teek.platform.darwin?
+        window.withdraw
+      end
+
+      def share_macos_menu(path, parent_path)
+        parent_menu = @app.command(parent_path, :cget, '-menu')
+        @app.command(path, :configure, menu: parent_menu) unless parent_menu.nil? || parent_menu.empty?
+      rescue Teek::TclError
+        nil
       end
 
       # Builds one menu widget (a menu_bar, a nested cascade, or a

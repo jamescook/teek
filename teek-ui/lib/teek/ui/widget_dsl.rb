@@ -67,6 +67,15 @@ module Teek
         append_container(:panel, name, opts, &block)
       end
 
+      # `window` with dialog-appropriate defaults - modal and fixed-size,
+      # for the common "small modal window" case (confirmations, pickers).
+      # Same underlying node type as `window`, just different defaults for
+      # `modal:`/`resizable:` - both still overridable.
+      # @return [Handle]
+      def dialog(name = nil, modal: true, resizable: false, **opts, &block)
+        append_container(:window, name, opts.merge(modal: modal, resizable: resizable), &block)
+      end
+
       # A flexible gap - the named replacement for the "invisible spring
       # row" trick (an empty row/column given all the leftover weight).
       # Just a leaf with `grow: true` baked in; nothing to configure.

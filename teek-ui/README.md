@@ -102,7 +102,29 @@ end.run
 
 `cell`/`stretch` only work directly inside a `ui.grid` block - both raise otherwise.
 
-Every other container (`panel`/`group`/`canvas`/`window`) still just packs its children top-to-bottom with no options - reach for `column`/`row`/`grid` when you actually want control over spacing/alignment/positions. Overlay layout isn't built yet.
+## Windows
+
+`ui.window(title:, geometry:, resizable:, modal:) { }` is a managed toplevel - unlike the plain container types, it wires up the wm-level bookkeeping a secondary window actually needs (title, initial geometry, resizable, transient-to-its-parent, macOS's shared-menubar quirk) and starts **withdrawn** - it isn't shown until you call `.show`:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  settings = ui.window(:settings, title: 'Settings', geometry: '400x300', resizable: false) do |w|
+    w.button(:close, text: 'Close').on_click { settings.hide }
+  end
+  ui.button(:open_settings, text: 'Settings...').on_click { settings.show }
+end.run
+```
+
+`.show` positions the window just to the right of whichever window it's nested under (root, or an enclosing `ui.window`), deiconifies, raises it to the front, and - only if declared `modal: true` - grabs input and focus too (see `modal`/`grab_release` below). `.hide` releases any grab and withdraws it. `resizable:` takes a single Boolean for both axes, or a `[width, height]` pair.
+
+`ui.dialog(...)` is `ui.window` with defaults flipped for the common "small modal window" case - `modal: true`, `resizable: false` - both still overridable:
+
+```ruby
+ui.dialog(:confirm) { |d| d.label(text: 'Discard changes?') }
+session[:confirm].show   # grabs and focuses automatically - it's a dialog
+```
+
+Every other container (`panel`/`group`/`canvas`) still just packs its children top-to-bottom with no options - reach for `column`/`row`/`grid` when you actually want control over spacing/alignment/positions. Overlay layout isn't built yet.
 
 ## Events
 

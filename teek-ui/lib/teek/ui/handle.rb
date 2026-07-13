@@ -149,7 +149,7 @@ module Teek
           raise ArgumentError, "modal only makes sense on a window (got a :#{type})"
         end
 
-        realized.app.window(realized.path).modal(global: global, &block)
+        window.modal(global: global, &block)
       end
 
       # Release a grab previously set with {#modal}. Only valid on a
@@ -162,13 +162,73 @@ module Teek
           raise ArgumentError, "grab_release only makes sense on a window (got a :#{type})"
         end
 
-        realized.app.window(realized.path).grab_release
+        window.grab_release
+      end
+
+      # Reveal the window: positions it just to the right of the parent
+      # it's nested under (root, or another window if this one's nested
+      # inside it), deiconifies, raises it to the front, and - only if
+      # this window was declared `modal: true` - grabs input and focuses
+      # it too (via {#modal}). Generalizes gemba's ChildWindow#show_window/
+      # #show_modal. Only valid on a `ui.window` handle.
+      # @return [self]
+      # @raise [ArgumentError] if this handle isn't a window
+      # @raise [NotRealizedError] before realize
+      def show
+        unless type == :window
+          raise ArgumentError, "show only makes sense on a window (got a :#{type})"
+        end
+
+        position_near_parent
+        window.deiconify
+        realized.app.command(:raise, realized.path)
+        modal if @node.opts[:modal]
+        self
+      end
+
+      # Hide the window: releases any grab {#show} set (a no-op if it
+      # wasn't modal - {Teek::Window#grab_release} is always safe to call)
+      # and withdraws it. Generalizes gemba's ChildWindow#hide_window.
+      # Only valid on a `ui.window` handle.
+      # @return [self]
+      # @raise [ArgumentError] if this handle isn't a window
+      # @raise [NotRealizedError] before realize
+      def hide
+        unless type == :window
+          raise ArgumentError, "hide only makes sense on a window (got a :#{type})"
+        end
+
+        grab_release
+        window.withdraw
+        self
       end
 
       private
 
       def realized
         @node.realized or raise NotRealizedError
+      end
+
+      def window
+        realized.app.window(realized.path)
+      end
+
+      # Positions the window just to the right of the parent it's nested
+      # under - root by default, or another window's own path when this
+      # one is declared inside it. Tk toplevel paths stay hierarchical
+      # even though they're independent OS windows (allocate_path nests
+      # them the same way any other widget path nests), so the parent's
+      # path is just everything before this window's own last path
+      # segment - no separate bookkeeping needed to recover it later.
+      def position_near_parent
+        parent_x, parent_y, parent_width, = realized.app.interp.window_geometry(toplevel_parent_path)
+        window.set_geometry("+#{parent_x + parent_width + 12}+#{parent_y}")
+      end
+
+      def toplevel_parent_path
+        path = realized.path
+        last_dot = path.rindex('.')
+        last_dot && last_dot.positive? ? path[0...last_dot] : '.'
       end
 
       def bind_event(event, handler, subs: [])

@@ -305,4 +305,38 @@ class TestHandle < Minitest::Test
     assert_equal '.settings', app.windows.first.path
     assert_equal [true], app.windows.first.grab_releases
   end
+
+  def test_show_raises_before_realize
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    handle = Teek::UI::Handle.new(node)
+
+    assert_raises(Teek::UI::NotRealizedError) { handle.show }
+  end
+
+  def test_hide_raises_before_realize
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    handle = Teek::UI::Handle.new(node)
+
+    assert_raises(Teek::UI::NotRealizedError) { handle.hide }
+  end
+
+  def test_show_raises_on_a_non_window_node
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.go')
+    handle = Teek::UI::Handle.new(node)
+
+    error = assert_raises(ArgumentError) { handle.show }
+    assert_match(/window/i, error.message)
+  end
+
+  def test_hide_raises_on_a_non_window_node
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.go')
+    handle = Teek::UI::Handle.new(node)
+
+    error = assert_raises(ArgumentError) { handle.hide }
+    assert_match(/window/i, error.message)
+  end
 end
