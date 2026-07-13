@@ -182,4 +182,64 @@ class TestWidgetDsl < Minitest::Test
 
     assert_raises(ArgumentError) { session.divider(:d, bind: speed) }
   end
+
+  def test_column_and_row_are_containers_carrying_gap_align_pad_in_opts
+    session = build_session
+
+    session.column(:c, gap: 8, align: :stretch, pad: 4) { |c| c.button(:go) }
+
+    node = session.document.root.children.first
+    assert_equal :column, node.type
+    assert_equal({ gap: 8, align: :stretch, pad: 4 }, node.opts)
+    assert_equal [:button], node.children.map(&:type)
+  end
+
+  def test_row_defaults_gap_align_pad_when_not_given
+    session = build_session
+
+    session.row(:r)
+
+    node = session.document.root.children.first
+    assert_equal :row, node.type
+    assert_equal({}, node.opts)
+  end
+
+  def test_grow_is_captured_on_the_childs_layout_and_stripped_from_opts
+    session = build_session
+
+    session.column(:c) { |c| c.button(:go, text: 'Go', grow: true) }
+
+    button_node = session.document.root.children.first.children.first
+    assert_equal({ grow: true }, button_node.layout)
+    assert_equal({ text: 'Go' }, button_node.opts)
+  end
+
+  def test_grow_defaults_to_nil_layout_when_not_given
+    session = build_session
+
+    session.button(:go)
+
+    node = session.document.root.children.first
+    assert_nil node.layout
+  end
+
+  def test_grow_works_on_a_container_child_too
+    session = build_session
+
+    session.column(:outer) { |o| o.row(:inner, grow: true) }
+
+    inner_node = session.document.root.children.first.children.first
+    assert_equal({ grow: true }, inner_node.layout)
+  end
+
+  def test_spacer_is_a_leaf_node_with_grow_baked_in
+    session = build_session
+
+    session.column(:c) { |c| c.spacer }
+
+    spacer_node = session.document.root.children.first.children.first
+    assert_equal :spacer, spacer_node.type
+    assert_equal({ grow: true }, spacer_node.layout)
+    assert_equal [], spacer_node.children
+  end
 end

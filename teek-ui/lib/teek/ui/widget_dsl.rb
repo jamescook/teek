@@ -30,7 +30,12 @@ module Teek
       # Widget kinds that hold children, declared in a block. The block
       # yields the same builder object back (not a separate scoped builder),
       # so a name declared inside it is addressable from outside too.
-      CONTAINER_TYPES = %i[panel group canvas window].freeze
+      #
+      # `column`/`row` additionally get flow-layout packing from the
+      # realizer (see {Realizer::FLOW}) driven by their own `gap:`/`align:`/
+      # `pad:` options; the others keep the plain unconditional pack every
+      # container has always gotten.
+      CONTAINER_TYPES = %i[panel group canvas window column row].freeze
 
       # Widget type -> the Tk option a bound {Var} plugs into. Not every
       # widget can be bound this way (text_area/list/table/tree/divider have
@@ -60,6 +65,14 @@ module Teek
         append_container(:panel, name, opts, &block)
       end
 
+      # A flexible gap - the named replacement for the "invisible spring
+      # row" trick (an empty row/column given all the leftover weight).
+      # Just a leaf with `grow: true` baked in; nothing to configure.
+      # @return [Handle]
+      def spacer
+        append_leaf(:spacer, nil, grow: true)
+      end
+
       # Look up a named widget declared anywhere in this build.
       # @param name [Symbol]
       # @return [Handle, nil]
@@ -84,8 +97,9 @@ module Teek
       private
 
       def append_leaf(type, name, opts)
-        opts = resolve_bind(type, opts)
+        opts, layout = extract_layout(resolve_bind(type, opts))
         node = @document.create(type: type, name: name, opts: opts)
+        node.layout = layout if layout
         @stack.last.add_child(node)
         Handle.new(node)
       end
@@ -99,8 +113,20 @@ module Teek
         opts.reject { |k, _| k == :bind }.merge(tk_option => opts[:bind].name)
       end
 
+      # `grow:` is this child's intent within its parent, not a Tk option -
+      # pull it off opts (so it never reaches a widget-creation call) and
+      # onto the node's own layout slot, where the realizer's flow packing
+      # looks for it.
+      def extract_layout(opts)
+        return [opts, nil] unless opts.key?(:grow)
+
+        [opts.reject { |k, _| k == :grow }, { grow: opts[:grow] }]
+      end
+
       def append_container(type, name, opts)
+        opts, layout = extract_layout(opts)
         node = @document.create(type: type, name: name, opts: opts)
+        node.layout = layout if layout
         @stack.last.add_child(node)
 
         if block_given?

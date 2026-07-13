@@ -2,7 +2,7 @@
 
 A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar over teek, not a wall around it.
 
-> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `on_click`/`on_key`/etc. wire real events, and `ui.var` gives widgets a shared reactive value - but layout is still a placeholder (children just pack top-to-bottom; there's no `gap`/`align`/`grow` yet).
+> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `column`/`row` lay them out without touching Tk's own geometry vocabulary, `on_click`/`on_key`/etc. wire real events, and `ui.var` gives widgets a shared reactive value - grid and overlay layout aren't built yet.
 
 ## Quick Start
 
@@ -55,9 +55,31 @@ session[:query].configure(width: 40) # after session.run/.run_async/.realize
 ```
 
 Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
-Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`.
+Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`, and the layout containers below.
 
-Layout is a placeholder today - realize just packs each container's children top-to-bottom, with no options. The real layout DSL (`gap`/`align`/`grow`) replaces this later.
+## Layout
+
+`column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.column(:controls, gap: 8, align: :stretch, pad: 5) do |c|
+    c.button(:start, text: 'Start')
+    c.button(:pause, text: 'Pause')
+    c.spacer                                  # flexible gap - pushes what follows to the bottom
+    c.button(:about, text: 'About')
+  end
+end.run
+```
+
+- `column`/`row` - top-to-bottom / left-to-right.
+- `gap:` - space between children (not before the first or after the last).
+- `align:` - cross-axis placement: `:start` / `:center` / `:end` / `:stretch` (fills the cross axis) - plain words, never compass directions.
+- `pad:` - margin around the whole stack.
+- `grow: true` on any child (leaf or container) - it consumes leftover space along the main axis.
+- `spacer` - a flexible gap (`grow: true` baked in) - the named replacement for the classic invisible "spring row" trick.
+
+Every other container (`panel`/`group`/`canvas`/`window`) still just packs its children top-to-bottom with no options - reach for `column`/`row` when you actually want control over spacing/alignment. Grid and overlay layout aren't built yet.
 
 ## Events
 
