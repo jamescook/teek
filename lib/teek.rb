@@ -14,6 +14,7 @@ require_relative 'teek/photo'
 require_relative 'teek/dialogs'
 require_relative 'teek/winfo'
 require_relative 'teek/wm'
+require_relative 'teek/window'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
 # with Ruby callbacks, event bindings, and background work support.
@@ -680,19 +681,19 @@ module Teek
     # Show a window. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
-    # @see Wm#deiconify
+    # @see Window#deiconify
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M38 wm deiconify
     def show(window = '.')
-      @wm.deiconify(window: window)
+      self.window(window).deiconify
     end
 
     # Hide a window without destroying it. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
-    # @see Wm#withdraw
+    # @see Window#withdraw
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M65 wm withdraw
     def hide(window = '.')
-      @wm.withdraw(window: window)
+      self.window(window).withdraw
     end
 
     # Enable the Tk debug console. The console starts hidden and can be
@@ -737,38 +738,38 @@ module Teek
     # @param title [String] new title
     # @param window [String] Tk window path
     # @return [String] the title
-    # @see Wm#set_title
+    # @see Window#set_title
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def set_window_title(title, window: '.')
-      @wm.set_title(title, window: window)
+      self.window(window).set_title(title)
     end
 
     # Get a window's current title.
     # @param window [String] Tk window path
     # @return [String] current title
-    # @see Wm#title
+    # @see Window#title
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def window_title(window: '.')
-      @wm.title(window: window)
+      self.window(window).title
     end
 
     # Set a window's geometry (e.g. "400x300", "400x300+100+50").
     # @param geometry [String] geometry string
     # @param window [String] Tk window path
     # @return [String] the geometry
-    # @see Wm#set_geometry
+    # @see Window#set_geometry
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def set_window_geometry(geometry, window: '.')
-      @wm.set_geometry(geometry, window: window)
+      self.window(window).set_geometry(geometry)
     end
 
     # Get a window's current geometry.
     # @param window [String] Tk window path
     # @return [String] geometry string (e.g. "400x300+0+0")
-    # @see Wm#geometry
+    # @see Window#geometry
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def window_geometry(window: '.')
-      @wm.geometry(window: window)
+      self.window(window).geometry
     end
 
     # Set whether a window is resizable.
@@ -776,19 +777,19 @@ module Teek
     # @param height [Boolean] allow vertical resize
     # @param window [String] Tk window path
     # @return [void]
-    # @see Wm#set_resizable
+    # @see Window#set_resizable
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def set_window_resizable(width, height, window: '.')
-      @wm.set_resizable(width, height, window: window)
+      self.window(window).set_resizable(width, height)
     end
 
     # Get whether a window is resizable.
     # @param window [String] Tk window path
     # @return [Array(Boolean, Boolean)] [width_resizable, height_resizable]
-    # @see Wm#resizable
+    # @see Window#resizable
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def window_resizable(window: '.')
-      @wm.resizable(window: window)
+      self.window(window).resizable
     end
 
     # Bind a Tk event on a widget, with optional substitutions forwarded
@@ -857,6 +858,20 @@ module Teek
       @interp.tcl_eval("bind #{widget} #{event_str} {}")
     end
 
+    # A single toplevel window, addressed by path - groups `wm` subcommands
+    # and composite window-lifecycle behaviors ({#on_close}, {#grab_set}/
+    # {#grab_release}, {#modal}) into one object instead of threading
+    # +window:+ through a pile of unrelated flat methods. This app's own
+    # +window_title+/+set_window_title+/etc., {#wm}, {#on_close},
+    # {#grab_set}, {#grab_release}, and {#modal} all delegate here
+    # internally - use whichever reads better to you, they're the same
+    # underlying calls.
+    # @param path [String, Widget] (default: the root window)
+    # @return [Window]
+    def window(path = '.')
+      Window.new(self, path)
+    end
+
     # Register a handler for the window manager's close button
     # (WM_DELETE_WINDOW - the titlebar close box, Cmd-W, Alt-F4, etc.,
     # depending on platform).
@@ -875,12 +890,46 @@ module Teek
     # @param window [String] Tk window path (default: the root window)
     # @yield called when the window's close button is pressed
     # @return [void]
-    # @see #bind
+    # @note Prefer +app.window(window).on_close { }+ for new code - this
+    #   flat method is kept for compatibility and just delegates there.
+    # @see Window#on_close
     # @see https://www.tcl-lang.org/man/tcl9.0/TkCmd/wm.htm#M46 wm protocol
     def on_close(window: '.', &block)
-      cb = register_callback(block, relay_break_continue: false)
-      @callback_registry.reconcile([:wm_protocol, window]) { |before| before.merge('WM_DELETE_WINDOW' => cb) }
-      @interp.tcl_eval("wm protocol #{window} WM_DELETE_WINDOW {ruby_callback #{cb}}")
+      self.window(window).on_close(&block)
+    end
+
+    # Set the input grab on window. See {Window#grab_set}.
+    # @param window [String, Widget] (default: the root window)
+    # @param global [Boolean]
+    # @return [void]
+    # @note Prefer +app.window(window).grab_set+ for new code - this flat
+    #   method is kept for compatibility and just delegates there.
+    # @see #grab_release
+    # @see #modal
+    def grab_set(window: '.', global: false)
+      self.window(window).grab_set(global: global)
+    end
+
+    # Release a grab previously set with {#grab_set}. See {Window#grab_release}.
+    # @param window [String, Widget] (default: the root window)
+    # @return [void]
+    # @note Prefer +app.window(window).grab_release+ for new code - this
+    #   flat method is kept for compatibility and just delegates there.
+    def grab_release(window: '.')
+      self.window(window).grab_release
+    end
+
+    # Make window modal. See {Window#modal}.
+    # @param window [String, Widget] (default: the root window)
+    # @param global [Boolean] see {#grab_set}
+    # @note Prefer +app.window(window).modal { }+ for new code - this flat
+    #   method is kept for compatibility and just delegates there.
+    # @yield optional - runs with the grab and focus already set
+    # @return [void]
+    # @see #grab_set
+    # @see #grab_release
+    def modal(window: '.', global: false, &block)
+      self.window(window).modal(global: global, &block)
     end
 
     # Register a widget as a file drop target.

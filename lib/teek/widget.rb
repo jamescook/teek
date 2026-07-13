@@ -102,13 +102,42 @@ module Teek
       @app.unbind(@path, event)
     end
 
+    # This widget as a {Window} - the window-scoped counterpart covering
+    # `wm` subcommands and composite behaviors (on_close, grab_set/
+    # grab_release, modal). Meant for toplevels.
+    # @return [Window]
+    def window
+      @app.window(@path)
+    end
+
     # Register a handler for this window's close button (WM_DELETE_WINDOW).
-    # Meant for toplevels; see {App#on_close} for the full behavior.
+    # Meant for toplevels; see {Window#on_close} for the full behavior.
     # @yield called when the window's close button is pressed
     # @return [void]
-    # @see App#on_close
+    # @see Window#on_close
     def on_close(&block)
-      @app.on_close(window: @path, &block)
+      window.on_close(&block)
+    end
+
+    # Grab input on this window. See {Window#grab_set}.
+    # @param global [Boolean]
+    # @return [void]
+    def grab_set(global: false)
+      window.grab_set(global: global)
+    end
+
+    # Release a grab previously set on this window. See {Window#grab_release}.
+    # @return [void]
+    def grab_release
+      window.grab_release
+    end
+
+    # Make this window modal. See {Window#modal}.
+    # @param global [Boolean]
+    # @yield optional - runs with the grab and focus already set
+    # @return [void]
+    def modal(global: false, &block)
+      window.modal(global: global, &block)
     end
 
     def inspect

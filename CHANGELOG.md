@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Teek::Window` — a single toplevel window addressed by path, reached via `App#window(path = '.')`/`Widget#window`. Groups every `wm` subcommand (`title`/`set_title`/`geometry`/`set_geometry`/`resizable`/`set_resizable`/`deiconify`/`withdraw`) alongside composite window-lifecycle behaviors — `on_close { }`, and new `grab_set(global:)`/`grab_release`/`modal(global:) { }` — into one coherent object instead of threading `window:` through a pile of unrelated flat `App` methods. `grab_set`/`grab_release` are thin wrappers over Tcl's `grab` command family (a separate namespace from `wm`); `global: false` by default (a global grab blocks input to every other application on the display, almost never what you want). `modal` is the ergonomic composite gemba's `ChildWindow`/`ModalStack` hand-roll today: grabs input and forces focus immediately, released explicitly (typically from the window's own dismiss/close handling) rather than automatically when the method returns, since a modal dialog stays grabbed for its whole visible lifetime, not just its setup. Two safety nets prevent a stuck grab from locking out the rest of the display: a `<Destroy>` binding releases the grab if the window is destroyed while still holding it, and the grab is released immediately if the optional setup block itself raises. `App#wm` (`Teek::Wm`) and `App`'s own `window_title`/`set_window_title`/`window_geometry`/`set_window_geometry`/`window_resizable`/`set_window_resizable`/`show`/`hide`/`on_close`/`grab_set`/`grab_release`/`modal` all delegate to `Window` internally now — nothing about those existing methods changed, they're kept for compatibility (each now says so via a `@note` in its docs) and `app.window(path)` is the steer for new code.
+
 ## [0.2.0] - 2026-07-12
 
 ### Added
