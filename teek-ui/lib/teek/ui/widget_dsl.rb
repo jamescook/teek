@@ -4,6 +4,7 @@ require_relative 'handle'
 require_relative 'var'
 require_relative 'menu_builder'
 require_relative 'screens'
+require_relative 'modal_stack'
 
 module Teek
   module UI
@@ -202,6 +203,13 @@ module Teek
       def screens
         @screens ||= Screens.new
       end
+
+      # A push/pop stack for modal window handles - see {ModalStack}. `nil`
+      # until assigned; unlike {#screens} it isn't created automatically,
+      # since its callbacks (`on_enter:`/`on_exit:`) are mandatory and
+      # app-specific: `ui.modal = Teek::UI::ModalStack.new(on_enter:, on_exit:)`.
+      # @return [ModalStack, nil]
+      attr_accessor :modal
 
       private
 

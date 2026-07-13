@@ -141,6 +141,23 @@ A `ui.window` screen is revealed/concealed through its own `.show`/`.hide` (deic
 
 A container is packed the normal way as soon as it's realized, regardless of `ui.screens` - so two sibling panels declared as candidate screens are *both* visible until `ui.screens` has touched them. Push every candidate once during setup (each push conceals whichever came before, so only the last one stays visible), or use `ui.window` for screens that shouldn't show up until pushed - it starts withdrawn already, with no setup-time push needed.
 
+## Modal Stacking
+
+`ui.modal` is a push/pop stack for modal dialog windows, so one dialog can push another (Settings → Replay Player) with the previous one automatically re-shown once the new one is dismissed. Unlike `ui.screens`, it isn't created automatically - assign it yourself, since its `on_enter:`/`on_exit:` callbacks are mandatory and app-specific (e.g. pausing/resuming whatever's running underneath):
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.modal = Teek::UI::ModalStack.new(
+    on_enter: ->(name) { pause_emulation },
+    on_exit: -> { unpause_emulation },
+  )
+  ui.dialog(:settings) { |d| d.button(:replay, text: 'Replay...').on_click { ui.modal.push(:replay, ui[:replay]) } }
+  ui.dialog(:replay) { |d| d.button(:close, text: 'Close').on_click { ui.modal.pop } }
+end.run
+```
+
+`.push(name, handle)`/`.pop` reveal/conceal exactly like `ui.screens` (it wraps one internally) - the difference is the lifecycle: `on_enter` fires once, the first time the stack goes from empty to non-empty; `on_exit` fires once, when the last dialog pops and the stack goes back to empty; `on_focus_change`, if given, fires with the new top's name on every push and every pop that still leaves a dialog underneath. `.current`/`.size`/`.active?` read the stack's state. Push a handle declared `modal: true` (`ui.dialog` already defaults to this) so `.show` actually grabs input - `ui.modal` itself doesn't grab anything on its own.
+
 ## Events
 
 A handle's `on_*` methods wire real Tk events - intent-named, so nobody needs to know Tk's own event syntax:

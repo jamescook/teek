@@ -339,4 +339,25 @@ class TestWidgetDsl < Minitest::Test
 
     refute executed, "ui.raw should defer its block to realize, not run it during build"
   end
+
+  def test_screens_is_memoized_across_calls
+    session = build_session
+
+    assert_same session.screens, session.screens
+  end
+
+  def test_modal_defaults_to_nil
+    session = build_session
+
+    assert_nil session.modal
+  end
+
+  def test_modal_is_assignable_and_reads_back
+    session = build_session
+    stack = Teek::UI::ModalStack.new(on_enter: ->(_) { }, on_exit: -> { })
+
+    session.modal = stack
+
+    assert_same stack, session.modal
+  end
 end
