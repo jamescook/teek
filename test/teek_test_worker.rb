@@ -184,6 +184,11 @@ class Teek::TestWorker
     def tcl_flag_hash(list_str)
       Hash[*@app.split_list(list_str)]
     end
+
+    # @return [Integer] the running Tcl interpreter's major version (8 or 9)
+    def tcl_major_version
+      @app.tcl_eval('info patchlevel').split('.').first.to_i
+    end
   end
 
   # Server-side: runs in subprocess

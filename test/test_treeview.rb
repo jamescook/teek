@@ -60,6 +60,14 @@ class TestTreeview < Minitest::Test
 
   def test_tag_delete_releases_callbacks
     assert_tk_app("deleting a tag via raw app.command should release that tag's bound callbacks") do
+      # ttk::treeview's `tag delete` doesn't exist before Tcl/Tk 9.0 - the
+      # 8.6-available `tag remove` is not a substitute (it only detaches
+      # a tag from items; it doesn't touch the tag's own bindings/config
+      # the way `tag delete` does; confirmed against ttkTreeview.c). On
+      # 8.6, a treeview tag's bindings are only released when the widget
+      # itself is destroyed.
+      skip "ttk::treeview tag delete requires Tcl/Tk 9.0+" if tcl_major_version < 9
+
       app.command('ttk::treeview', '.tv3')
       baseline = app.interp.callback_ids.length
 
