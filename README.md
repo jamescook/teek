@@ -1,6 +1,16 @@
 # Teek
 
-A Ruby interface to Tcl/Tk.
+Ruby apps for the desktop, built on Tcl/Tk.
+
+**Building an app?** Start with [teek-ui](teek-ui/README.md) — a DSL for declaring widgets, layout, and events instead of hand-writing Tk mechanics:
+
+```
+gem install teek-ui
+```
+
+That pulls in `teek` (below) transitively. Think Rails and Rack: you write against teek-ui, and teek is the engine underneath it.
+
+This repo/gem is **teek** itself — the low-level Ruby↔Tcl/Tk binding teek-ui compiles down to. It's the right layer to reach for directly if you're embedding Tk in an existing app, building your own abstraction on top, or want direct control over widget mechanics — but most app authors want teek-ui instead.
 
 [API Documentation](https://jamescook.github.io/teek/)
 

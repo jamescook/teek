@@ -2,6 +2,8 @@
 
 A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar over teek, not a wall around it.
 
+**This is the recommended entry point for building a teek app.** teek-ui depends on teek — installing teek-ui brings teek in automatically — and everything here compiles down to plain teek calls (`App#command`, `#bind`, and friends). Reach for bare teek directly only if you're embedding Tk in an existing app or building your own abstraction on top; most app authors want the DSL here instead.
+
 > **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `column`/`row`/`grid` lay them out without touching Tk's own geometry vocabulary, `on_click`/`on_key`/etc. wire real events, and `ui.var` gives widgets a shared reactive value - overlay layout isn't built yet.
 
 ## Quick Start
