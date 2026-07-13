@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-12
+
 ### Added
 
 - `App#command` is now safe to use directly for every widget interaction, with no separate wrapper methods to know about. It consults `Teek::CommandInterceptors`, a registry of per-Tk-widget-type interceptors, before falling back to its generic handling — currently covering menu entries (`add`/`insert`/`entryconfigure`/`delete`, reconciled against Tk's live menu state after every mutating call, so callbacks don't leak when a menu is cleared and rebuilt in place), text/`ttk::treeview` tag bindings (`tag bind`/`tag delete`, reconciled against Tk's live tag state), and canvas item/tag bindings (`bind`/`delete`, reconciled by re-querying only the bindings it's already tracking, since canvas has no "list every live binding" command). A `command:` proc passed to a `ttk::treeview` column's `heading` call is tracked per column (so two columns' commands can't collide) by the same generic option-callback tracking every widget option already gets. Two interceptors matching the same call raises `Teek::AmbiguousCommandError` naming both, rather than silently picking one.
