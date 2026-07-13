@@ -88,6 +88,27 @@ module Teek
         self
       end
 
+      # Fires when the window's close button (titlebar close box, Cmd-W,
+      # Alt-F4, ...) is pressed. Teek's own default (destroy the window)
+      # only applies when nothing else has claimed it - the block decides
+      # whether the window actually closes; call `.destroy` yourself if you
+      # want that. Only valid on a `ui.window` handle.
+      # @yield called with no arguments
+      # @return [self]
+      # @raise [ArgumentError] if this handle isn't a window
+      def on_close(&block)
+        unless type == :window
+          raise ArgumentError, "on_close only makes sense on a window (got a :#{type})"
+        end
+
+        if @node.realized
+          @node.realized.app.on_close(window: @node.realized.path, &block)
+        else
+          @node.opts[:on_close] = block
+        end
+        self
+      end
+
       private
 
       def realized

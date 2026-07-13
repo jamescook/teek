@@ -5,8 +5,8 @@ require 'teek/ui/node'
 require 'teek/ui/handle'
 
 class TestHandle < Minitest::Test
-  FakeApp = Struct.new(:calls, :binds) do
-    def initialize(calls = [], binds = [])
+  FakeApp = Struct.new(:calls, :binds, :on_closes) do
+    def initialize(calls = [], binds = [], on_closes = [])
       super
     end
 
@@ -16,6 +16,10 @@ class TestHandle < Minitest::Test
 
     def bind(path, event, *subs, &block)
       binds << { path: path, event: event, subs: subs, block: block }
+    end
+
+    def on_close(window:, &block)
+      on_closes << { window: window, block: block }
     end
   end
 
@@ -126,5 +130,37 @@ class TestHandle < Minitest::Test
     handle.on_right_click { }
 
     assert_equal ['<Button-2>', '<Button-3>', '<Control-Button-1>'], node.events.map(&:event)
+  end
+
+  def test_on_close_queues_the_block_on_a_window_node_before_realize
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    handle = Teek::UI::Handle.new(node)
+    closer = -> { }
+
+    result = handle.on_close(&closer)
+
+    assert_same handle, result, "on_close should return self for chaining"
+    assert_equal closer, node.opts[:on_close]
+  end
+
+  def test_on_close_wires_immediately_once_already_realized
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.settings')
+    handle = Teek::UI::Handle.new(node)
+
+    handle.on_close { }
+
+    assert_nil node.opts[:on_close], "should wire immediately, not queue, once realized"
+    assert_equal 1, app.on_closes.length
+    assert_equal '.settings', app.on_closes.first[:window]
+  end
+
+  def test_on_close_raises_on_a_non_window_node
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    handle = Teek::UI::Handle.new(node)
+
+    error = assert_raises(ArgumentError) { handle.on_close { } }
+    assert_match(/window/i, error.message)
   end
 end

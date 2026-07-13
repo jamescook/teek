@@ -118,6 +118,15 @@ session[:query].on_key('Ctrl-s') { save }                   # "Ctrl"/"Alt"/"Shif
 
 Called before realize (the normal case, right after declaring a widget), these queue on the widget and wire once the whole tree realizes. Called after, they wire immediately - same method, correct behavior either way.
 
+A `ui.window` handle also gets `on_close`, for the titlebar close box (and its platform equivalents, Cmd-W/Alt-F4):
+
+```ruby
+settings = ui.window(:settings)
+settings.on_close { session.app.destroy(settings.path) if confirm_discard_changes? }
+```
+
+Teek's own default (destroy the window) only applies if nothing has claimed `on_close` - once a block is set, it decides whether the window actually closes.
+
 ## Reactive Variables
 
 `ui.var(initial)` wraps a Tcl variable - bind it to more than one widget and they stay in sync for free, via Tk's own `-textvariable`/`-variable` machinery, no manual event wiring needed:

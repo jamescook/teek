@@ -50,11 +50,12 @@ module Teek
         grid: 'ttk::frame',
       }.freeze
 
-      # gap:/align:/pad:/stretch_columns/stretch_rows are layout-DSL
-      # keywords, not real Tk options - never passed through to a
-      # widget-creation call, on any node type (no Tk widget has options
-      # actually named -gap/-align/-pad/-stretch_columns/-stretch_rows).
-      LAYOUT_ONLY_OPTIONS = %i[gap align pad stretch_columns stretch_rows].freeze
+      # DSL-reserved opts keys - layout keywords (gap:/align:/pad:/
+      # stretch_columns/stretch_rows) plus other entries the DSL stashes on
+      # node.opts for the realizer to pick up later (on_close:) - none of
+      # these are real Tk options, so none are ever passed through to a
+      # widget-creation call.
+      RESERVED_OPTIONS = %i[gap align pad stretch_columns stretch_rows on_close].freeze
 
       # :column/:row flow-packing config, mirrored across the main axis
       # (stack direction) and cross axis (perpendicular to it).
@@ -119,7 +120,7 @@ module Teek
           tk_command = TK_COMMANDS.fetch(node.type) {
             raise ArgumentError, "no Tk command mapped for node type :#{node.type}"
           }
-          @app.command(tk_command, path, **node.opts.except(*LAYOUT_ONLY_OPTIONS))
+          @app.command(tk_command, path, **node.opts.except(*RESERVED_OPTIONS))
           node.realized = RealizedNode.new(app: @app, path: path)
         end
 
@@ -130,6 +131,7 @@ module Teek
         arrange_children(node)
         node.events.each { |binding| wire_event(node, binding) }
         run_raw_op(node) if node.type == :raw_op
+        wire_close_handler(node) if node.opts[:on_close]
         node.children.each { |child| link(child) }
       end
 
@@ -137,10 +139,19 @@ module Teek
         node.opts[:block].call(@app)
       end
 
+      def wire_close_handler(node)
+        @app.on_close(window: node.realized.path, &node.opts[:on_close])
+      end
+
+      # Children a geometry manager should never touch: :raw_op has no
+      # realized path at all, and :window (a toplevel) is placed by the
+      # window manager, not by whatever pack/grid strategy its nominal
+      # parent uses - packing/gridding a toplevel into its parent is a Tk
+      # error ("it's a top-level window").
+      NOT_ARRANGED_TYPES = %i[raw_op window].freeze
+
       def arrange_children(node)
-        # :raw_op children aren't widgets - they have no realized path, so
-        # they'd break every arrangement strategy below if treated as one.
-        arrangeable = node.children.reject { |child| child.type == :raw_op }
+        arrangeable = node.children.reject { |child| NOT_ARRANGED_TYPES.include?(child.type) }
 
         if FLOW.key?(node.type)
           arrange_flow(node, arrangeable)
