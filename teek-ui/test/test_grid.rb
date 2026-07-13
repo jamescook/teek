@@ -70,8 +70,8 @@ class TestGrid < Minitest::Test
       error = assert_raises(ArgumentError) { session.realize }
       assert_match(/cell/i, error.message)
 
-      # realize is atomic (teek-o74) - a failed realize destroys the
-      # partially-built app itself, so there's nothing left to clean up here.
+      # realize is atomic - a failed realize destroys the partially-built
+      # app itself, so there's nothing left to clean up here.
       assert_raises(Teek::UI::NotRealizedError) { session.app }
     end
   end

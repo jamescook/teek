@@ -105,4 +105,82 @@ class TestRealizer < Minitest::Test
       assert_raises(Teek::UI::NotRealizedError) { session.app }
     end
   end
+
+  # Locks the invariant the validator's "mixed pack+grid" note relies on
+  # instead of checking directly: every container realizes into its own
+  # dedicated Tk master, and arrange_children picks exactly one geometry
+  # manager per master, so no master should ever end up with a mix of
+  # pack- and grid-managed children. Verified against the REAL, realized
+  # Tk widget tree (winfo children/winfo manager), not just teek-ui's own
+  # Document structure.
+  def test_no_realized_master_ever_receives_more_than_one_geometry_manager
+    assert_tk_app("every realized master frame should be managed by exactly one geometry manager - representative nested tree: column > grid > row > panel") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Realizer Test') do |ui|
+        ui.column(:outer, gap: 4) do |c|
+          c.grid(:g, gap: 2) do |g|
+            g.cell(row: 0, col: 0) { g.label(:l1, text: 'A') }
+            g.cell(row: 0, col: 1) do
+              g.row(:r, gap: 2) do |r|
+                r.button(:b1, text: 'B')
+                r.panel(:p) { |p| p.button(:b2, text: 'C') }
+              end
+            end
+          end
+          c.button(:outer_btn, text: 'D')
+        end
+      end
+      session.run_async
+      session.app.update
+
+      # walks the REAL, realized Tk widget tree (winfo children/winfo
+      # manager) rather than teek-ui's own Document structure - this is
+      # what would actually misbehave if the invariant ever broke, wherever
+      # the break came from. A local recursive lambda, not a helper method -
+      # assert_tk_app re-evaluates this block's own source text in a
+      # separate worker context, which has no access to methods defined on
+      # the surrounding Minitest::Test class.
+      check = lambda do |path|
+        children = session.app.split_list(session.app.tcl_eval("winfo children #{path}"))
+        managers = children.map { |child| session.app.tcl_eval("winfo manager #{child}") }.reject(&:empty?).uniq
+        assert_operator managers.length, :<=, 1,
+          "#{path} has children managed by more than one geometry manager: #{managers.inspect}"
+        children.each { |child| check.call(child) }
+      end
+      check.call('.')
+
+      session.app.destroy
+    end
+  end
+
+  # A genuinely mixed master turns out to be impossible to even construct
+  # via pack/grid themselves - Tk's own geometry-manager framework refuses
+  # a second manager type for a master once one is active, symmetrically
+  # (pack-then-grid and grid-then-pack both raise), with a clear, immediate
+  # Teek::TclError - NOT a silent hang, contrary to the original "Tk
+  # literally HANGS on this" framing this project started from. Confirmed
+  # empirically - place coexists safely with either, confirming overlay
+  # (not built yet, place-based) is a genuinely different, safe case. This
+  # is a second, independent safety net on top of the realizer's own
+  # one-manager-per-master construction invariant the test above locks -
+  # not a replacement for it.
+  def test_tk_itself_refuses_a_second_geometry_manager_on_one_master
+    assert_tk_app("Tk's own geometry-manager protection should refuse pack+grid mixing on one master with a clear error") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Realizer Test') { |ui| ui.panel(:guarded) }
+      session.run_async
+      session.app.update
+
+      session.app.command('ttk::button', '.guarded.a', text: 'A')
+      session.app.command('ttk::button', '.guarded.b', text: 'B')
+      session.app.command(:pack, '.guarded.a')
+
+      error = assert_raises(Teek::TclError) { session.app.command(:grid, '.guarded.b', row: 0, column: 0) }
+      assert_match(/geometry manager/i, error.message)
+
+      session.app.destroy
+    end
+  end
 end
