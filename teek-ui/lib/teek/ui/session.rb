@@ -68,7 +68,7 @@ module Teek
           # vars realize first, so a widget bound to one displays its
           # initial value immediately instead of starting blank.
           @vars.each { |v| v.realize(app) }
-          Realizer.realize(app, @document)
+          Realizer.new(app, @document).realize
         rescue
           app.destroy
           raise
@@ -115,6 +115,44 @@ module Teek
       def after(ms, on_error: :raise, &block)
         raise_unless_realized!
         @app.after(ms, on_error: on_error, &block)
+      end
+
+      # Build and immediately realize a subtree into the already-running
+      # app, as a child of an already-realized widget named +parent_name+ -
+      # for dynamic UIs (adding cards/rows/menu entries at runtime), not
+      # just the initial build. The block uses the exact same widget DSL as
+      # everywhere else (`a.button(...)`, `a.column(...) { }`, ...); new
+      # widgets show up immediately, routed through the same
+      # {Teek::App#command}/leak-cleanup path the initial realize uses, so
+      # destroying an added widget reclaims its callbacks the normal way.
+      #
+      # Unlike the initial #realize, this does not run {Validator} - it's
+      # already-known-good territory (the session realized once already);
+      # validating one small addition on every call would be wasted work.
+      # @param parent_name [Symbol] an already-realized widget's name
+      # @yieldparam ui [Session] the same builder, block-scoped under +parent_name+
+      # @return [nil]
+      # @raise [NotRealizedError] if the session, or the named parent, isn't realized yet
+      # @raise [ArgumentError] if no widget is declared under +parent_name+
+      def add(parent_name)
+        raise_unless_realized!
+
+        parent_node = @document.find(parent_name) or
+          raise ArgumentError, "no widget named :#{parent_name} in this build"
+        raise NotRealizedError, "##{parent_name} is not realized yet" unless parent_node.realized
+
+        before = parent_node.children.length
+        @stack.push(parent_node)
+        begin
+          yield self if block_given?
+        ensure
+          @stack.pop
+        end
+
+        realizer = Realizer.new(@app, @document)
+        parent_node.children[before..].each { |child| realizer.realize_subtree(child, parent_node) }
+
+        nil
       end
 
       private

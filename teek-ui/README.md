@@ -157,6 +157,18 @@ end.run
 
 So: `ui.raw` for build-time raw work, `session.app` (or a realized `Handle`) for anything after.
 
+## Dynamic UIs
+
+"Nothing happens until realize" describes the *initial* declaration only - `session.add(parent_name) { }` builds a subtree with the exact same widget DSL and realizes just that subtree immediately, as a child of an already-realized widget, for UIs that grow after the window is already up (adding rows to a list, rebuilding a menu on right-click):
+
+```ruby
+session = Teek::UI.app(title: 'Hello') { |ui| ui.column(:list) }.run_async
+
+session.add(:list) { |a| a.button(:item1, text: 'Item 1').on_click { puts 'clicked!' } }
+```
+
+The new widgets route through the same `Teek::App#command`/leak-cleanup path the initial realize uses - destroying one reclaims its callbacks the normal way. `parent_name` must already be realized; calling `add` before the session itself is realized, or naming a widget that doesn't exist, raises.
+
 ## Interactive / REPL Use
 
 `#run` blocks on the Tk event loop, which isn't REPL-friendly. `#run_async` realizes, shows the window, and returns immediately instead - but it doesn't (yet) service the event loop automatically between prompts, so call `ui.app.update` yourself to process pending events while exploring:

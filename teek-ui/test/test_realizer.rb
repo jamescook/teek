@@ -37,7 +37,11 @@ class TestRealizer < Minitest::Test
       session.app.update
 
       assert session.app.winfo.exists?(handle.path)
-      assert_match(/\A\.\w+\z/, handle.path)
+      # unnamed nodes get their Document-assigned key (e.g. "#anon1") as
+      # their path segment - unique for the whole document, not a
+      # per-Realizer-instance counter, so it stays collision-free across
+      # separate realize_subtree calls too (see Session#add).
+      assert_match(/\A\.\S+\z/, handle.path)
 
       session.app.destroy
     end

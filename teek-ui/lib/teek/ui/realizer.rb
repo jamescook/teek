@@ -71,24 +71,33 @@ module Teek
         },
       }.freeze
 
-      # @param app [Teek::App]
-      # @param document [Document]
-      # @return [void]
-      def self.realize(app, document)
-        new(app, document).realize
-      end
-
       # @api private
       def initialize(app, document)
         @app = app
         @document = document
-        @auto_segment_count = 0
       end
 
       # @return [void]
       def realize
         create(@document.root, '.')
         link(@document.root)
+      end
+
+      # Realize a single already-built (but not-yet-realized) node - and its
+      # descendants - into an already-running app, scoped under a parent
+      # that's realized already. Reuses the exact same create/link machinery
+      # {#realize} uses for the initial tree, just entered at an arbitrary
+      # node instead of the document root - see {Session#add}.
+      # @param node [Node] freshly built, not yet realized
+      # @param parent_node [Node] already realized - node becomes its child
+      # @return [void]
+      def realize_subtree(node, parent_node)
+        create(node, parent_node.realized.path)
+        # re-arrange ALL of parent_node's children (old + new), not just the
+        # new one in isolation - gap:/align: positioning depends on a
+        # child's index relative to every sibling, not just itself.
+        arrange_children(parent_node)
+        link(node)
       end
 
       private
@@ -213,13 +222,12 @@ module Teek
       end
 
       def allocate_path(node, parent_path)
-        segment = node.name ? node.name.to_s : next_auto_segment
+        # node.key is unique for the whole Document, persisted at node
+        # creation (Document#create) - not a per-Realizer-instance counter,
+        # which would collide across separate realize_subtree calls (each
+        # gets its own Realizer instance, e.g. one per Session#add call).
+        segment = node.name ? node.name.to_s : node.key
         parent_path == '.' ? ".#{segment}" : "#{parent_path}.#{segment}"
-      end
-
-      def next_auto_segment
-        @auto_segment_count += 1
-        "w#{@auto_segment_count}"
       end
     end
   end
