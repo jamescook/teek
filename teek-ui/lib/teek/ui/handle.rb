@@ -129,6 +129,42 @@ module Teek
         self
       end
 
+      # Show the window modally: grabs input and sets focus on it
+      # immediately. Release it explicitly with {#grab_release} (typically
+      # from the window's own dismiss/close handling) when the dialog is
+      # done - not released automatically just because this method
+      # returns, since a modal dialog stays grabbed for its whole visible
+      # lifetime, not just its setup. Released immediately if the optional
+      # setup block itself raises, or if the window is destroyed while
+      # still grabbed - see {Teek::Window#modal}, which this delegates to
+      # entirely (no grab/focus/destroy-safety-net logic lives here).
+      # Only valid on a `ui.window` handle.
+      # @param global [Boolean] see {Teek::Window#grab_set}
+      # @yield optional - runs with the grab and focus already set
+      # @return [void]
+      # @raise [ArgumentError] if this handle isn't a window
+      # @raise [NotRealizedError] before realize
+      def modal(global: false, &block)
+        unless type == :window
+          raise ArgumentError, "modal only makes sense on a window (got a :#{type})"
+        end
+
+        realized.app.window(realized.path).modal(global: global, &block)
+      end
+
+      # Release a grab previously set with {#modal}. Only valid on a
+      # `ui.window` handle. See {Teek::Window#grab_release}.
+      # @return [void]
+      # @raise [ArgumentError] if this handle isn't a window
+      # @raise [NotRealizedError] before realize
+      def grab_release
+        unless type == :window
+          raise ArgumentError, "grab_release only makes sense on a window (got a :#{type})"
+        end
+
+        realized.app.window(realized.path).grab_release
+      end
+
       private
 
       def realized

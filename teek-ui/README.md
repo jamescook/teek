@@ -125,6 +125,16 @@ settings = ui.window(:settings)
 settings.on_close { session.app.destroy(settings.path) if confirm_discard_changes? }
 ```
 
+The same `ui.window` handle also gets `modal`/`grab_release`, for dialogs that should block interaction with the rest of the app while open. Unlike the queue-then-wire events above, these only make sense once the window is actually realized (there's nothing to grab before it exists), so they raise `NotRealizedError` before that rather than queuing:
+
+```ruby
+settings.modal            # grabs input and focuses the window - stays grabbed
+# ... later, from the window's own on_close/a Done button ...
+settings.grab_release
+```
+
+`modal` also takes an optional block that runs with the grab already set (typically the rest of the window's own show sequence), and releases the grab immediately if that block raises, or if the window is destroyed while still grabbed - see `Teek::Window#modal` in base teek, which this delegates to entirely.
+
 Teek's own default (destroy the window) only applies if nothing has claimed `on_close` - once a block is set, it decides whether the window actually closes.
 
 ## Reactive Variables

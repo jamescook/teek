@@ -1,0 +1,138 @@
+# frozen_string_literal: true
+
+require 'minitest/autorun'
+require_relative '../../test/tk_test_helper'
+
+# Handle#modal/#grab_release are thin delegates to Teek::Window (see base
+# teek's own test_modal.rb) - no grab/focus/destroy-safety-net logic is
+# reimplemented here. These confirm the DSL layer actually wires through
+# to the real thing end to end, using the same grab current/status style
+# base teek's own tests use.
+class TestModalHandle < Minitest::Test
+  include TeekTestHelper
+
+  def test_modal_grabs_and_focuses_the_window
+    assert_tk_app("a window handle's modal should grab input and force focus onto it") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
+      session.run_async
+      session.app.update
+
+      session[:settings].modal
+
+      path = session[:settings].path
+      assert_equal path, session.app.tcl_eval("grab current #{path}")
+      assert_equal path, session.app.tcl_eval('focus')
+
+      session[:settings].grab_release
+      session.app.destroy
+    end
+  end
+
+  def test_grab_release_releases_the_grab
+    assert_tk_app("grab_release should clear the grab set by modal") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
+      session.run_async
+      session.app.update
+
+      session[:settings].modal
+      session[:settings].grab_release
+
+      path = session[:settings].path
+      assert_equal '', session.app.tcl_eval("grab current #{path}")
+
+      session.app.destroy
+    end
+  end
+
+  def test_modal_releases_the_grab_if_the_setup_block_raises
+    assert_tk_app("modal should release the grab immediately if its setup block raises, not leave it stuck") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
+      session.run_async
+      session.app.update
+
+      path = session[:settings].path
+      error = assert_raises(RuntimeError) { session[:settings].modal { raise 'boom' } }
+      assert_equal 'boom', error.message
+
+      assert_equal '', session.app.tcl_eval("grab current #{path}")
+
+      session.app.destroy
+    end
+  end
+
+  def test_modal_grab_persists_after_a_successful_setup_block
+    assert_tk_app("modal's grab should still be held after a successful setup block - released explicitly, not automatically") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
+      session.run_async
+      session.app.update
+
+      ran = false
+      session[:settings].modal { ran = true }
+
+      assert ran, "the setup block should run"
+      path = session[:settings].path
+      assert_equal path, session.app.tcl_eval("grab current #{path}")
+
+      session[:settings].grab_release
+      session.app.destroy
+    end
+  end
+
+  def test_modal_releases_the_grab_if_the_window_is_destroyed_while_grabbed
+    assert_tk_app("modal should release the grab if its window is destroyed without an explicit grab_release") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.window(:settings) }
+      session.run_async
+      session.app.update
+
+      path = session[:settings].path
+      session[:settings].modal
+      assert_equal path, session.app.tcl_eval("grab current #{path}")
+
+      session.app.destroy(path)
+
+      assert_equal '', session.app.tcl_eval('grab current')
+
+      session.app.destroy
+    end
+  end
+
+  def test_modal_raises_on_a_non_window_handle
+    assert_tk_app("modal on a non-window handle should raise a clear error") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.button(:go, text: 'Go') }
+      session.run_async
+      session.app.update
+
+      error = assert_raises(ArgumentError) { session[:go].modal }
+      assert_match(/window/i, error.message)
+
+      session.app.destroy
+    end
+  end
+
+  def test_grab_release_raises_on_a_non_window_handle
+    assert_tk_app("grab_release on a non-window handle should raise a clear error") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Modal Handle Test') { |ui| ui.button(:go, text: 'Go') }
+      session.run_async
+      session.app.update
+
+      error = assert_raises(ArgumentError) { session[:go].grab_release }
+      assert_match(/window/i, error.message)
+
+      session.app.destroy
+    end
+  end
+end

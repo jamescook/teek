@@ -5,8 +5,23 @@ require 'teek/ui/node'
 require 'teek/ui/handle'
 
 class TestHandle < Minitest::Test
-  FakeApp = Struct.new(:calls, :binds, :on_closes, :popups) do
-    def initialize(calls = [], binds = [], on_closes = [], popups = [])
+  FakeWindow = Struct.new(:path, :modal_calls, :grab_releases) do
+    def initialize(path, modal_calls = [], grab_releases = [])
+      super
+    end
+
+    def modal(global: false, &block)
+      modal_calls << { global: global }
+      block.call if block
+    end
+
+    def grab_release
+      grab_releases << true
+    end
+  end
+
+  FakeApp = Struct.new(:calls, :binds, :on_closes, :popups, :windows) do
+    def initialize(calls = [], binds = [], on_closes = [], popups = [], windows = [])
       super
     end
 
@@ -24,6 +39,12 @@ class TestHandle < Minitest::Test
 
     def popup_menu(menu, x:, y:, entry: nil)
       popups << { menu: menu, x: x, y: y, entry: entry }
+    end
+
+    def window(path)
+      win = FakeWindow.new(path)
+      windows << win
+      win
     end
   end
 
@@ -221,5 +242,67 @@ class TestHandle < Minitest::Test
 
     error = assert_raises(ArgumentError) { handle.on_right_click(menu_handle) { } }
     assert_match(/either/i, error.message)
+  end
+
+  def test_modal_raises_before_realize
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    handle = Teek::UI::Handle.new(node)
+
+    assert_raises(Teek::UI::NotRealizedError) { handle.modal }
+  end
+
+  def test_grab_release_raises_before_realize
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    handle = Teek::UI::Handle.new(node)
+
+    assert_raises(Teek::UI::NotRealizedError) { handle.grab_release }
+  end
+
+  def test_modal_raises_on_a_non_window_node
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.go')
+    handle = Teek::UI::Handle.new(node)
+
+    error = assert_raises(ArgumentError) { handle.modal }
+    assert_match(/window/i, error.message)
+  end
+
+  def test_grab_release_raises_on_a_non_window_node
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.go')
+    handle = Teek::UI::Handle.new(node)
+
+    error = assert_raises(ArgumentError) { handle.grab_release }
+    assert_match(/window/i, error.message)
+  end
+
+  def test_modal_delegates_to_the_realized_apps_window_once_realized
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.settings')
+    handle = Teek::UI::Handle.new(node)
+    ran = false
+
+    handle.modal(global: true) { ran = true }
+
+    assert_equal 1, app.windows.length
+    assert_equal '.settings', app.windows.first.path
+    assert_equal [{ global: true }], app.windows.first.modal_calls
+    assert ran, "the setup block should run"
+  end
+
+  def test_grab_release_delegates_to_the_realized_apps_window
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :window, name: :settings)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.settings')
+    handle = Teek::UI::Handle.new(node)
+
+    handle.grab_release
+
+    assert_equal 1, app.windows.length
+    assert_equal '.settings', app.windows.first.path
+    assert_equal [true], app.windows.first.grab_releases
   end
 end
