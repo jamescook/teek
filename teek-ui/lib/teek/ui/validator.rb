@@ -1,6 +1,10 @@
 # frozen_string_literal: true
 
 require_relative 'errors'
+require_relative 'widget_validators'
+require_relative 'grid_validator'
+require_relative 'tab_validator'
+require_relative 'pane_validator'
 
 module Teek
   module UI
@@ -13,6 +17,16 @@ module Teek
     # into one {ValidationError} listing every one found); problems that
     # are "probably a mistake" warn via +Kernel#warn+ by default, or raise
     # too under +strict: true+.
+    #
+    # This class runs the checks that span the whole tree or relate
+    # arbitrary nodes to each other (dangling event targets, orphans). A
+    # specific widget/container's own contract (a grid's children all need
+    # cells, a tab's parent must be a ui.tabs, ...) lives in its own
+    # {WidgetValidators}-registered validator instead (see
+    # {GridValidator}/{TabValidator}/{PaneValidator}), dispatched by node
+    # type the same way {Teek::CommandInterceptors} dispatches by widget
+    # type. One depth-first walk covers both the document-level checks
+    # below and every registered widget validator.
     #
     # @note "Mixed pack+grid geometry in one container" (the classic Tk-hangs
     #   hazard) isn't checked here because, within the pure DSL layout path,
@@ -31,19 +45,14 @@ module Teek
     #   raw +pack+/+grid+ call from one of those can still target a master
     #   the DSL already manages - that's the one real, unguardable vector,
     #   not "direct Node/Document manipulation" (which is what the narrower
-    #   check below actually guards against). If it happens, Tk itself is a
-    #   synchronous backstop: it refuses a second geometry manager on an
-    #   already-managed master with an immediate, clear +Teek::TclError+
-    #   ("cannot use geometry manager X inside Y") rather than the classic
-    #   silent hang - but the DSL has no way to stop the mistake up front,
-    #   so avoid mixing raw geometry calls onto a DSL-managed master (see
-    #   the README's escape hatch section).
-    #
-    #   What IS checked here is the closest real analog reachable through
-    #   the tree: a node carrying grid-cell position intent whose parent
-    #   isn't actually a +:grid+ - only reachable via direct Node/Document
-    #   manipulation, since {WidgetDSL#cell} already refuses to run outside
-    #   a +ui.grid+ block.
+    #   checks in {GridValidator}/{TabValidator}/{PaneValidator} actually
+    #   guard against). If it happens, Tk itself is a synchronous backstop:
+    #   it refuses a second geometry manager on an already-managed master
+    #   with an immediate, clear +Teek::TclError+ ("cannot use geometry
+    #   manager X inside Y") rather than the classic silent hang - but the
+    #   DSL has no way to stop the mistake up front, so avoid mixing raw
+    #   geometry calls onto a DSL-managed master (see the README's escape
+    #   hatch section).
     class Validator
       # @param document [Document]
       # @param strict [Boolean] promote warn-level problems (currently just
@@ -59,16 +68,12 @@ module Teek
         @strict = strict
         @errors = []
         @warnings = []
+        @reachable = {}
       end
 
       # @return [void]
       def validate!
-        check_stray_cell_intent
-        check_stray_tab_intent
-        check_stray_pane_intent
-        check_grid_cell_collisions
-        check_grid_children_missing_a_cell
-        check_dangling_event_targets
+        walk(@document.root, nil)
         check_orphans
 
         @warnings.each { |message| warn "teek-ui: #{message}" }
@@ -77,108 +82,40 @@ module Teek
 
       private
 
-      def check_stray_cell_intent
-        each_node_with_parent do |node, parent|
-          next unless node.layout && node.layout[:cell]
-          next if parent && parent.type == :grid
+      # The single tree traversal every check below rides along on - marks
+      # each node reachable (for {#check_orphans}), dispatches to every
+      # {WidgetValidators}-registered validator for the node's own type,
+      # and runs {GridValidator#check_stray_cell} (see its own comment for
+      # why that one can't be type-dispatched) plus the dangling-event-
+      # target check, both of which genuinely span arbitrary node types.
+      def walk(node, parent)
+        @reachable[node] = true
 
-          @errors << "#{describe(node)} has a grid cell position but its parent (#{describe(parent)}) isn't a " \
-                      "ui.grid - its row/col/span would be silently ignored"
-        end
+        GridValidator.check_stray_cell(node, parent, @errors)
+        WidgetValidators.for_type(node.type).each { |validator| validator.call(node, parent, @document, @errors) }
+        check_dangling_event_targets(node)
+
+        node.children.each { |child| walk(child, node) }
       end
 
-      # The opposite direction from {#check_stray_cell_intent}: a direct
-      # child of a +:grid+ that was never placed with +g.cell(row:, col:)+.
-      # {Realizer#arrange_grid} still raises on this too (kept as a
-      # belt-and-suspenders backstop for the one path that skips
-      # validation entirely - {Session#add}'s incremental realize), but
-      # this is now the primary detection, so the mistake surfaces
-      # pre-realize, collected alongside every other problem, instead of
-      # crashing mid-realize.
-      NOT_GRID_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu tab].freeze
+      def check_dangling_event_targets(node)
+        node.events.each do |binding|
+          next unless binding.target
+          next if @document.find(binding.target)
 
-      def check_grid_children_missing_a_cell
-        each_node_with_parent do |node, parent|
-          next unless parent && parent.type == :grid
-          next if NOT_GRID_ARRANGED_TYPES.include?(node.type)
-          next if node.layout && node.layout[:cell]
-
-          @errors << "#{describe(node)} is a direct child of a grid but was never placed with " \
-                      "g.cell(row:, col:) { ... }"
-        end
-      end
-
-      # Only reachable via direct Node/Document manipulation, since
-      # {WidgetDSL#tab} already refuses to run outside a +ui.tabs+ block -
-      # the same defense-in-depth {#check_stray_cell_intent} does for grid.
-      def check_stray_tab_intent
-        each_node_with_parent do |node, parent|
-          next unless node.type == :tab
-          next if parent && parent.type == :tabs
-
-          @errors << "#{describe(node)} is a :tab but its parent (#{describe(parent)}) isn't a ui.tabs"
-        end
-      end
-
-      # Only reachable via direct Node/Document manipulation, since
-      # {WidgetDSL#pane} already refuses to run outside a +ui.split+ block -
-      # the same defense-in-depth {#check_stray_tab_intent} does for tabs.
-      def check_stray_pane_intent
-        each_node_with_parent do |node, parent|
-          next unless node.type == :pane
-          next if parent && parent.type == :split
-
-          @errors << "#{describe(node)} is a :pane but its parent (#{describe(parent)}) isn't a ui.split"
-        end
-      end
-
-      def check_grid_cell_collisions
-        each_node_with_parent do |node, _parent|
-          next unless node.type == :grid
-
-          node.children
-            .group_by { |child| child.layout && child.layout[:cell] && [child.layout[:cell][:row], child.layout[:cell][:col]] }
-            .each do |position, children|
-              next if position.nil? || children.length <= 1
-
-              row, col = position
-              @errors << "#{describe(node)} has more than one widget at row #{row}, col #{col}: " \
-                          "#{children.map { |c| describe(c) }.join(', ')}"
-            end
-        end
-      end
-
-      def check_dangling_event_targets
-        @document.each_node do |node|
-          node.events.each do |binding|
-            next unless binding.target
-            next if @document.find(binding.target)
-
-            @errors << "#{describe(node)}'s event binding targets :#{binding.target}, but no widget with that name exists"
-          end
+          @errors << "#{WidgetValidators.describe(node)}'s event binding targets :#{binding.target}, " \
+                      "but no widget with that name exists"
         end
       end
 
       def check_orphans
-        reachable = {}
-        @document.each_node { |node| reachable[node] = true }
-
         @document.each_named_node do |_name, node|
-          next if reachable[node]
+          next if @reachable[node]
 
-          message = "#{describe(node)} is declared but never placed in the layout - it will exist but never realize/show"
+          message = "#{WidgetValidators.describe(node)} is declared but never placed in the layout - " \
+                     "it will exist but never realize/show"
           @strict ? @errors << message : @warnings << message
         end
-      end
-
-      def each_node_with_parent(node = @document.root, parent = nil, &block)
-        block.call(node, parent)
-        node.children.each { |child| each_node_with_parent(child, node, &block) }
-      end
-
-      def describe(node)
-        return 'the document root' unless node
-        node.name ? "##{node.type}(:#{node.name})" : "an unnamed ##{node.type}"
       end
     end
   end

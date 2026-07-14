@@ -543,8 +543,8 @@ module Teek
         children.each do |child|
           cell = child.layout && child.layout[:cell]
           unless cell
-            # {Validator#check_grid_children_missing_a_cell} is the primary
-            # detection for this now, pre-realize - this stays as a
+            # {GridValidator.check_missing_cell} is the primary detection
+            # for this now, pre-realize - this stays as a
             # belt-and-suspenders backstop for the one path that skips
             # validation entirely, {Session#add}'s incremental realize.
             raise ArgumentError, "#{describe(child)} is a direct child of a grid but was never placed with " \
