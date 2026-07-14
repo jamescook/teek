@@ -143,19 +143,24 @@ module Teek
         natively_scrollable?(node.type) && resolve_scroll(node)
       end
 
-      # Every natively scrollable type (list/text_area/table/tree/canvas) is
-      # {WidgetType}-registered, so this is just its descriptor's own
-      # +natively_scrollable?+ - +false+ for anything unregistered.
+      # A registered type's own +natively_scrollable?+ - +false+ for
+      # anything unregistered.
       def natively_scrollable?(type)
         WidgetTypes.for_type(type)&.natively_scrollable? || false
       end
 
+      # A registered type's own {WidgetType#global_scroll_default} (canvas
+      # points at +Teek::UI.auto_scroll_canvas+; everything else at the
+      # shared +Teek::UI.auto_scroll+) - +auto_scroll+ itself for anything
+      # unregistered, since #auto_scrollable? only ever calls this for an
+      # already natively-scrollable (and therefore registered) type.
       def resolve_scroll(node)
         opt = node.opts[:scroll]
         return opt unless opt.nil?
         return @default_scroll unless @default_scroll.nil?
 
-        node.type == :canvas ? Teek::UI.auto_scroll_canvas : Teek::UI.auto_scroll
+        registered = WidgetTypes.for_type(node.type)
+        registered ? registered.global_scroll_default : Teek::UI.auto_scroll
       end
 
       # Wraps a bare native-scrollable widget (list/text_area/table/tree/
@@ -459,8 +464,8 @@ module Teek
         children.each do |child|
           cell = child.layout && child.layout[:cell]
           unless cell
-            # {GridValidator.check_missing_cell} is the primary detection
-            # for this now, pre-realize - this stays as a
+            # {GridValidator.check_missing_cell} is the primary,
+            # pre-realize detection for this - this stays as a
             # belt-and-suspenders backstop for the one path that skips
             # validation entirely, {Session#add}'s incremental realize.
             raise ArgumentError, "#{describe(child)} is a direct child of a grid but was never placed with " \

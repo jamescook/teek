@@ -15,8 +15,7 @@ module Teek
     # is the primary detection, so the mistake surfaces pre-realize,
     # collected alongside every other problem, instead of crashing
     # mid-realize. Composed into {WidgetValidators} via :grid's own
-    # {WidgetType#validator} (see +widget_types/grid.rb+) rather than
-    # registering itself here directly.
+    # {WidgetType#validator} (see +widget_types/grid.rb+).
     module GridValidator
       # @param node [Node] a :grid node - {WidgetValidators} only dispatches
       #   here for that type
@@ -55,8 +54,7 @@ module Teek
       # {Realizer::NON_WIDGET_TYPES}); every other type reports whether it
       # needs a cell via its own {WidgetType#arranged?} (mirrors
       # {Realizer#unarranged?}) - true (needs a cell) for anything
-      # unregistered, since every type a grid could actually hold is
-      # registered by now.
+      # unregistered, since every type a grid can hold is WidgetType-registered.
       def self.needs_cell?(type)
         return false if type == :raw_op
 

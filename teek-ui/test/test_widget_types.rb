@@ -1,15 +1,15 @@
 # frozen_string_literal: true
 
 require_relative 'test_helper'
+require 'teek/ui'
 require 'teek/ui/widget_types'
 require 'teek/ui/widget_dsl'
 
 class TestWidgetTypes < Minitest::Test
   # type -> [tk_command, bind_option, natively_scrollable?] for every leaf
-  # migrated off the legacy LEAF_TYPES/TK_COMMANDS/BIND_OPTIONS lists -
-  # matches the original hardcoded mapping exactly (this table is the
-  # migration's own regression check, not a copy of production code).
-  MIGRATED_LEAVES = {
+  # widget type - a regression check independent of production code, not
+  # a copy of it.
+  LEAF_METADATA = {
     text_box: ['ttk::entry', :textvariable, false],
     text_area: ['text', nil, true],
     label: ['ttk::label', :textvariable, false],
@@ -25,8 +25,8 @@ class TestWidgetTypes < Minitest::Test
     progress: ['ttk::progressbar', :variable, false],
   }.freeze
 
-  def test_every_migrated_leaf_is_registered_with_the_right_metadata
-    MIGRATED_LEAVES.each do |type, (tk_command, bind_option, natively_scrollable)|
+  def test_every_leaf_widget_type_is_registered_with_the_right_metadata
+    LEAF_METADATA.each do |type, (tk_command, bind_option, natively_scrollable)|
       widget_type = Teek::UI::WidgetTypes.for_type(type)
 
       refute_nil widget_type, "expected :#{type} to be registered as a WidgetType"
@@ -37,15 +37,15 @@ class TestWidgetTypes < Minitest::Test
     end
   end
 
-  def test_leaf_types_no_longer_exists_now_that_every_leaf_has_migrated
+  def test_widget_dsl_carries_no_leaf_types_constant
     refute Teek::UI::WidgetDSL.const_defined?(:LEAF_TYPES)
   end
 
-  def test_bind_options_no_longer_exists_now_that_every_bindable_leaf_has_migrated
+  def test_widget_dsl_carries_no_bind_options_constant
     refute Teek::UI::WidgetDSL.const_defined?(:BIND_OPTIONS)
   end
 
-  def test_scrollable_types_no_longer_exists_now_that_canvas_has_migrated
+  def test_widget_dsl_carries_no_scrollable_types_constant
     refute Teek::UI::WidgetDSL.const_defined?(:SCROLLABLE_TYPES)
   end
 
@@ -54,6 +54,44 @@ class TestWidgetTypes < Minitest::Test
 
     refute_nil widget_type
     assert widget_type.natively_scrollable?
+  end
+
+  def test_scroll_default_defaults_to_auto_scroll
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_scroll_default__, tk_command: 'ttk::label')
+
+    original = Teek::UI.auto_scroll
+    begin
+      Teek::UI.auto_scroll = :sentinel_value
+      assert_equal :sentinel_value, widget_type.global_scroll_default
+    ensure
+      Teek::UI.auto_scroll = original
+    end
+  end
+
+  def test_canvas_points_its_scroll_default_at_auto_scroll_canvas_not_auto_scroll
+    widget_type = Teek::UI::WidgetTypes.for_type(:canvas)
+
+    original = Teek::UI.auto_scroll_canvas
+    begin
+      Teek::UI.auto_scroll_canvas = :sentinel_value
+      assert_equal :sentinel_value, widget_type.global_scroll_default
+    ensure
+      Teek::UI.auto_scroll_canvas = original
+    end
+  end
+
+  def test_list_and_table_and_tree_and_text_area_use_the_shared_auto_scroll_default
+    %i[list table tree text_area].each do |type|
+      widget_type = Teek::UI::WidgetTypes.for_type(type)
+
+      original = Teek::UI.auto_scroll
+      begin
+        Teek::UI.auto_scroll = :sentinel_value
+        assert_equal :sentinel_value, widget_type.global_scroll_default, ":#{type} scroll_default"
+      ensure
+        Teek::UI.auto_scroll = original
+      end
+    end
   end
 
   def test_divider_is_registered_as_a_built_in
@@ -211,10 +249,10 @@ class TestWidgetTypes < Minitest::Test
     assert_equal 'left', row.flow[:side]
   end
 
-  # type -> [tk_command, leaf?, arranged?] for every special/branching type
-  # migrated off the legacy TK_COMMANDS/CONTAINER_TYPES/NOT_ARRANGED_TYPES/
-  # MENU_ROOT_TYPES lists.
-  MIGRATED_SPECIALS = {
+  # type -> [tk_command, leaf?, arranged?] for every special/branching
+  # container type (grid, scrollable, tabs/tab, split/pane, menu_bar/
+  # context_menu).
+  SPECIAL_TYPE_METADATA = {
     grid: ['ttk::frame', false, true],
     scrollable: ['ttk::frame', false, true],
     tabs: ['ttk::notebook', false, true],
@@ -225,8 +263,8 @@ class TestWidgetTypes < Minitest::Test
     context_menu: ['menu', false, false],
   }.freeze
 
-  def test_every_migrated_special_type_is_registered_with_the_right_metadata
-    MIGRATED_SPECIALS.each do |type, (tk_command, leaf, arranged)|
+  def test_every_special_type_is_registered_with_the_right_metadata
+    SPECIAL_TYPE_METADATA.each do |type, (tk_command, leaf, arranged)|
       widget_type = Teek::UI::WidgetTypes.for_type(type)
 
       refute_nil widget_type, "expected :#{type} to be registered as a WidgetType"
@@ -363,12 +401,12 @@ class TestWidgetTypes < Minitest::Test
     assert_equal [[:realizer, :node, :parent_path]], calls
   end
 
-  def test_container_types_no_longer_exists_now_that_grid_scrollable_tabs_have_migrated
+  def test_widget_dsl_carries_no_container_types_constant
     refute Teek::UI::WidgetDSL.const_defined?(:CONTAINER_TYPES)
   end
 
   %i[TK_COMMANDS MENU_ROOT_TYPES NOT_ARRANGED_TYPES].each do |const_name|
-    define_method("test_realizer_#{const_name.downcase}_no_longer_exists") do
+    define_method("test_realizer_carries_no_#{const_name.downcase}_constant") do
       require 'teek/ui/realizer'
       refute Teek::UI::Realizer.const_defined?(const_name)
     end

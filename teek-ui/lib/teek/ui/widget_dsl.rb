@@ -31,11 +31,10 @@ module Teek
     module WidgetDSL
       # Every widget/container type - leaf or container, plain or special -
       # gets its own `ui.<type>` method(s) here, generated from its own
-      # {WidgetType} descriptor (see {WidgetTypes}) rather than a
-      # hardcoded per-type list. {WidgetTypes.on_register} replays every
-      # type already registered (every built-in loads before this file
-      # does) and keeps firing for any registered later, so a type
-      # registered by third-party code lights up here with no edit to
+      # {WidgetType} descriptor (see {WidgetTypes}). {WidgetTypes.on_register}
+      # replays every type already registered (every built-in loads before
+      # this file does) and keeps firing for any registered later, so a
+      # type registered by third-party code lights up here with no edit to
       # this file at all. A type reachable only via a bespoke,
       # hand-written method below (`#tab`/`#pane`/`#split`, `#menu_bar`/
       # `#context_menu`) sets its own descriptor's `dsl:` to a no-op, so
@@ -275,9 +274,8 @@ module Teek
         opts.reject { |k, _| k == :bind }.merge(tk_option => opts[:bind].name)
       end
 
-      # Every leaf/container that supports `bind:` is {WidgetType}-registered
-      # now, so this is just its descriptor's own `bind_option:` - `nil`
-      # (raising below) for anything unregistered or genuinely unsupported.
+      # A registered type's own `bind_option:` - `nil` (raising below) for
+      # anything unregistered or genuinely unsupported.
       def bind_option_for(type)
         WidgetTypes.for_type(type)&.bind_option
       end
@@ -289,10 +287,8 @@ module Teek
         raise ArgumentError, "##{type} doesn't support scroll: (only #{scrollable_type_names.join('/')} do)"
       end
 
-      # Every type that has ever supported `scroll:` is {WidgetType}-registered
-      # now (list/text_area/table/tree/canvas), so this is just its
-      # descriptor's own `natively_scrollable?` - `false` for anything
-      # unregistered.
+      # A registered type's own `natively_scrollable?` - `false` for
+      # anything unregistered.
       def natively_scrollable_for?(type)
         WidgetTypes.for_type(type)&.natively_scrollable? || false
       end

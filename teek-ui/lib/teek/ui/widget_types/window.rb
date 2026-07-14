@@ -40,8 +40,8 @@ module Teek
   end
 end
 
-# A toplevel - the only :arranged false type migrated so far (placed by the
-# window manager, never pack/grid-managed by its nominal parent).
+# A toplevel - placed by the window manager, never pack/grid-managed by
+# its nominal parent.
 Teek::UI::WidgetTypes.register(
   Teek::UI::WidgetType.new(
     type: :window, tk_command: 'toplevel', leaf: false, arranged: false,

@@ -11,7 +11,7 @@ module Teek
     # {WidgetDSL#tab} already refuses to run outside a ui.tabs block - the
     # same defense-in-depth {GridValidator.check_stray_cell} does for grid.
     # Composed into {WidgetValidators} via :tab's own {WidgetType#validator}
-    # (see +widget_types/tab.rb+) rather than registering itself here directly.
+    # (see +widget_types/tab.rb+).
     module TabValidator
       # @param node [Node] a :tab node - {WidgetValidators} only dispatches
       #   here for that type

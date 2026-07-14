@@ -4,13 +4,11 @@ module Teek
   module UI
     # @api private
     #
-    # A single widget/node type's own metadata, self-contained enough that
+    # A single widget/node type's own metadata: what it draws, how it's
+    # built and arranged, what it validates - self-contained enough that
     # {WidgetDSL} (the builder), {Realizer}, and {Validator} can each treat
-    # a registered type exactly like a hand-written entry in their own
-    # legacy per-type lists (formerly LEAF_TYPES/CONTAINER_TYPES/
-    # TK_COMMANDS/BIND_OPTIONS/FLOW/NOT_ARRANGED_TYPES, and
-    # WidgetValidators's own manual registrations - all fully migrated to
-    # descriptors now) - see {WidgetTypes}.
+    # a registered type as the sole source of truth for it, dispatched by
+    # node type via {WidgetTypes}.
     #
     # Leaf defaults cover the common case, so a real widget is a ~5-line
     # descriptor: +WidgetType.new(type: :divider, tk_command:
@@ -30,6 +28,13 @@ module Teek
       # @param natively_scrollable [Boolean] whether this widget already
       #   speaks Tk's -yscrollcommand/-xscrollcommand protocol - see
       #   {Realizer#auto_scrollable?}, which consults this for a registered type
+      # @param scroll_default [Symbol] which {Teek::UI} global default
+      #   reader this type's own auto-scrollable wrapping falls back to
+      #   when neither the widget's own +scroll:+ nor the session's
+      #   app-wide override says otherwise - +:auto_scroll+ (the default)
+      #   for most natively-scrollable types, +:auto_scroll_canvas+ for
+      #   canvas specifically. Only meaningful alongside
+      #   +natively_scrollable: true+ - see {Realizer#resolve_scroll}.
       # @param arranged [Boolean] whether a geometry manager (pack/grid)
       #   should place this node inside its parent - true (the default) for
       #   almost everything; false for a type placed some other way
@@ -96,13 +101,14 @@ module Teek
       #   Defaults to a no-op. Not called at all for a type that sets
       #   +custom_create:+, since that hook bypasses this entire step.
       def initialize(type:, tk_command:, leaf: true, natively_scrollable: false, arranged: true,
-                      bind_option: nil, flow: nil, arrange: nil, custom_children: nil, custom_create: nil,
-                      validator: nil, dsl: nil, post_create: nil)
+                      scroll_default: :auto_scroll, bind_option: nil, flow: nil, arrange: nil,
+                      custom_children: nil, custom_create: nil, validator: nil, dsl: nil, post_create: nil)
         @type = type.to_sym
         @tk_command = tk_command
         @leaf = leaf
         @natively_scrollable = natively_scrollable
         @arranged = arranged
+        @scroll_default = scroll_default
         @bind_option = bind_option
         @flow = flow
         @arrange = arrange || (flow && ->(realizer, node, children) { realizer.send(:arrange_flow, node, children, flow) })
@@ -126,6 +132,12 @@ module Teek
       # @return [Boolean]
       def natively_scrollable?
         @natively_scrollable
+      end
+
+      # @return [Boolean] the current value of this type's own
+      #   {Teek::UI} global scroll-default reader (+scroll_default:+)
+      def global_scroll_default
+        Teek::UI.public_send(@scroll_default)
       end
 
       # @return [Boolean]

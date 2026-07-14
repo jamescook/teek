@@ -8,10 +8,10 @@ module Teek
     # @api private
     #
     # Central registry of {WidgetType} descriptors, mirroring
-    # {Teek::CommandInterceptors}'s own register/for_type shape - the seam
-    # that lets {WidgetDSL}, {Realizer}, and {Validator} each treat a
-    # registered type exactly like a hand-maintained entry in their own
-    # legacy per-type list, without editing those lists.
+    # {Teek::CommandInterceptors}'s own register/for_type shape - one
+    # registered descriptor per node type is the single source of truth
+    # {WidgetDSL}, {Realizer}, and {Validator} each dispatch to for that
+    # type's own build/realize/validate behavior.
     #
     # Unlike {Teek::CommandInterceptors} (consulted per-call with a type
     # already in hand) or {WidgetValidators} (many validators can share one
@@ -23,11 +23,10 @@ module Teek
     # {WidgetDSL} never matters).
     #
     # A descriptor's +validator:+ (see {WidgetType}) is forwarded into
-    # {WidgetValidators} right here, at registration time - {Validator}
-    # itself needs no separate dual-path branch for descriptor-composed
-    # validators, since they end up dispatched through the exact same
-    # +WidgetValidators.for_type+ call every other validator already goes
-    # through.
+    # {WidgetValidators} right here, at registration time, so it's
+    # dispatched through the exact same +WidgetValidators.for_type+ call
+    # every other validator goes through - {Validator} itself carries no
+    # awareness of descriptors at all.
     class WidgetTypes
       class << self
         # @param widget_type [WidgetType]

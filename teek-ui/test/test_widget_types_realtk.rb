@@ -5,16 +5,17 @@ require_relative '../../test/tk_test_helper'
 
 # Real-Tk half of WidgetTypes' coverage - registry mechanics (register/
 # for_type/each/on_register, leaf defaults, validator forwarding) are
-# covered headlessly in test_widget_types.rb; these prove the actual dual
-# path against a live app: `:divider` (the one migrated leaf) realizes
-# byte-identically to before, and a brand-new custom type lights up across
-# the DSL, the realizer, and the validator the moment it's registered, with
-# no edits to any legacy list.
+# covered headlessly in test_widget_types.rb; these exercise real
+# realize/validate behavior against a live app: `:divider` realizes as a
+# genuine `ttk::separator`, and a brand-new custom type lights up its own
+# `ui.<type>` DSL method, realize, and validator the moment it's
+# registered - proving the registry is what actually drives WidgetDSL/
+# Realizer/Validator, not a parallel mechanism alongside them.
 class TestWidgetTypesRealTk < Minitest::Test
   include TeekTestHelper
 
   def test_divider_realizes_as_a_real_ttk_separator
-    assert_tk_app("the migrated :divider leaf should still realize as a real ttk::separator") do
+    assert_tk_app("ui.divider should realize as a real ttk::separator") do
       require 'teek/ui'
 
       session = Teek::UI.app(title: 'Widget Types Test') do |ui|
@@ -31,7 +32,7 @@ class TestWidgetTypesRealTk < Minitest::Test
   end
 
   def test_a_custom_registered_widget_type_lights_up_dsl_realize_and_validate
-    assert_tk_app("registering a new WidgetType should light up ui.<type>, its realize, and its validator - with no legacy-list edits") do
+    assert_tk_app("registering a new WidgetType should light up ui.<type>, its realize, and its validator") do
       require 'teek/ui'
 
       custom_type = :__test_widget_type_end_to_end__
