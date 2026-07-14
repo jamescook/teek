@@ -338,18 +338,30 @@ module Teek
 
         if y
           @app.bind(tag, '<MouseWheel>', :mouse_wheel) { |delta|
-            @app.command(canvas_path, :yview, :scroll, delta.to_f / -WHEEL_UNITS_PER_NOTCH, :units)
+            @app.command(canvas_path, :yview, :scroll, wheel_units(delta), :units)
           }
           @app.bind(tag, '<Button-4>') { @app.command(canvas_path, :yview, :scroll, -1, :units) }
           @app.bind(tag, '<Button-5>') { @app.command(canvas_path, :yview, :scroll, 1, :units) }
         end
         if x
           @app.bind(tag, '<Shift-MouseWheel>', :mouse_wheel) { |delta|
-            @app.command(canvas_path, :xview, :scroll, delta.to_f / -WHEEL_UNITS_PER_NOTCH, :units)
+            @app.command(canvas_path, :xview, :scroll, wheel_units(delta), :units)
           }
           @app.bind(tag, '<Shift-Button-4>') { @app.command(canvas_path, :xview, :scroll, -1, :units) }
           @app.bind(tag, '<Shift-Button-5>') { @app.command(canvas_path, :xview, :scroll, 1, :units) }
         end
+      end
+
+      # Tk 9's own `scroll number units` accepts (and documents rounding
+      # for) a fractional number - Tcl 8.6's stricter integer parsing
+      # rejects a value like +"3.0"+ outright ("expected integer but got
+      # ..."), raised deep inside the widget's own command implementation
+      # from within this very callback. Rounding to a real Ruby Integer
+      # here (away from zero, matching Tk 9's own documented rounding)
+      # keeps the string Tcl sees free of a decimal point on every
+      # version, rather than relying on 9.x's more lenient parsing.
+      def wheel_units(delta)
+        (delta.to_f / -WHEEL_UNITS_PER_NOTCH).round
       end
 
       def add_bindtag(path, tag)
