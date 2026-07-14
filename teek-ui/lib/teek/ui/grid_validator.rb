@@ -1,25 +1,23 @@
 # frozen_string_literal: true
 
 require_relative 'widget_validators'
+require_relative 'widget_types'
 
 module Teek
   module UI
     # @api private
     #
-    # Registered for the :grid {WidgetValidators} entry below - a grid's own
-    # contract: every direct child needs a cell (+g.cell(row:, col:) { }+),
-    # and no two children can claim the same one. {Realizer#arrange_grid}
-    # still raises on a missing cell too (kept as a belt-and-suspenders
-    # backstop for the one path that skips validation entirely -
-    # {Session#add}'s incremental realize), but this is the primary
-    # detection, so the mistake surfaces pre-realize, collected alongside
-    # every other problem, instead of crashing mid-realize.
+    # A grid's own contract: every direct child needs a cell
+    # (+g.cell(row:, col:) { }+), and no two children can claim the same
+    # one. {Realizer#arrange_grid} still raises on a missing cell too
+    # (kept as a belt-and-suspenders backstop for the one path that skips
+    # validation entirely - {Session#add}'s incremental realize), but this
+    # is the primary detection, so the mistake surfaces pre-realize,
+    # collected alongside every other problem, instead of crashing
+    # mid-realize. Composed into {WidgetValidators} via :grid's own
+    # {WidgetType#validator} (see +widget_types/grid.rb+) rather than
+    # registering itself here directly.
     module GridValidator
-      # Direct children of a :grid a geometry manager never places itself -
-      # mirrors {Realizer::NOT_ARRANGED_TYPES} for the same reason, so none
-      # of these need g.cell.
-      NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu tab pane].freeze
-
       # @param node [Node] a :grid node - {WidgetValidators} only dispatches
       #   here for that type
       # @param parent [Node, nil]
@@ -33,7 +31,7 @@ module Teek
 
       def self.check_missing_cell(node, errors)
         node.children.each do |child|
-          next if NOT_ARRANGED_TYPES.include?(child.type)
+          next unless needs_cell?(child.type)
           next if child.layout && child.layout[:cell]
 
           errors << "#{WidgetValidators.describe(child)} is a direct child of a grid but was never placed with " \
@@ -53,7 +51,20 @@ module Teek
           end
       end
 
-      private_class_method :check_missing_cell, :check_cell_collisions
+      # :raw_op has no widget of its own at all (mirrors
+      # {Realizer::NON_WIDGET_TYPES}); every other type reports whether it
+      # needs a cell via its own {WidgetType#arranged?} (mirrors
+      # {Realizer#unarranged?}) - true (needs a cell) for anything
+      # unregistered, since every type a grid could actually hold is
+      # registered by now.
+      def self.needs_cell?(type)
+        return false if type == :raw_op
+
+        registered = WidgetTypes.for_type(type)
+        registered.nil? || registered.arranged?
+      end
+
+      private_class_method :check_missing_cell, :check_cell_collisions, :needs_cell?
 
       # The opposite direction from {.check_missing_cell}: a node carrying a
       # grid-cell position (+layout[:cell]+) whose actual parent isn't a
@@ -76,7 +87,5 @@ module Teek
                    "(#{WidgetValidators.describe(parent)}) isn't a ui.grid - its row/col/span would be silently ignored"
       end
     end
-
-    WidgetValidators.register(:grid) { |*a| GridValidator.call(*a) }
   end
 end

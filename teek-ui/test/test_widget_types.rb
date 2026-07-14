@@ -210,4 +210,167 @@ class TestWidgetTypes < Minitest::Test
     assert_equal 'top', column.flow[:side]
     assert_equal 'left', row.flow[:side]
   end
+
+  # type -> [tk_command, leaf?, arranged?] for every special/branching type
+  # migrated off the legacy TK_COMMANDS/CONTAINER_TYPES/NOT_ARRANGED_TYPES/
+  # MENU_ROOT_TYPES lists.
+  MIGRATED_SPECIALS = {
+    grid: ['ttk::frame', false, true],
+    scrollable: ['ttk::frame', false, true],
+    tabs: ['ttk::notebook', false, true],
+    tab: ['ttk::frame', false, false],
+    split: ['ttk::panedwindow', false, true],
+    pane: ['ttk::frame', false, false],
+    menu_bar: ['menu', false, false],
+    context_menu: ['menu', false, false],
+  }.freeze
+
+  def test_every_migrated_special_type_is_registered_with_the_right_metadata
+    MIGRATED_SPECIALS.each do |type, (tk_command, leaf, arranged)|
+      widget_type = Teek::UI::WidgetTypes.for_type(type)
+
+      refute_nil widget_type, "expected :#{type} to be registered as a WidgetType"
+      assert_equal tk_command, widget_type.tk_command, ":#{type} tk_command"
+      assert_equal leaf, widget_type.leaf?, ":#{type} leaf?"
+      assert_equal arranged, widget_type.arranged?, ":#{type} arranged?"
+    end
+  end
+
+  def test_tab_pane_split_menu_bar_context_menu_have_no_auto_generated_dsl_method
+    calls = []
+    fake_module = Class.new {
+      define_method(:append_container) { |*args, &block| calls << args }
+      define_method(:append_leaf) { |*args| calls << args }
+    }.new
+
+    %i[tab pane split menu_bar context_menu].each do |type|
+      Teek::UI::WidgetTypes.for_type(type).define_dsl_method!(fake_module.singleton_class)
+    end
+
+    refute fake_module.respond_to?(:tab)
+    refute fake_module.respond_to?(:pane)
+    refute fake_module.respond_to?(:split)
+    refute fake_module.respond_to?(:menu_bar)
+    refute fake_module.respond_to?(:context_menu)
+    assert_empty calls
+  end
+
+  def test_grid_scrollable_tabs_composed_validators_are_registered_exactly_once
+    assert_equal 1, Teek::UI::WidgetValidators.for_type(:grid).length
+    assert_equal 1, Teek::UI::WidgetValidators.for_type(:tab).length
+    assert_equal 1, Teek::UI::WidgetValidators.for_type(:pane).length
+    assert_empty Teek::UI::WidgetValidators.for_type(:scrollable)
+    assert_empty Teek::UI::WidgetValidators.for_type(:tabs)
+  end
+
+  def test_grid_has_a_custom_arrange_strategy
+    assert Teek::UI::WidgetTypes.for_type(:grid).arrange?
+  end
+
+  def test_scrollable_has_custom_children_and_arrange_strategies
+    widget_type = Teek::UI::WidgetTypes.for_type(:scrollable)
+
+    assert widget_type.custom_children?
+    assert widget_type.arrange?
+  end
+
+  def test_menu_bar_and_context_menu_have_a_custom_create_strategy
+    assert Teek::UI::WidgetTypes.for_type(:menu_bar).custom_create?
+    assert Teek::UI::WidgetTypes.for_type(:context_menu).custom_create?
+  end
+
+  def test_panel_has_none_of_the_special_strategies
+    widget_type = Teek::UI::WidgetTypes.for_type(:panel)
+
+    refute widget_type.arrange?
+    refute widget_type.custom_children?
+    refute widget_type.custom_create?
+  end
+
+  def test_arrange_defaults_to_absent
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_no_arrange__, tk_command: 'ttk::frame')
+
+    refute widget_type.arrange?
+  end
+
+  def test_arrange_runs_the_given_hook
+    calls = []
+    widget_type = Teek::UI::WidgetType.new(
+      type: :__test_widget_type_arrange__, tk_command: 'ttk::frame',
+      arrange: ->(realizer, node, children) { calls << [realizer, node, children] }
+    )
+
+    assert widget_type.arrange?
+    widget_type.arrange(:realizer, :node, :children)
+
+    assert_equal [[:realizer, :node, :children]], calls
+  end
+
+  def test_flow_computes_an_arrange_hook_that_delegates_to_arrange_flow
+    fake_realizer = Class.new {
+      attr_reader :calls
+      def initialize
+        @calls = []
+      end
+      def arrange_flow(node, children, flow)
+        @calls << [node, children, flow]
+      end
+    }.new
+
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_flow__, tk_command: 'ttk::frame', flow: { side: 'top' })
+
+    assert widget_type.arrange?
+    widget_type.arrange(fake_realizer, :node, :children)
+
+    assert_equal [[:node, :children, { side: 'top' }]], fake_realizer.calls
+  end
+
+  def test_custom_children_defaults_to_absent
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_no_custom_children__, tk_command: 'ttk::frame')
+
+    refute widget_type.custom_children?
+  end
+
+  def test_custom_children_runs_the_given_hook
+    calls = []
+    widget_type = Teek::UI::WidgetType.new(
+      type: :__test_widget_type_custom_children__, tk_command: 'ttk::frame',
+      custom_children: ->(realizer, node, path) { calls << [realizer, node, path] }
+    )
+
+    assert widget_type.custom_children?
+    widget_type.custom_children(:realizer, :node, :path)
+
+    assert_equal [[:realizer, :node, :path]], calls
+  end
+
+  def test_custom_create_defaults_to_absent
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_no_custom_create__, tk_command: 'menu')
+
+    refute widget_type.custom_create?
+  end
+
+  def test_custom_create_runs_the_given_hook
+    calls = []
+    widget_type = Teek::UI::WidgetType.new(
+      type: :__test_widget_type_custom_create__, tk_command: 'menu',
+      custom_create: ->(realizer, node, parent_path) { calls << [realizer, node, parent_path] }
+    )
+
+    assert widget_type.custom_create?
+    widget_type.custom_create(:realizer, :node, :parent_path)
+
+    assert_equal [[:realizer, :node, :parent_path]], calls
+  end
+
+  def test_container_types_no_longer_exists_now_that_grid_scrollable_tabs_have_migrated
+    refute Teek::UI::WidgetDSL.const_defined?(:CONTAINER_TYPES)
+  end
+
+  %i[TK_COMMANDS MENU_ROOT_TYPES NOT_ARRANGED_TYPES].each do |const_name|
+    define_method("test_realizer_#{const_name.downcase}_no_longer_exists") do
+      require 'teek/ui/realizer'
+      refute Teek::UI::Realizer.const_defined?(const_name)
+    end
+  end
 end

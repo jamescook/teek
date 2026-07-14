@@ -29,35 +29,17 @@ module Teek
     # {#raise_if_closed!} - true before the initial realize and again for
     # the duration of an +#add+ block, false otherwise).
     module WidgetDSL
-      # Widget kinds that hold children, declared in a block, still on the
-      # legacy path - `panel`/`group`/`canvas`/`window`/`column`/`row`/
-      # `spacer` have all migrated to a {WidgetType} descriptor instead
-      # (see {WidgetTypes}), so this only covers what hasn't yet:
-      #
-      # `grid` gets real Tk grid arrangement driven by `#cell`/`#stretch`
-      # (below); `scrollable` wraps arbitrary content in a scrolled frame
-      # (see {Realizer#create_scrollable}), driven by its own `x:`/`y:`
-      # options; `tabs` holds `#tab`-declared panes (below), each realized
-      # as its own `ttk::notebook` page. `split` is the same shape as
-      # `tabs`/`#tab` (holding `#pane`-declared regions, each realized as
-      # its own `ttk::panedwindow` pane) but, like `#tab`, is declared
-      # explicitly below rather than through this array, since its
-      # `orientation:` needs validating/translating to a real `-orient`
-      # option before reaching the widget-creation call.
-      CONTAINER_TYPES = %i[grid scrollable tabs].freeze
-
-      CONTAINER_TYPES.each do |container_type|
-        define_method(container_type) do |name = nil, **opts, &block|
-          append_container(container_type, name, opts, &block)
-        end
-      end
-
-      # Every {WidgetType}-registered type gets its own `ui.<type>`
-      # method(s) here instead of a LEAF_TYPES/CONTAINER_TYPES entry -
-      # {WidgetTypes.on_register} replays every type already registered
-      # (built-ins like `:divider` load before this file does) and keeps
-      # firing for any registered later, so a type registered by
-      # third-party code lights up here with no edit to either array above.
+      # Every widget/container type - leaf or container, plain or special -
+      # gets its own `ui.<type>` method(s) here, generated from its own
+      # {WidgetType} descriptor (see {WidgetTypes}) rather than a
+      # hardcoded per-type list. {WidgetTypes.on_register} replays every
+      # type already registered (every built-in loads before this file
+      # does) and keeps firing for any registered later, so a type
+      # registered by third-party code lights up here with no edit to
+      # this file at all. A type reachable only via a bespoke,
+      # hand-written method below (`#tab`/`#pane`/`#split`, `#menu_bar`/
+      # `#context_menu`) sets its own descriptor's `dsl:` to a no-op, so
+      # this never shadows those with a same-named generic method.
       WidgetTypes.on_register { |widget_type| widget_type.define_dsl_method!(self) }
 
       # `box` is a bare alternate spelling of `panel` - same node type, so

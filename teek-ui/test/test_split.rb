@@ -4,8 +4,8 @@ require 'minitest/autorun'
 require_relative '../../test/tk_test_helper'
 
 # ui.split/s.pane realize as a working ttk::panedwindow - each pane a real
-# Tk frame added as a managed pane (Realizer#setup_pane), never pack/grid
-# managed on its own (NOT_ARRANGED_TYPES).
+# Tk frame added as a managed pane (PaneRealize.post_create), never
+# pack/grid managed on its own (:pane's own arranged: false).
 class TestSplit < Minitest::Test
   include TeekTestHelper
 

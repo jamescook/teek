@@ -25,21 +25,6 @@ module Teek
     #   placeholder for every other container type - their children just
     #   pack top-to-bottom with no options. There's no overlay layout yet.
     class Realizer
-      # DSL node type -> Tk widget-creation command, for any type not yet
-      # migrated to a {WidgetType} descriptor (see {WidgetTypes}) - a
-      # registered type's tk_command comes from its own descriptor instead
-      # (see {#tk_command_for}). Every leaf widget and the simple/flow
-      # containers have migrated; what's left here is grid/scrollable/tabs
-      # and the other special types.
-      TK_COMMANDS = {
-        grid: 'ttk::frame',
-        scrollable: 'ttk::frame',
-        tabs: 'ttk::notebook',
-        tab: 'ttk::frame',
-        split: 'ttk::panedwindow',
-        pane: 'ttk::frame',
-      }.freeze
-
       # DSL-reserved opts keys - layout keywords (gap:/align:/pad:/
       # stretch_columns/stretch_rows) plus other entries the DSL stashes on
       # node.opts for the realizer to pick up later (on_close:, and title:/
@@ -47,11 +32,11 @@ module Teek
       # {WindowRealize}; x:/y: for :scrollable and native-scrollable nodes,
       # applied by #create_scrollable/#create_native_scrollable; scroll:
       # for native-scrollable nodes, applied by #auto_scrollable?; tab_label
-      # for :tab nodes, applied by #setup_tab; pane_weight for :pane nodes,
-      # applied by #setup_pane) - none of these are real Tk options, so none
-      # are ever passed through to a widget-creation call. +:split+'s own
-      # +orient:+ isn't reserved - it's a real `ttk::panedwindow` option
-      # already, so it passes straight through.
+      # for :tab nodes, applied by {TabRealize}; pane_weight for :pane
+      # nodes, applied by {PaneRealize}) - none of these are real Tk
+      # options, so none are ever passed through to a widget-creation call.
+      # +:split+'s own +orient:+ isn't reserved - it's a real
+      # `ttk::panedwindow` option already, so it passes straight through.
       RESERVED_OPTIONS = %i[
         gap align pad stretch_columns stretch_rows on_close
         title geometry resizable transient modal x y scroll tab_label pane_weight
@@ -98,27 +83,29 @@ module Teek
       # container's arrangement step too, since they have no realized path.
       NON_WIDGET_TYPES = %i[root raw_op].freeze
 
-      # menu_bar/context_menu are the two entry points into a menu subtree -
-      # everything under them (nested :menu cascades, :menu_item/
-      # :menu_separator/:menu_checkbox/:menu_radio entries) is built in one
-      # shot by create_menu_tree, in menu-add order, rather than through the
-      # generic per-node create/link passes every other node type uses -
-      # menu entries have no Tk path or geometry-managed arrangement of
-      # their own to visit separately.
-      MENU_ROOT_TYPES = %i[menu_bar context_menu].freeze
-
-      # {WidgetTypes} first, falling back to the legacy {TK_COMMANDS} hash
-      # for any type not yet registered as a {WidgetType}.
+      # {WidgetTypes} only - every node type reaching here is registered
+      # (either a real widget type, or handled earlier via
+      # {WidgetType#custom_create?} - see #create). Raises for anything
+      # else, e.g. a hand-built {Document} carrying a bogus type the DSL
+      # itself could never produce.
       def tk_command_for(type)
         registered = WidgetTypes.for_type(type)
         return registered.tk_command if registered
 
-        TK_COMMANDS.fetch(type) { raise ArgumentError, "no Tk command mapped for node type :#{type}" }
+        raise ArgumentError, "no Tk command mapped for node type :#{type}"
       end
 
       def create(node, parent_path)
-        if MENU_ROOT_TYPES.include?(node.type)
-          create_menu_tree(node, parent_path)
+        registered = WidgetTypes.for_type(node.type)
+
+        # A type whose entire realize model doesn't fit the generic
+        # sequence below at all (e.g. :menu_bar/:context_menu, realized
+        # via #create_menu_tree's own bespoke traversal) owns everything
+        # from here - no generic widget-creation call, no #post_create, no
+        # child-creation/#arrange, no normal #link processing either (see
+        # #link, which checks the same flag).
+        if registered&.custom_create?
+          registered.custom_create(self, node, parent_path)
           return
         end
 
@@ -137,36 +124,14 @@ module Teek
         unless NON_WIDGET_TYPES.include?(node.type)
           @app.command(tk_command_for(node.type), path, **node.opts.except(*RESERVED_OPTIONS))
           node.realized = RealizedNode.new(app: @app, path: path)
-          setup_tab(node, path, parent_path) if node.type == :tab
-          setup_pane(node, path, parent_path) if node.type == :pane
-          WidgetTypes.for_type(node.type)&.post_create(@app, node, path, parent_path)
+          registered&.post_create(@app, node, path, parent_path)
         end
 
-        if node.type == :scrollable
-          create_scrollable(node, path)
+        if registered&.custom_children?
+          registered.custom_children(self, node, path)
         else
           node.children.each { |child| create(child, path) }
         end
-      end
-
-      # Adds a freshly created :tab's own frame (just created at +path+) as
-      # a page of the enclosing notebook at +parent_path+, labeled with
-      # whatever `#tab` stashed as tab_label:. `ttk::notebook add` is the
-      # page's whole placement - unlike every other container, a tab's
-      # frame is never pack/grid-managed on its own (see NOT_ARRANGED_TYPES).
-      def setup_tab(node, path, parent_path)
-        @app.command(parent_path, :add, path, text: node.opts[:tab_label])
-      end
-
-      # Adds a freshly created :pane's own frame (just created at +path+) as
-      # a pane of the enclosing panedwindow at +parent_path+, with whatever
-      # `#pane` stashed as pane_weight: (if any). `ttk::panedwindow add` is
-      # the pane's whole placement - unlike every other container, a pane's
-      # frame is never pack/grid-managed on its own (see NOT_ARRANGED_TYPES).
-      def setup_pane(node, path, parent_path)
-        weight = node.opts[:pane_weight]
-        opts = weight.nil? ? {} : { weight: weight }
-        @app.command(parent_path, :add, path, **opts)
       end
 
       # Whether +node+ should auto-attach a scrollbar with no explicit
@@ -256,6 +221,14 @@ module Teek
 
         wire_scrollbars(path, canvas_path, x: x, y: y)
         wire_wheel_scroll(canvas_path, viewport_path, node, x: x, y: y)
+      end
+
+      # The frame case's own arrangement (see :scrollable's own +arrange:+) -
+      # children live in the embedded viewport frame (see #create_scrollable)
+      # - fill/expand by default so content stretches to the visible width
+      # instead of hugging its own natural size.
+      def arrange_scrollable_frame(node, children)
+        children.each { |child| @app.command(:pack, child.realized.arrange_path, fill: 'both', expand: true) }
       end
 
       # Grids +target_path+ (the scrollable widget/canvas) against a
@@ -384,7 +357,10 @@ module Teek
       # nested cascades depth-first so a cascade's own menu exists before
       # the `add cascade` entry that references it is added to its parent.
       # A menu_bar additionally attaches itself to parent_path's own -menu
-      # option once its whole subtree is built.
+      # option once its whole subtree is built. Registered as :menu_bar/
+      # :context_menu's own `custom_create:` (see #create) - takes
+      # +parent_path+, not an already-allocated +path+, since it replaces
+      # #create's entire per-node handling for this node, allocation included.
       def create_menu_tree(node, parent_path)
         path = allocate_path(node, parent_path)
         @app.menu(path)
@@ -417,7 +393,10 @@ module Teek
       end
 
       def link(node)
-        return if MENU_ROOT_TYPES.include?(node.type)
+        # A #create custom_create? type owns its whole subtree (see
+        # #create) - no arrangement, events, close-handler, or child
+        # recursion to do here either.
+        return if WidgetTypes.for_type(node.type)&.custom_create?
 
         arrange_children(node)
         node.events.each { |binding| wire_event(node, binding) }
@@ -434,51 +413,29 @@ module Teek
         @app.on_close(window: node.realized.path, &node.opts[:on_close])
       end
 
-      # Children a geometry manager should never touch: :raw_op has no
-      # realized path at all (and isn't a {WidgetType} at all, so there's
-      # nothing to register this against); :menu_bar/:context_menu attach
-      # via their own -menu config / on_right_click wiring, never via
-      # pack/grid either; :tab is placed entirely by `ttk::notebook add`
-      # (#setup_tab), not a geometry manager at all; :pane likewise via
-      # `ttk::panedwindow add` (#setup_pane). A registered type (e.g.
-      # :window, a toplevel placed by the window manager, never by
-      # whatever pack/grid strategy its nominal parent uses) reports this
-      # via its own {WidgetType#arranged?} instead - see #unarranged?.
-      NOT_ARRANGED_TYPES = %i[raw_op menu_bar context_menu tab pane].freeze
-
-      # {WidgetTypes} first, falling back to the legacy {NOT_ARRANGED_TYPES}
-      # list for any type not yet registered as a {WidgetType}.
+      # Whether a geometry manager should skip this child entirely: :root/
+      # :raw_op have no realized path at all (and aren't {WidgetType}s, so
+      # there's nothing to register this against); everything else reports
+      # it via its own {WidgetType#arranged?} - false for a type placed
+      # some other way entirely (a toplevel window, a tab/pane placed by
+      # its own container's `add`, a menu_bar/context_menu attached via
+      # -menu config).
       def unarranged?(type)
-        registered = WidgetTypes.for_type(type)
-        return !registered.arranged? if registered
+        return true if NON_WIDGET_TYPES.include?(type)
 
-        NOT_ARRANGED_TYPES.include?(type)
+        registered = WidgetTypes.for_type(type)
+        registered ? !registered.arranged? : false
       end
 
       def arrange_children(node)
         arrangeable = node.children.reject { |child| unarranged?(child.type) }
+        registered = WidgetTypes.for_type(node.type)
 
-        flow = flow_config_for(node.type)
-        if flow
-          arrange_flow(node, arrangeable, flow)
-        elsif node.type == :grid
-          arrange_grid(node, arrangeable)
-        elsif node.type == :scrollable
-          # The frame case's children live in the embedded viewport frame
-          # (see #create_scrollable) - fill/expand by default so content
-          # stretches to the visible width instead of hugging its own
-          # natural size.
-          arrangeable.each { |child| @app.command(:pack, child.realized.arrange_path, fill: 'both', expand: true) }
+        if registered&.arrange?
+          registered.arrange(self, node, arrangeable)
         else
           arrangeable.each { |child| @app.command(:pack, child.realized.arrange_path) }
         end
-      end
-
-      # Every flow-arranged type (column/row) is {WidgetType}-registered,
-      # so this is just its descriptor's own +flow+ - +nil+ for anything
-      # unregistered or not flow-arranged at all.
-      def flow_config_for(type)
-        WidgetTypes.for_type(type)&.flow
       end
 
       def arrange_flow(node, children, flow)

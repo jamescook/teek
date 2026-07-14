@@ -4,9 +4,10 @@ require 'minitest/autorun'
 require_relative '../../test/tk_test_helper'
 
 # ui.tabs/t.tab realize as a working ttk::notebook - each tab a real Tk
-# frame added as a notebook page (Realizer#setup_tab), never pack/grid
-# managed on its own (NOT_ARRANGED_TYPES). Tab selection is observable via
-# Handle#on_tab_changed, which surfaces Tk's own <<NotebookTabChanged>>.
+# frame added as a notebook page (TabRealize.post_create), never pack/grid
+# managed on its own (:tab's own arranged: false). Tab selection is
+# observable via Handle#on_tab_changed, which surfaces Tk's own
+# <<NotebookTabChanged>>.
 class TestTabs < Minitest::Test
   include TeekTestHelper
 

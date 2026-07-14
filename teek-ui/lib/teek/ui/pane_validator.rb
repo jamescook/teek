@@ -6,11 +6,12 @@ module Teek
   module UI
     # @api private
     #
-    # Registered for the :pane {WidgetValidators} entry below - a pane's own
-    # contract: it must be declared directly inside a ui.split. Only
-    # reachable via direct Node/Document manipulation, since {WidgetDSL#pane}
-    # already refuses to run outside a ui.split block - the same
-    # defense-in-depth {TabValidator} does for tabs.
+    # A pane's own contract: it must be declared directly inside a
+    # ui.split. Only reachable via direct Node/Document manipulation,
+    # since {WidgetDSL#pane} already refuses to run outside a ui.split
+    # block - the same defense-in-depth {TabValidator} does for tabs.
+    # Composed into {WidgetValidators} via :pane's own {WidgetType#validator}
+    # (see +widget_types/pane.rb+) rather than registering itself here directly.
     module PaneValidator
       # @param node [Node] a :pane node - {WidgetValidators} only dispatches
       #   here for that type
@@ -25,7 +26,5 @@ module Teek
                    "(#{WidgetValidators.describe(parent)}) isn't a ui.split"
       end
     end
-
-    WidgetValidators.register(:pane) { |*a| PaneValidator.call(*a) }
   end
 end
