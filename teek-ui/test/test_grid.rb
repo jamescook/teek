@@ -59,20 +59,39 @@ class TestGrid < Minitest::Test
     end
   end
 
-  def test_a_widget_placed_directly_in_a_grid_without_cell_raises_at_realize
-    assert_tk_app("a grid child never wrapped in g.cell should raise a clear error at realize, not hang or crash silently") do
+  def test_a_widget_placed_directly_in_a_grid_without_cell_is_caught_by_validation
+    assert_tk_app("a grid child never wrapped in g.cell should be caught by validation, before any Tk call happens") do
       require 'teek/ui'
 
       session = Teek::UI.app(title: 'Grid Test') do |ui|
         ui.grid(:form) { |g| g.label(:oops, text: 'no cell') }
       end
 
-      error = assert_raises(ArgumentError) { session.realize }
+      error = assert_raises(Teek::UI::ValidationError) { session.realize }
       assert_match(/cell/i, error.message)
+      assert_match(/oops/, error.message)
 
-      # realize is atomic - a failed realize destroys the partially-built
-      # app itself, so there's nothing left to clean up here.
+      # validation runs before any interpreter is constructed at all - a
+      # failed realize never gets far enough to leave anything to clean up.
       assert_raises(Teek::UI::NotRealizedError) { session.app }
+    end
+  end
+
+  def test_a_widget_added_to_a_grid_without_cell_via_session_add_still_raises_at_realize
+    assert_tk_app("session.add skips validation, so the realizer's own backstop check is what catches this instead") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Grid Test') do |ui|
+        ui.grid(:form) { |g| g.cell(row: 0, col: 0) { g.label(text: 'Name:') } }
+      end
+      session.run_async
+      session.app.update
+
+      error = assert_raises(ArgumentError) { session.add(:form) { |a| a.label(:oops, text: 'no cell') } }
+      assert_match(/cell/i, error.message)
+      assert_match(/oops/, error.message)
+
+      session.app.destroy
     end
   end
 end

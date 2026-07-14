@@ -66,6 +66,7 @@ module Teek
         check_stray_cell_intent
         check_stray_tab_intent
         check_grid_cell_collisions
+        check_grid_children_missing_a_cell
         check_dangling_event_targets
         check_orphans
 
@@ -82,6 +83,27 @@ module Teek
 
           @errors << "#{describe(node)} has a grid cell position but its parent (#{describe(parent)}) isn't a " \
                       "ui.grid - its row/col/span would be silently ignored"
+        end
+      end
+
+      # The opposite direction from {#check_stray_cell_intent}: a direct
+      # child of a +:grid+ that was never placed with +g.cell(row:, col:)+.
+      # {Realizer#arrange_grid} still raises on this too (kept as a
+      # belt-and-suspenders backstop for the one path that skips
+      # validation entirely - {Session#add}'s incremental realize), but
+      # this is now the primary detection, so the mistake surfaces
+      # pre-realize, collected alongside every other problem, instead of
+      # crashing mid-realize.
+      NOT_GRID_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu tab].freeze
+
+      def check_grid_children_missing_a_cell
+        each_node_with_parent do |node, parent|
+          next unless parent && parent.type == :grid
+          next if NOT_GRID_ARRANGED_TYPES.include?(node.type)
+          next if node.layout && node.layout[:cell]
+
+          @errors << "#{describe(node)} is a direct child of a grid but was never placed with " \
+                      "g.cell(row:, col:) { ... }"
         end
       end
 

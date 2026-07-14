@@ -72,6 +72,47 @@ class TestValidator < Minitest::Test
     capture_io { Teek::UI::Validator.validate!(session.document) }
   end
 
+  def test_a_grid_child_missing_a_cell_raises
+    # only reachable via direct Node/Document manipulation for a label
+    # specifically (the DSL's own ui.grid { |g| g.label(...) } would need
+    # g.cell to place it at all) - constructed directly here so the check
+    # is exercised in isolation from #test_a_widget_placed_directly_in_a_grid_without_cell_is_caught_by_validation's
+    # real-Tk, full-session version.
+    document = Teek::UI::Document.new
+    grid = document.create(type: :grid, name: :g)
+    document.root.add_child(grid)
+    oops = document.create(type: :label, name: :oops)
+    grid.add_child(oops)
+
+    error = assert_raises(Teek::UI::ValidationError) { Teek::UI::Validator.validate!(document) }
+    assert_match(/cell/i, error.message)
+    assert_match(/oops/, error.message)
+  end
+
+  def test_raw_op_and_other_not_grid_arranged_types_inside_a_grid_do_not_need_a_cell
+    session = build_session
+    session.grid(:g) { |g| g.raw { |_app| } }
+
+    capture_io { Teek::UI::Validator.validate!(session.document) }
+  end
+
+  def test_both_grid_misuse_directions_can_be_reported_together
+    document = Teek::UI::Document.new
+    grid = document.create(type: :grid, name: :g)
+    document.root.add_child(grid)
+    missing_cell = document.create(type: :label, name: :missing_cell)
+    grid.add_child(missing_cell)
+    panel = document.create(type: :panel, name: :not_a_grid)
+    document.root.add_child(panel)
+    stray = document.create(type: :label, name: :stray)
+    stray.layout = { cell: { row: 0, col: 0, span: 1 } }
+    panel.add_child(stray)
+
+    error = assert_raises(Teek::UI::ValidationError) { Teek::UI::Validator.validate!(document) }
+    assert_match(/missing_cell/, error.message)
+    assert_match(/stray/, error.message)
+  end
+
   def test_dangling_event_target_raises_naming_both_ends
     # on_click et al never expose target: through the public Handle API
     # (it's an internal mechanism for future forward-reference features),
