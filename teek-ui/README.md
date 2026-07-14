@@ -104,18 +104,38 @@ end.run
 
 ## Scrolling
 
-`ui.scrollable(x: false, y: true) { }` wraps its content with a working scrollbar - no `-yscrollcommand`/`-xscrollcommand`/scrollbar widget wiring in app code:
+A bare `list`/`text_area`/`table`/`tree` auto-attaches a working scrollbar wherever it's declared - no wrapper, no `-yscrollcommand`/`-xscrollcommand`/scrollbar widget wiring in app code:
 
 ```ruby
 Teek::UI.app(title: 'Hello') do |ui|
-  ui.scrollable { |s| s.list(:log) }
+  ui.list(:log)                    # already scrolls
+  ui.list(:log, scroll: false)     # opt out - a plain, unwrapped listbox, like every other widget
+end.run
+```
+
+The scrollbar only shows up once content actually overflows - real "overflow: auto", not a bar that's always there whether it's needed or not. `canvas` defaults the other way (`scroll: false`) since it's as often fixed drawing as scrollable content; pass `scroll: true` to opt it in. `x:`/`y:` pick which axis gets a scrollbar (`y: true, x: false` by default).
+
+Three levels decide the default, most specific wins: a widget's own `scroll:`, then `Teek::UI.app(scroll:)` for the whole build, then the global `Teek::UI.auto_scroll`/`Teek::UI.auto_scroll_canvas`:
+
+```ruby
+Teek::UI.auto_scroll = false                              # turn auto-scrolling off everywhere, app-wide default
+Teek::UI.app(title: 'Hello', scroll: false) do |ui|        # ...or just for this one build
+  ui.list(:log)                    # follows the app-level default (off)
+  ui.list(:log2, scroll: true)     # a widget's own scroll: always wins
+end.run
+```
+
+`ui.scrollable(x: false, y: true) { }` is for the other case: a scrollbar around *arbitrary* content, since a plain container has no Tk scrolling protocol of its own to hook a scrollbar into:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
   ui.scrollable { |s| s.column { |c| 50.times { |i| c.label(text: "Row #{i}") } } }
 end.run
 ```
 
-A single `list`/`text_area`/`table`/`tree`/`canvas` child is natively scrollable in Tk, so the scrollbar hooks straight into it. Anything else - no children, several, or a plain container full of arbitrary widgets - has no scrolling protocol of its own, so it's wrapped in an embedded frame that a scrollbar drives instead; that frame fills the visible width automatically unless `x:` scrolling is on. `y:` defaults to `true`, `x:` to `false` - pass either as `false`/`true` to change which scrollbar(s) appear.
+It wraps its content in an embedded frame that a scrollbar drives, filling the visible width automatically unless `x:` scrolling is on. Same `x:`/`y:` options, same auto-hide behavior.
 
-Mouse-wheel scrolling works too, over the scrollbar, the content, or any widget nested inside it - `<MouseWheel>` (Windows/macOS) and `<Button-4>`/`<Button-5>` (X11) all drive the same scroll, and `Shift`+wheel scrolls horizontally when `x:` is on.
+Mouse-wheel scrolling works for both - over the scrollbar, the content, or any widget nested inside it - `<MouseWheel>` (Windows/macOS) and `<Button-4>`/`<Button-5>` (X11) all drive the same scroll, and `Shift`+wheel scrolls horizontally when `x:` is on.
 
 ## Windows
 

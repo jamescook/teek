@@ -183,6 +183,22 @@ class TestWidgetDsl < Minitest::Test
     assert_raises(ArgumentError) { session.divider(:d, bind: speed) }
   end
 
+  def test_scroll_on_an_unsupported_widget_type_raises
+    session = build_session
+
+    error = assert_raises(ArgumentError) { session.button(:go, scroll: true) }
+    assert_match(/scroll:/, error.message)
+  end
+
+  def test_scroll_on_a_natively_scrollable_widget_type_does_not_raise
+    session = build_session
+
+    session.list(:items, scroll: false)
+    session.canvas(:board, scroll: true)
+
+    assert_equal [false, true], session.document.root.children.map { |n| n.opts[:scroll] }
+  end
+
   def test_column_and_row_are_containers_carrying_gap_align_pad_in_opts
     session = build_session
 

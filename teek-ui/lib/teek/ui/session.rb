@@ -28,8 +28,9 @@ module Teek
       attr_reader :vars
 
       # @api private
-      def initialize(title: nil, app_opts: {})
+      def initialize(title: nil, scroll: nil, app_opts: {})
         @title = title
+        @scroll = scroll
         @app_opts = app_opts
         @document = Document.new
         @stack = [@document.root]
@@ -68,7 +69,7 @@ module Teek
           # vars realize first, so a widget bound to one displays its
           # initial value immediately instead of starting blank.
           @vars.each { |v| v.realize(app) }
-          Realizer.new(app, @document).realize
+          Realizer.new(app, @document, default_scroll: @scroll).realize
         rescue
           app.destroy
           raise
@@ -149,7 +150,7 @@ module Teek
           @stack.pop
         end
 
-        realizer = Realizer.new(@app, @document)
+        realizer = Realizer.new(@app, @document, default_scroll: @scroll)
         parent_node.children[before..].each { |child| realizer.realize_subtree(child, parent_node) }
 
         nil

@@ -3,100 +3,16 @@
 require 'minitest/autorun'
 require_relative '../../test/tk_test_helper'
 
-# ui.scrollable auto-wires a scrollbar (ttk::scrollbar) so app code never
-# writes -yscrollcommand/-xscrollcommand/scrollbar wiring itself. Two
-# cases: a single natively-scrollable child (list/text_area/table/tree/
-# canvas) gets a scrollbar hooked straight to it; anything else (no
-# children, several, or a plain container) is wrapped in a canvas +
-# embedded viewport frame instead - see Realizer#create_scrollable.
+# ui.scrollable wraps arbitrary content in a scrolled frame - a canvas +
+# embedded viewport, since arbitrary widgets have no Tk scrolling protocol
+# of their own to hook a scrollbar into. A bare list/text_area/table/
+# tree/canvas auto-attaches a scrollbar wherever it's declared instead,
+# with no ui.scrollable wrapper needed - see test_native_scrollable.rb.
+# See Realizer#create_scrollable.
 class TestScrollable < Minitest::Test
   include TeekTestHelper
 
-  def test_native_child_gets_a_vertical_scrollbar_wired_to_it_by_default
-    assert_tk_app("a scrollable list should get a vertical scrollbar wired via -yscrollcommand/-command") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Scrollable Test') do |ui|
-        ui.scrollable(:region) { |s| s.list(:items) }
-      end
-      session.run_async
-      session.app.update
-
-      region_path = session[:region].path
-      list_path = session[:items].path
-      vsb_path = "#{region_path}.vsb"
-      hsb_path = "#{region_path}.hsb"
-
-      assert_equal '1', session.app.tcl_eval("winfo exists #{vsb_path}")
-      assert_equal '0', session.app.tcl_eval("winfo exists #{hsb_path}"), "y: defaults to true, x: to false"
-      assert_equal "#{vsb_path} set", session.app.command(list_path, :cget, '-yscrollcommand')
-      assert_equal "#{list_path} yview", session.app.command(vsb_path, :cget, '-command')
-
-      session.app.destroy
-    end
-  end
-
-  def test_x_true_also_wires_a_horizontal_scrollbar
-    assert_tk_app("x: true should additionally wire a horizontal scrollbar") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Scrollable Test') do |ui|
-        ui.scrollable(:region, x: true) { |s| s.list(:items) }
-      end
-      session.run_async
-      session.app.update
-
-      region_path = session[:region].path
-      list_path = session[:items].path
-      hsb_path = "#{region_path}.hsb"
-
-      assert_equal '1', session.app.tcl_eval("winfo exists #{hsb_path}")
-      assert_equal "#{hsb_path} set", session.app.command(list_path, :cget, '-xscrollcommand')
-      assert_equal "#{list_path} xview", session.app.command(hsb_path, :cget, '-command')
-
-      session.app.destroy
-    end
-  end
-
-  def test_y_false_omits_the_vertical_scrollbar
-    assert_tk_app("y: false should leave a scrollable with no scrollbar at all if x: isn't given either") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Scrollable Test') do |ui|
-        ui.scrollable(:region, y: false) { |s| s.list(:items) }
-      end
-      session.run_async
-      session.app.update
-
-      region_path = session[:region].path
-      assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.vsb")
-      assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.hsb")
-
-      session.app.destroy
-    end
-  end
-
-  def test_text_area_and_canvas_are_also_treated_as_native
-    assert_tk_app("text_area and canvas children should get the same direct scrollbar wiring as list") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Scrollable Test') do |ui|
-        ui.scrollable(:notes) { |s| s.text_area(:body) }
-        ui.scrollable(:board) { |s| s.canvas(:draw) }
-      end
-      session.run_async
-      session.app.update
-
-      notes_vsb = "#{session[:notes].path}.vsb"
-      board_vsb = "#{session[:board].path}.vsb"
-      assert_equal "#{notes_vsb} set", session.app.command(session[:body].path, :cget, '-yscrollcommand')
-      assert_equal "#{board_vsb} set", session.app.command(session[:draw].path, :cget, '-yscrollcommand')
-
-      session.app.destroy
-    end
-  end
-
-  def test_frame_case_wraps_arbitrary_content_in_a_canvas_and_viewport
+  def test_wraps_content_in_a_canvas_and_embedded_viewport
     assert_tk_app("a scrollable panel of arbitrary widgets should be wrapped in a canvas + embedded frame") do
       require 'teek/ui'
 
@@ -118,7 +34,6 @@ class TestScrollable < Minitest::Test
       assert_equal '1', session.app.tcl_eval("winfo exists #{viewport_path}")
       assert_equal viewport_path, rows_path.sub(/\.\w+\z/, ''), "the column should live inside the viewport, not directly under the scrollable"
       assert_equal '1', session.app.tcl_eval("winfo exists #{region_path}.vsb")
-      assert_equal "#{region_path}.vsb set", session.app.command(canvas_path, :cget, '-yscrollcommand')
 
       scrollregion = session.app.tcl_eval("#{canvas_path} cget -scrollregion")
       refute_empty scrollregion, "the scrollregion should track the viewport's content size"
@@ -129,7 +44,60 @@ class TestScrollable < Minitest::Test
     end
   end
 
-  def test_frame_case_syncs_the_viewport_width_to_the_canvas_by_default
+  def test_y_defaults_to_true_and_x_to_false
+    assert_tk_app("a scrollable should default to a vertical scrollbar only") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Scrollable Test') do |ui|
+        ui.scrollable(:region) { |s| s.column { |c| c.button(text: 'Row') } }
+      end
+      session.run_async
+      session.app.update
+
+      region_path = session[:region].path
+      assert_equal '1', session.app.tcl_eval("winfo exists #{region_path}.vsb")
+      assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.hsb")
+
+      session.app.destroy
+    end
+  end
+
+  def test_y_false_omits_the_vertical_scrollbar
+    assert_tk_app("y: false should leave no scrollbar at all if x: isn't given either") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Scrollable Test') do |ui|
+        ui.scrollable(:region, y: false) { |s| s.column { |c| c.button(text: 'Row') } }
+      end
+      session.run_async
+      session.app.update
+
+      region_path = session[:region].path
+      assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.vsb")
+      assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.hsb")
+
+      session.app.destroy
+    end
+  end
+
+  def test_x_true_also_wires_a_horizontal_scrollbar
+    assert_tk_app("x: true should additionally wire a horizontal scrollbar") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Scrollable Test') do |ui|
+        ui.scrollable(:region, x: true) { |s| s.column { |c| c.button(text: 'Row') } }
+      end
+      session.run_async
+      session.app.update
+
+      region_path = session[:region].path
+      assert_equal '1', session.app.tcl_eval("winfo exists #{region_path}.hsb")
+
+      session.app.destroy
+    end
+  end
+
+  def test_syncs_the_viewport_width_to_the_canvas_by_default
     assert_tk_app("without x: scrolling, resizing the canvas should resize the embedded viewport to match") do
       require 'teek/ui'
 
@@ -154,7 +122,7 @@ class TestScrollable < Minitest::Test
     end
   end
 
-  def test_frame_case_with_x_true_does_not_force_the_viewport_width_to_match_the_canvas
+  def test_with_x_true_does_not_force_the_viewport_width_to_match_the_canvas
     assert_tk_app("x: true should leave the viewport free to be wider than the canvas, for horizontal scrolling") do
       require 'teek/ui'
 
@@ -172,14 +140,14 @@ class TestScrollable < Minitest::Test
     end
   end
 
-  def test_scrollable_participates_in_normal_layout_like_any_other_container
+  def test_participates_in_normal_layout_like_any_other_container
     assert_tk_app("a scrollable nested in a column with grow: true should realize and map without error") do
       require 'teek/ui'
 
       session = Teek::UI.app(title: 'Scrollable Test') do |ui|
         ui.column do |c|
           c.label(text: 'Header')
-          c.scrollable(:region, grow: true) { |s| s.list(:items) }
+          c.scrollable(:region, grow: true) { |s| s.checkbox(text: 'A checkbox') }
         end
       end
       session.run_async
@@ -191,13 +159,13 @@ class TestScrollable < Minitest::Test
     end
   end
 
-  def test_no_widget_in_the_scrollable_subtree_has_conflicting_geometry_managers
+  def test_no_widget_in_the_subtree_has_conflicting_geometry_managers
     assert_tk_app("grid (region) and pack (viewport content) must never collide on the same master") do
       require 'teek/ui'
 
       session = Teek::UI.app(title: 'Scrollable Test') do |ui|
-        ui.scrollable(:native_region) { |s| s.list(:items) }
-        ui.scrollable(:frame_region) { |s| s.column { |c| c.button(text: 'A') } }
+        ui.scrollable(:region_a) { |s| s.column { |c| c.button(text: 'A') } }
+        ui.scrollable(:region_b, x: true) { |s| s.row { |r| r.button(text: 'B') } }
       end
       session.run_async
       session.app.update

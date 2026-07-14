@@ -37,10 +37,13 @@ module Teek
       # `column`/`row` additionally get flow-layout packing from the
       # realizer (see {Realizer::FLOW}) driven by their own `gap:`/`align:`/
       # `pad:` options; `grid` gets real Tk grid arrangement driven by
-      # `#cell`/`#stretch` (below); `scrollable` auto-wires a scrollbar to
-      # its content (see {Realizer#create_scrollable}) driven by its own
-      # `x:`/`y:` options; the others keep the plain unconditional pack
-      # every container has always gotten.
+      # `#cell`/`#stretch` (below); `scrollable` wraps arbitrary content in
+      # a scrolled frame (see {Realizer#create_scrollable}), driven by its
+      # own `x:`/`y:` options - for a bare `list`/`text_area`/`table`/
+      # `tree`/`canvas`, a scrollbar auto-attaches wherever it's declared
+      # instead (see {#validate_scroll!}/{Realizer#auto_scrollable?}), no
+      # `scrollable` wrapper needed; the rest keep the plain unconditional
+      # pack every container has always gotten.
       CONTAINER_TYPES = %i[panel group canvas window column row grid scrollable].freeze
 
       # Widget type -> the Tk option a bound {Var} plugs into. Not every
@@ -52,6 +55,12 @@ module Teek
         text_box: :textvariable, label: :textvariable, dropdown: :textvariable, number_box: :textvariable,
         checkbox: :variable, slider: :variable, progress: :variable,
       }.freeze
+
+      # Widget types that auto-attach a scrollbar (see
+      # {Realizer::NATIVELY_SCROLLABLE_TYPES}, which this mirrors) -
+      # `scroll:`/`x:`/`y:` only mean anything on these; `scroll:` raises
+      # for anything else rather than silently doing nothing.
+      SCROLLABLE_TYPES = %i[list text_area table tree canvas].freeze
 
       LEAF_TYPES.each do |leaf_type|
         define_method(leaf_type) do |name = nil, **opts|
@@ -227,6 +236,7 @@ module Teek
       end
 
       def append_leaf(type, name, opts)
+        validate_scroll!(type, opts)
         opts, layout = extract_layout(resolve_bind(type, opts))
         node = @document.create(type: type, name: name, opts: opts)
         node.layout = layout if layout
@@ -241,6 +251,13 @@ module Teek
           raise ArgumentError, "##{type} doesn't support bind: (no bindable Tk option is mapped for it)"
         }
         opts.reject { |k, _| k == :bind }.merge(tk_option => opts[:bind].name)
+      end
+
+      def validate_scroll!(type, opts)
+        return unless opts.key?(:scroll)
+        return if SCROLLABLE_TYPES.include?(type)
+
+        raise ArgumentError, "##{type} doesn't support scroll: (only #{SCROLLABLE_TYPES.join('/')} do)"
       end
 
       # `grow:` is this child's intent within its parent, not a Tk option -
@@ -263,6 +280,7 @@ module Teek
       end
 
       def append_container(type, name, opts)
+        validate_scroll!(type, opts)
         opts, layout = extract_layout(opts)
         node = @document.create(type: type, name: name, opts: opts)
         node.layout = layout if layout
