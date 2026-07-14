@@ -36,6 +36,7 @@ module Teek
         @stack = [@document.root]
         @vars = []
         @app = nil
+        @in_add = false
       end
 
       # @return [Teek::App] the underlying app - the DSL's escape hatch.
@@ -144,9 +145,11 @@ module Teek
 
         before = parent_node.children.length
         @stack.push(parent_node)
+        @in_add = true
         begin
           yield self if block_given?
         ensure
+          @in_add = false
           @stack.pop
         end
 
@@ -160,6 +163,15 @@ module Teek
 
       def raise_unless_realized!
         raise NotRealizedError unless @app
+      end
+
+      # @return [Boolean] whether {WidgetDSL}'s build methods (ui.button,
+      #   ui.panel, ui.raw, ui.var, ...) are still allowed to append to the
+      #   tree - true before the initial realize, and again for the
+      #   duration of an {#add} block (which re-opens it, scoped to that
+      #   one call), false everywhere else. See {WidgetDSL#raise_if_closed!}.
+      def build_open?
+        @app.nil? || @in_add
       end
     end
   end

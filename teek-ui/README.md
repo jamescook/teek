@@ -36,6 +36,26 @@ session.app.command(:label, '.greeting', text: 'Hi there') # fine now
 
 Realize also validates the whole tree first - a build with a real problem (a dangling event target, two widgets in the same grid cell) raises one `Teek::UI::ValidationError` listing everything found, before any Tk call happens. A widget that's declared but never actually placed anywhere warns by default; pass `strict: true` to `#run`/`#run_async`/`#realize` to raise on that too.
 
+## Authoring the Build Block
+
+The block passed to `Teek::UI.app` is plain Ruby, run via a single `.call` - not parsed, not a mini-language of its own. Loops, conditionals, and helper methods are all welcome; they just decide which `ui.<widget>` calls actually run, and in what order:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.column do |c|
+    %w[Start Pause Reset].each { |label| c.button(text: label) }
+    c.label(text: 'Ready') if some_condition
+  end
+end.run
+```
+
+A couple of things follow from that:
+
+- Keep the block itself pure and fast - it decides *what* gets built, so it shouldn't also be doing network/file I/O. Anything slow belongs behind an event handler (`on_click { ... }`), not inline in the build.
+- Build on one thread. The stack `ui.<container> { }` pushes/pops to track "what's the current parent" isn't synchronized - calling DSL methods on the same session from multiple threads at once will corrupt it.
+
+The build only ever gets walked into Tk once, at realize. Calling a build method (`ui.button`, `ui.panel`, `ui.raw`, `ui.var`, ...) on a session that's already realized raises `Teek::UI::ClosedBuilderError` rather than silently appending a node that will never show up - use `session.add(parent_name) { }` instead for anything you need to build after the app is already running.
+
 ## Widgets
 
 `ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:

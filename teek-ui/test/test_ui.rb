@@ -169,4 +169,61 @@ class TestUI < Minitest::Test
       assert_raises(Teek::UI::NotRealizedError) { session.app }
     end
   end
+
+  def test_build_methods_raise_once_the_session_has_realized
+    assert_tk_app("ui.button/panel/raw/var/menu_bar/context_menu should all raise once the build has closed") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Closed Builder Test')
+      session.run_async
+
+      error = assert_raises(Teek::UI::ClosedBuilderError) { session.button(:late, text: 'Too late') }
+      assert_match(/session\.add/, error.message)
+
+      assert_raises(Teek::UI::ClosedBuilderError) { session.panel(:late) }
+      assert_raises(Teek::UI::ClosedBuilderError) { session.raw { } }
+      assert_raises(Teek::UI::ClosedBuilderError) { session.var(1) }
+      assert_raises(Teek::UI::ClosedBuilderError) { session.menu_bar }
+      assert_raises(Teek::UI::ClosedBuilderError) { session.context_menu }
+
+      session.app.destroy
+    end
+  end
+
+  def test_build_methods_still_work_normally_before_realize
+    assert_tk_app("the closed-builder guard should never fire during the ordinary, still-open initial build") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Closed Builder Test') do |ui|
+        ui.button(:go, text: 'Go')
+        ui.var(1)
+      end
+      session.run_async
+      session.app.update
+
+      assert session.app.winfo.ismapped?(session[:go].path)
+
+      session.app.destroy
+    end
+  end
+
+  def test_session_add_re_opens_the_builder_for_the_duration_of_its_own_block
+    assert_tk_app("session.add's own block should be exempt from the closed-builder guard") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Closed Builder Test') { |ui| ui.column(:list) }
+      session.run_async
+
+      session.add(:list) { |a| a.button(:added, text: 'Added') }
+      session.app.update
+
+      assert session.app.winfo.ismapped?(session[:added].path)
+
+      # the guard should still apply to code OUTSIDE session.add, even
+      # though it's fine again momentarily while add's own block runs
+      assert_raises(Teek::UI::ClosedBuilderError) { session.button(:still_too_late, text: 'Nope') }
+
+      session.app.destroy
+    end
+  end
 end

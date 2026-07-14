@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require_relative 'errors'
 require_relative 'handle'
 require_relative 'var'
 require_relative 'menu_builder'
@@ -22,7 +23,10 @@ module Teek
     # Included classes must provide +@document+ (a {Document}), +@stack+
     # (an Array of {Node}, current-parent stack seeded with
     # +@document.root+), and +@vars+ (an Array of {Var}) - {Session} sets
-    # all three up in +initialize+.
+    # all three up in +initialize+. They must also provide +#build_open?+
+    # (a predicate the tree-mutating methods below check via
+    # {#raise_if_closed!} - true before the initial realize and again for
+    # the duration of an +#add+ block, false otherwise).
     module WidgetDSL
       # Widget kinds with no children of their own - just options.
       LEAF_TYPES = %i[
@@ -168,6 +172,7 @@ module Teek
       # @return [Handle]
       # @raise [ArgumentError] if declared anywhere other than the top level or directly inside ui.window
       def menu_bar(name = nil, **opts, &block)
+        raise_if_closed!
         parent = @stack.last
         unless MENU_BAR_HOSTS.include?(parent.type)
           raise ArgumentError, "menu_bar can only be declared at the top level of a build or directly inside ui.window"
@@ -186,6 +191,7 @@ module Teek
       # @yieldparam m [MenuBuilder]
       # @return [Handle]
       def context_menu(name = nil, **opts, &block)
+        raise_if_closed!
         node = @document.create(type: :context_menu, name: name, opts: opts)
         @stack.last.add_child(node)
         build_menu_subtree(node, &block)
@@ -204,6 +210,7 @@ module Teek
       # @yieldparam app [Teek::App]
       # @return [nil]
       def raw(&block)
+        raise_if_closed!
         node = @document.create(type: :raw_op, opts: { block: block })
         @stack.last.add_child(node)
         nil
@@ -216,6 +223,7 @@ module Teek
       #   {Var#value} coerces later (Integer/Float/Boolean typed, else String)
       # @return [Var]
       def var(initial)
+        raise_if_closed!
         @var_count = (@var_count || 0) + 1
         v = Var.new("::teek_ui_var_#{@var_count}", initial)
         @vars << v
@@ -238,6 +246,14 @@ module Teek
 
       private
 
+      # The tree is only ever walked into Tk once (at realize) - a node
+      # appended afterward, outside an {Session#add} block, would just sit
+      # in the tree forever and never show up, with no error to say why.
+      # Every tree-mutating build method checks this first instead.
+      def raise_if_closed!
+        raise ClosedBuilderError unless build_open?
+      end
+
       def build_menu_subtree(node, &block)
         return unless block
 
@@ -250,6 +266,7 @@ module Teek
       end
 
       def append_leaf(type, name, opts)
+        raise_if_closed!
         validate_scroll!(type, opts)
         opts, layout = extract_layout(resolve_bind(type, opts))
         node = @document.create(type: type, name: name, opts: opts)
@@ -303,6 +320,7 @@ module Teek
       end
 
       def append_container(type, name, opts)
+        raise_if_closed!
         validate_scroll!(type, opts)
         opts, layout = extract_layout(opts)
         node = @document.create(type: type, name: name, opts: opts)
