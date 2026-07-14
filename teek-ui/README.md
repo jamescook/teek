@@ -110,6 +110,12 @@ ball.on_click { ball[:fill] = 'green' }
 ball.on_drag { |x, y| ball.coords = [x - 15, y - 15, x + 15, y + 15] }
 ```
 
+For the common case of "let the user drag this around", `draggable` does that `on_drag` delta math for you:
+
+```ruby
+ball.draggable
+```
+
 ## Layout
 
 `column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:

@@ -472,6 +472,33 @@ class TestCanvasItems < Minitest::Test
     end
   end
 
+  def test_draggable_moves_the_item_by_the_drag_delta
+    assert_tk_app("draggable should move the item by the drag delta, with no coordinate math in app code") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') { |ui| ui.canvas(:board, width: 200, height: 200) }
+      session.run_async
+      session.app.update
+
+      board = session[:board]
+      item = board.oval(10, 10, 30, 30)
+      item.draggable
+
+      # Same script-readback approach as the other item-event tests above -
+      # substitute %x/%y ourselves to simulate a press at (20, 20) then a
+      # drag to (30, 25), a (10, 5) delta.
+      press_script = session.app.tcl_eval("#{board.path} bind #{item.tag_or_id} <Button-1>")
+      session.app.tcl_eval(press_script.sub('%x', '20').sub('%y', '20'))
+
+      drag_script = session.app.tcl_eval("#{board.path} bind #{item.tag_or_id} <B1-Motion>")
+      session.app.tcl_eval(drag_script.sub('%x', '30').sub('%y', '25'))
+
+      assert_equal [20.0, 15.0, 40.0, 35.0], item.coords, "the item should have moved by the (10, 5) drag delta"
+
+      session.app.destroy
+    end
+  end
+
   def test_deleting_an_item_releases_its_click_and_drag_callbacks
     assert_tk_app("deleting an item should release its on_click/on_drag callbacks, not leak them") do
       require 'teek/ui'

@@ -178,15 +178,50 @@ module Teek
       # @return [self]
       def on_drag(&block)
         wrapped = lambda do |raw_x, raw_y|
-          x = @app.command(@canvas_path, :canvasx, raw_x).to_f.round
-          y = @app.command(@canvas_path, :canvasy, raw_y).to_f.round
+          x, y = canvas_xy(raw_x, raw_y)
           block.call(x, y)
         end
         bind_item_event('<B1-Motion>', wrapped, subs: %i[x y])
         self
       end
 
+      # Makes this item movable by mouse drag, with zero coordinate math
+      # of your own - press and drag it around the canvas, it follows the
+      # pointer. Binds `<Button-1>` (to capture the starting position) and
+      # `<B1-Motion>` (to shift {#move} by the delta each tick) on this
+      # item/tag, replacing any {#on_click}/{#on_drag} binding already set
+      # on it, the same way any two binds on the same item/event replace
+      # each other in Tk.
+      # @yield [x, y] optional - the item's new pointer-relative position
+      #   (same Integer canvasx/canvasy coordinates {#on_drag} delivers)
+      #   after each move, e.g. to react to where it's been dragged to
+      # @return [self]
+      def draggable(&block)
+        last = nil
+
+        press = lambda do |raw_x, raw_y|
+          last = canvas_xy(raw_x, raw_y)
+        end
+        bind_item_event('<Button-1>', press, subs: %i[x y])
+
+        drag = lambda do |raw_x, raw_y|
+          x, y = canvas_xy(raw_x, raw_y)
+          move(x - last[0], y - last[1])
+          last = [x, y]
+          block.call(x, y) if block
+        end
+        bind_item_event('<B1-Motion>', drag, subs: %i[x y])
+
+        self
+      end
+
       private
+
+      def canvas_xy(raw_x, raw_y)
+        x = @app.command(@canvas_path, :canvasx, raw_x).to_f.round
+        y = @app.command(@canvas_path, :canvasy, raw_y).to_f.round
+        [x, y]
+      end
 
       def resolve(item)
         item.is_a?(CanvasItem) ? item.tag_or_id : item.to_s
