@@ -4,6 +4,7 @@ require_relative 'errors'
 require_relative 'realized_node'
 require_relative 'event_binding'
 require_relative 'keysyms'
+require_relative 'canvas_item'
 
 module Teek
   module UI
@@ -230,6 +231,97 @@ module Teek
         self
       end
 
+      # A straight line through the given points - +[x1, y1, x2, y2, ...]+,
+      # flat or nested, two or more points. Only valid on a `ui.canvas` handle.
+      # @param coords [Array<Numeric>]
+      # @param opts [Hash] item options, e.g. +fill:+/+width:+/+tags:+
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def line(*coords, **opts)
+        create_canvas_item(:line, coords, opts)
+      end
+
+      # An oval inscribed in the bounding box +[x1, y1, x2, y2]+. Only
+      # valid on a `ui.canvas` handle.
+      # @param coords [Array<Numeric>]
+      # @param opts [Hash] item options, e.g. +fill:+/+outline:+/+tags:+
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def oval(*coords, **opts)
+        create_canvas_item(:oval, coords, opts)
+      end
+
+      # A closed shape through the given points - +[x1, y1, x2, y2, ...]+,
+      # flat or nested, three or more points. Only valid on a `ui.canvas` handle.
+      # @param coords [Array<Numeric>]
+      # @param opts [Hash] item options, e.g. +fill:+/+smooth:+/+tags:+
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def polygon(*coords, **opts)
+        create_canvas_item(:polygon, coords, opts)
+      end
+
+      # A rectangle with corners +[x1, y1, x2, y2]+. Only valid on a
+      # `ui.canvas` handle.
+      # @param coords [Array<Numeric>]
+      # @param opts [Hash] item options, e.g. +fill:+/+outline:+/+tags:+
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def rectangle(*coords, **opts)
+        create_canvas_item(:rectangle, coords, opts)
+      end
+
+      # Text anchored at +[x, y]+. Only valid on a `ui.canvas` handle.
+      # @param coords [Array<Numeric>] a single +[x, y]+ point
+      # @param opts [Hash] item options, e.g. +text:+/+fill:+/+font:+/+anchor:+/+tags:+
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def text(*coords, **opts)
+        create_canvas_item(:text, coords, opts)
+      end
+
+      # An arc/pie-slice/chord along the oval inscribed in the bounding
+      # box +[x1, y1, x2, y2]+. Only valid on a `ui.canvas` handle.
+      # @param coords [Array<Numeric>]
+      # @param opts [Hash] item options, e.g. +start:+/+extent:+/+style:+/+tags:+
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def arc(*coords, **opts)
+        create_canvas_item(:arc, coords, opts)
+      end
+
+      # A stipple bitmap anchored at +[x, y]+. Only valid on a `ui.canvas` handle.
+      # @param coords [Array<Numeric>] a single +[x, y]+ point
+      # @param opts [Hash] item options, e.g. +bitmap:+/+foreground:+/+tags:+
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def bitmap(*coords, **opts)
+        create_canvas_item(:bitmap, coords, opts)
+      end
+
+      # A handle onto whatever items currently carry +tag+ - zero, one, or
+      # many (see {CanvasItem}, which addresses a tag and an id
+      # identically). Doesn't create anything; a shape-creation method
+      # (e.g. {#line}) already returns a single-item handle for its own
+      # new item, this is for addressing a shared +tags:+ group (or
+      # reaching an item by an id you already have) after the fact. Only
+      # valid on a `ui.canvas` handle.
+      # @param tag [String, Symbol, Integer]
+      # @return [CanvasItem]
+      # @raise [ArgumentError] if this handle isn't a canvas
+      # @raise [NotRealizedError] before realize
+      def tagged(tag)
+        raise_unless_canvas!('tagged')
+        CanvasItem.new(realized.app, realized.path, tag)
+      end
+
       private
 
       def realized
@@ -238,6 +330,18 @@ module Teek
 
       def window
         realized.app.window(realized.path)
+      end
+
+      def create_canvas_item(shape, coords, opts)
+        raise_unless_canvas!(shape)
+        id = realized.app.command(realized.path, :create, shape, *coords.flatten, **opts)
+        CanvasItem.new(realized.app, realized.path, id)
+      end
+
+      def raise_unless_canvas!(method_name)
+        unless type == :canvas
+          raise ArgumentError, "##{method_name} only makes sense on a canvas (got a :#{type})"
+        end
       end
 
       # Positions the window just to the right of the parent it's nested

@@ -81,6 +81,28 @@ session[:query].configure(width: 40) # after session.run/.run_async/.realize
 Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
 Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`, and the layout containers below.
 
+## Canvas Items
+
+A `canvas` handle draws shapes directly - closer to SVG's persistent, addressable elements than HTML5 `<canvas>`'s paint-and-forget pixels: every shape method returns a live `CanvasItem` you can move, restyle, or delete later, not just ink on a bitmap.
+
+```ruby
+session = Teek::UI.app(title: 'Hello') do |ui|
+  ui.canvas(:board, width: 400, height: 300)
+end.run
+
+ball = session[:board].oval(10, 10, 40, 40, fill: 'red', tags: 'movable')
+ball.move(20, 0)              # relative shift
+ball.coords = [10, 10, 60, 60]  # replace the coordinate list outright
+ball[:fill] = 'blue'          # read/write a single option
+ball.configure(outline: 'black', width: 2) # or several at once
+ball.bring_to_front           # stacking order (send_to_back is the opposite)
+ball.delete
+```
+
+Shape methods - `line`, `oval`, `polygon`, `rectangle`, `text`, `arc`, `bitmap` - take coordinates flat or nested (`line(0, 0, 10, 10)` and `line([0, 0], [10, 10])` are equivalent) plus real Tk item options (`fill:`, `outline:`, `width:`, `font:`, ...) passed straight through, same as every other widget option in the DSL.
+
+`tags:` at creation time groups items - `ui[:board].tagged('movable')` addresses every item currently carrying that tag as one `CanvasItem`, so `.move`/`.configure`/`.delete` apply to the whole group at once. A single-item handle from a shape method and a tag-scoped group handle from `tagged` are the same type, working identically either way (this mirrors how Tk's own canvas commands already treat a tag and an id the same way) - `.exists?` tells you whether a tag currently matches anything.
+
 ## Layout
 
 `column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:
