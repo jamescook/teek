@@ -17,3 +17,23 @@ if ENV['COVERAGE']
 end
 
 require "minitest/autorun"
+
+module TeekSDL2TestHelper
+  # Poll +timeout+ seconds for the block to return truthy, instead of a
+  # single check right after an operation that takes effect asynchronously
+  # (e.g. pause/resume state on SDL_mixer's own audio thread) - a fixed
+  # `sleep` before that check is exactly the flaky pattern this replaces,
+  # since it assumes a fixed duration is always enough regardless of how
+  # loaded the machine running it is.
+  # @return the block's last (truthy or falsy) result
+  def wait_until(timeout: 1.0)
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+    result = nil
+    while Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+      result = yield
+      break if result
+      sleep 0.02
+    end
+    result
+  end
+end

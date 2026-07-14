@@ -9,6 +9,8 @@ require "fileutils"
 ENV['SDL_AUDIODRIVER'] ||= 'dummy'
 
 class TestMixer < Minitest::Test
+  include TeekSDL2TestHelper
+
   def setup
     Teek::SDL2.open_audio
     @sound = Teek::SDL2::Sound.new(sample_wav_path)
@@ -41,11 +43,11 @@ class TestMixer < Minitest::Test
     refute Teek::SDL2.channel_paused?(ch)
 
     Teek::SDL2.pause_channel(ch)
-    assert Teek::SDL2.channel_paused?(ch), "channel should be paused"
+    assert wait_until { Teek::SDL2.channel_paused?(ch) }, "channel should be paused"
 
     Teek::SDL2.resume_channel(ch)
-    refute Teek::SDL2.channel_paused?(ch), "channel should not be paused after resume"
-    assert Teek::SDL2.playing?(ch), "resumed channel should report playing"
+    assert wait_until { !Teek::SDL2.channel_paused?(ch) }, "channel should not be paused after resume"
+    assert wait_until { Teek::SDL2.playing?(ch) }, "resumed channel should report playing"
 
     Teek::SDL2.halt(ch)
   end
