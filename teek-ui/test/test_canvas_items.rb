@@ -291,6 +291,213 @@ class TestCanvasItems < Minitest::Test
     end
   end
 
+  # Item-level canvas bindings only fire through Tk's "current item"
+  # tracking, which real event generate positioning depends on real X11
+  # pointer state - unreliable under Xvfb (see teek core's own
+  # test_canvas_bindings.rb). Tk has no "invoke this item binding"
+  # command either way, so these read back the bound script and eval it
+  # directly - the same pattern teek core already uses to verify item
+  # binding dispatch without needing a real synthetic click to land.
+
+  def test_on_click_fires_only_for_the_specific_item_clicked
+    assert_tk_app("on_click's bound script should be scoped per-item, not shared") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') { |ui| ui.canvas(:board, width: 200, height: 200) }
+      session.run_async
+      session.app.update
+
+      board = session[:board]
+      a = board.oval(10, 10, 30, 30)
+      b = board.oval(100, 100, 120, 120)
+
+      a_hits = 0
+      b_hits = 0
+      a.on_click { a_hits += 1 }
+      b.on_click { b_hits += 1 }
+
+      a_script = session.app.tcl_eval("#{board.path} bind #{a.tag_or_id} <Button-1>")
+      session.app.tcl_eval(a_script)
+      assert_equal 1, a_hits, "invoking A's own binding should fire A's handler"
+      assert_equal 0, b_hits, "invoking A's own binding should not fire B's handler"
+
+      b_script = session.app.tcl_eval("#{board.path} bind #{b.tag_or_id} <Button-1>")
+      session.app.tcl_eval(b_script)
+      assert_equal 1, a_hits, "invoking B's own binding should not fire A's handler again"
+      assert_equal 1, b_hits, "invoking B's own binding should fire B's handler"
+
+      session.app.destroy
+    end
+  end
+
+  def test_on_right_click_fires_a_block_on_the_right_click_event
+    assert_tk_app("on_right_click should bind a script that fires the given block") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') { |ui| ui.canvas(:board, width: 200, height: 200) }
+      session.run_async
+      session.app.update
+
+      board = session[:board]
+      item = board.oval(10, 10, 30, 30)
+      fired = false
+      item.on_right_click { fired = true }
+
+      script = session.app.tcl_eval("#{board.path} bind #{item.tag_or_id} <Button-3>")
+      session.app.tcl_eval(script)
+
+      assert fired, "on_right_click's bound script did not fire the given block"
+
+      session.app.destroy
+    end
+  end
+
+  def test_on_right_click_with_a_menu_pops_up_at_the_clicks_root_coordinates
+    assert_tk_app("on_right_click(menu) should tk_popup the given menu at the click's root coordinates") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') do |ui|
+        ui.context_menu(:ctx) { |m| m.item(label: 'Delete') { } }
+        ui.canvas(:board, width: 200, height: 200)
+      end
+      session.run_async
+      session.app.update
+
+      board = session[:board]
+      item = board.oval(10, 10, 30, 30)
+      item.on_right_click(session[:ctx])
+
+      session.app.tcl_eval(<<~TCL)
+        proc tk_popup {args} {
+          set ::last_popup_call $args
+        }
+      TCL
+
+      # %X/%Y are literal %-substitution codes Tk fills in at real dispatch
+      # time - substitute them ourselves to simulate a click at (123, 456)
+      # root coordinates without needing a real synthetic click to land.
+      script = session.app.tcl_eval("#{board.path} bind #{item.tag_or_id} <Button-3>")
+      session.app.tcl_eval(script.sub('%X', '123').sub('%Y', '456'))
+
+      captured = session.app.split_list(session.app.tcl_eval('set ::last_popup_call'))
+      assert_equal [session[:ctx].path, '123', '456'], captured
+
+      session.app.destroy
+    end
+  end
+
+  def test_on_right_click_with_neither_menu_nor_block_raises
+    assert_tk_app("on_right_click with neither a menu nor a block should raise") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') { |ui| ui.canvas(:board, width: 200, height: 200) }
+      session.run_async
+      session.app.update
+
+      item = session[:board].oval(10, 10, 30, 30)
+      assert_raises(ArgumentError) { item.on_right_click }
+
+      session.app.destroy
+    end
+  end
+
+  def test_on_right_click_with_both_menu_and_block_raises
+    assert_tk_app("on_right_click with both a menu and a block should raise") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') do |ui|
+        ui.context_menu(:ctx) { |m| m.item(label: 'Delete') { } }
+        ui.canvas(:board, width: 200, height: 200)
+      end
+      session.run_async
+      session.app.update
+
+      item = session[:board].oval(10, 10, 30, 30)
+      error = assert_raises(ArgumentError) { item.on_right_click(session[:ctx]) { } }
+      assert_match(/menu/i, error.message)
+
+      session.app.destroy
+    end
+  end
+
+  def test_on_right_click_with_a_non_menu_handle_raises
+    assert_tk_app("on_right_click given a non-menu handle should raise a clear error") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') { |ui| ui.canvas(:board, width: 200, height: 200) }
+      session.run_async
+      session.app.update
+
+      item = session[:board].oval(10, 10, 30, 30)
+      error = assert_raises(ArgumentError) { item.on_right_click(session[:board]) }
+      assert_match(/menu/i, error.message)
+
+      session.app.destroy
+    end
+  end
+
+  def test_on_drag_delivers_canvas_relative_coordinates
+    assert_tk_app("on_drag should deliver canvasx/canvasy-converted coordinates, not raw window coordinates") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') { |ui| ui.canvas(:board, width: 200, height: 200) }
+      session.run_async
+      session.app.update
+
+      board_path = session[:board].path
+      # scroll the canvas so canvasx/canvasy meaningfully differ from raw %x/%y -
+      # otherwise a bug that skips conversion entirely could still pass by luck.
+      session.app.tcl_eval("#{board_path} configure -scrollregion {0 0 1000 1000}")
+      session.app.tcl_eval("#{board_path} xview moveto 0.5")
+      session.app.update
+
+      item = session[:board].rectangle(0, 0, 1000, 1000)
+      received = nil
+      item.on_drag { |x, y| received = [x, y] }
+
+      # %x/%y are literal %-substitution codes Tk fills in at real dispatch
+      # time - substitute them ourselves to simulate a motion at raw window
+      # coordinates (50, 60) without needing a real synthetic drag to land.
+      script = session.app.tcl_eval("#{board_path} bind #{item.tag_or_id} <B1-Motion>")
+      session.app.tcl_eval(script.sub('%x', '50').sub('%y', '60'))
+
+      expected_x = session.app.command(board_path, :canvasx, 50).to_f.round
+      expected_y = session.app.command(board_path, :canvasy, 60).to_f.round
+
+      refute_nil received
+      assert_equal [expected_x, expected_y], received
+      refute_equal [50, 60], received, "the canvas is scrolled, so conversion should actually change the coordinates"
+
+      session.app.destroy
+    end
+  end
+
+  def test_deleting_an_item_releases_its_click_and_drag_callbacks
+    assert_tk_app("deleting an item should release its on_click/on_drag callbacks, not leak them") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Canvas Items Test') { |ui| ui.canvas(:board, width: 200, height: 200) }
+      session.run_async
+      session.app.update
+
+      baseline = session.app.interp.callback_ids.length
+
+      item = session[:board].oval(10, 10, 30, 30)
+      item.on_click { }
+      item.on_drag { |_x, _y| }
+      assert_equal baseline + 2, session.app.interp.callback_ids.length,
+        "on_click and on_drag should each register one callback"
+
+      item.delete
+
+      assert_equal baseline, session.app.interp.callback_ids.length,
+        "deleting the item should release both its click and drag callbacks - on_drag's %-substitution " \
+        "args must not stop the leak-tracking regex from recognizing the binding"
+
+      session.app.destroy
+    end
+  end
+
   def test_shape_methods_raise_on_a_non_canvas_handle
     assert_tk_app("shape creation and tagged should raise a clear error on a non-canvas handle") do
       require 'teek/ui'

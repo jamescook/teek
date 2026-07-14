@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'mouse_events'
+
 module Teek
   module UI
     # A handle onto one or more canvas items, addressed by Tk's own
@@ -127,10 +129,84 @@ module Teek
         !@app.command(@canvas_path, :find, :withtag, @tag_or_id).empty?
       end
 
+      # Fires on a left click, only when the click lands on this specific
+      # item/tag - other items on the same canvas are untouched. Wired
+      # immediately, via the canvas's own `bind` subcommand (Tk has no
+      # per-item widget path to bind a plain `bind` against) - unlike
+      # {Handle}, a CanvasItem only ever exists post-realize, so there's no
+      # queue-before-realize phase to worry about here.
+      # @yield called with no arguments
+      # @return [self]
+      def on_click(&block)
+        bind_item_event('<Button-1>', block)
+        self
+      end
+
+      # Fires on a right click, however the platform spells it - see
+      # {MouseEvents::RIGHT_CLICK_EVENTS}. Either handle it yourself with a
+      # block, or hand it a `:menu`/`:context_menu` handle to pop up at the
+      # click's screen position - not both.
+      # @param menu [Handle, nil] a `:menu` or `:context_menu` handle to tk_popup
+      # @yield called with no arguments (only when +menu+ isn't given)
+      # @return [self]
+      # @raise [ArgumentError] if given neither or both, or +menu+ isn't a menu handle
+      def on_right_click(menu = nil, &block)
+        if menu && block
+          raise ArgumentError, "on_right_click takes either a menu handle or a block, not both"
+        elsif menu
+          unless MouseEvents::MENU_HANDLE_TYPES.include?(menu.type)
+            raise ArgumentError, "on_right_click(menu) needs a :menu or :context_menu handle (got a :#{menu.type})"
+          end
+
+          popup = lambda do |root_x, root_y|
+            @app.popup_menu(menu.path, x: root_x, y: root_y)
+          end
+          MouseEvents::RIGHT_CLICK_EVENTS.each { |event| bind_item_event(event, popup, subs: %i[root_x root_y]) }
+        elsif block
+          MouseEvents::RIGHT_CLICK_EVENTS.each { |event| bind_item_event(event, block) }
+        else
+          raise ArgumentError, "on_right_click needs either a menu handle or a block"
+        end
+        self
+      end
+
+      # Fires while dragging this item (left button held down and moving).
+      # Delivers Integer x/y already converted through the canvas's own
+      # canvasx/canvasy, same as {Handle#on_drag} does when bound to a
+      # canvas - callers never have to remember to do that themselves.
+      # @yield [x, y] Integer coordinates
+      # @return [self]
+      def on_drag(&block)
+        wrapped = lambda do |raw_x, raw_y|
+          x = @app.command(@canvas_path, :canvasx, raw_x).to_f.round
+          y = @app.command(@canvas_path, :canvasy, raw_y).to_f.round
+          block.call(x, y)
+        end
+        bind_item_event('<B1-Motion>', wrapped, subs: %i[x y])
+        self
+      end
+
       private
 
       def resolve(item)
         item.is_a?(CanvasItem) ? item.tag_or_id : item.to_s
+      end
+
+      # Canvas items have no widget path of their own, so binding one of
+      # their events goes through the canvas's own `bind` subcommand
+      # (`$canvas bind tagOrId <event> script`) rather than the generic
+      # `bind` Tk command {Teek::App#bind} wraps - a different Tcl command
+      # entirely, needing its own callback wiring. {Teek::CanvasBindInterceptor}
+      # (registered for the `canvas` widget type) already reconciles the
+      # callback this registers when the item's tag/id stops matching
+      # anything, same leak-safety {Teek::App#bind} gives ordinary widget
+      # events - nothing extra to do here for that. +subs+ reuses
+      # {Teek::App::BIND_SUBS} for the same symbol -> %-code vocabulary
+      # {Teek::App#bind} already uses, so e.g. +:x+/+:root_x+ mean the same
+      # thing here as everywhere else.
+      def bind_item_event(event, handler, subs: [])
+        tcl_subs = subs.map { |s| Teek::App::BIND_SUBS.fetch(s) }
+        @app.command(@canvas_path, :bind, @tag_or_id, event, proc { |*args| handler.call(*args) }, *tcl_subs)
       end
     end
   end

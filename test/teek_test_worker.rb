@@ -205,6 +205,24 @@ class Teek::TestWorker
 
       @app = Teek::App.new
 
+      # Test-only extension: track every Teek::App a test creates on its
+      # own (e.g. via Teek::UI.app, not just this worker's own @app) so
+      # reset_tk_state! can force-destroy it after the test regardless of
+      # whether the test itself reached its own app.destroy call - a test
+      # that raises or fails an assertion first would otherwise leak a
+      # live interpreter/window into every later test in this same
+      # persistent worker process. Installed after @app's own
+      # construction above so the worker's own App is never tracked (and
+      # never force-destroyed) by this.
+      @tracked_apps = []
+      tracked_apps = @tracked_apps
+      Teek::App.prepend(Module.new {
+        define_method(:initialize) do |*a, **kw, &blk|
+          super(*a, **kw, &blk)
+          tracked_apps << self
+        end
+      })
+
       # Override Tk's default bgerror dialog with a stderr handler.
       # Without this, any background error (e.g. from `after` callbacks)
       # shows a modal dialog that blocks headless/CI test runs.
@@ -342,6 +360,12 @@ class Teek::TestWorker
     private
 
     def reset_tk_state!
+      # Force-destroy any extra Teek::App a test created on its own (e.g.
+      # via Teek::UI.app) and never got around to destroying itself -
+      # unconditional, so a test never needs to remember this itself.
+      @tracked_apps.each { |stray| stray.destroy rescue nil }
+      @tracked_apps.clear
+
       # Destroy all children of root, then withdraw
       children = @app.tcl_eval('winfo children .').split
       children.each do |child|

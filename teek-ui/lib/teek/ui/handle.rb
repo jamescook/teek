@@ -4,6 +4,7 @@ require_relative 'errors'
 require_relative 'realized_node'
 require_relative 'event_binding'
 require_relative 'keysyms'
+require_relative 'mouse_events'
 require_relative 'canvas_item'
 
 module Teek
@@ -15,8 +16,8 @@ module Teek
     # +realized+ slot is filled in by the realizer, then the same Handle
     # object drives the real widget through it.
     class Handle
-      RIGHT_CLICK_EVENTS = %w[<Button-2> <Button-3> <Control-Button-1>].freeze
-      MENU_HANDLE_TYPES = %i[menu context_menu].freeze
+      RIGHT_CLICK_EVENTS = MouseEvents::RIGHT_CLICK_EVENTS
+      MENU_HANDLE_TYPES = MouseEvents::MENU_HANDLE_TYPES
 
       # @api private
       def initialize(node)

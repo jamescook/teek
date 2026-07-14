@@ -164,13 +164,13 @@ class TestHandle < Minitest::Test
     assert_equal %i[x y], binding.subs
   end
 
-  def test_on_right_click_queues_all_platform_variants
+  def test_on_right_click_queues_the_platform_appropriate_event_patterns
     node = Teek::UI::Node.new(type: :button, name: :go)
     handle = Teek::UI::Handle.new(node)
 
     handle.on_right_click { }
 
-    assert_equal ['<Button-2>', '<Button-3>', '<Control-Button-1>'], node.events.map(&:event)
+    assert_equal Teek::UI::MouseEvents::RIGHT_CLICK_EVENTS, node.events.map(&:event)
   end
 
   def test_on_close_queues_the_block_on_a_window_node_before_realize
@@ -214,8 +214,8 @@ class TestHandle < Minitest::Test
     result = handle.on_right_click(menu_handle)
 
     assert_same handle, result, "on_right_click should return self for chaining"
-    assert_equal 3, node.events.length
-    assert_equal ['<Button-2>', '<Button-3>', '<Control-Button-1>'], node.events.map(&:event)
+    assert_equal Teek::UI::MouseEvents::RIGHT_CLICK_EVENTS.length, node.events.length
+    assert_equal Teek::UI::MouseEvents::RIGHT_CLICK_EVENTS, node.events.map(&:event)
     node.events.each { |binding| assert_equal %i[root_x root_y], binding.subs }
   end
 

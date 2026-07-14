@@ -103,6 +103,13 @@ Shape methods - `line`, `oval`, `polygon`, `rectangle`, `text`, `arc`, `bitmap` 
 
 `tags:` at creation time groups items - `ui[:board].tagged('movable')` addresses every item currently carrying that tag as one `CanvasItem`, so `.move`/`.configure`/`.delete` apply to the whole group at once. A single-item handle from a shape method and a tag-scoped group handle from `tagged` are the same type, working identically either way (this mirrors how Tk's own canvas commands already treat a tag and an id the same way) - `.exists?` tells you whether a tag currently matches anything.
 
+Items also take the same `on_click`/`on_right_click`/`on_drag` vocabulary as widgets, scoped to that specific item/tag rather than the whole canvas:
+
+```ruby
+ball.on_click { ball[:fill] = 'green' }
+ball.on_drag { |x, y| ball.coords = [x - 15, y - 15, x + 15, y + 15] }
+```
+
 ## Layout
 
 `column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:
