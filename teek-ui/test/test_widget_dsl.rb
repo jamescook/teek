@@ -374,6 +374,95 @@ class TestWidgetDsl < Minitest::Test
     assert_match(/ui\.tabs/, error.message)
   end
 
+  def test_split_is_a_container_type
+    session = build_session
+
+    session.split { |s| s.pane { |p| p.button(:go, text: 'Go') } }
+
+    node = session.document.root.children.first
+    assert_equal :split, node.type
+    assert_equal [:pane], node.children.map(&:type)
+  end
+
+  def test_split_defaults_to_horizontal_orientation
+    session = build_session
+
+    session.split { }
+
+    node = session.document.root.children.first
+    assert_equal 'horizontal', node.opts[:orient]
+  end
+
+  def test_split_accepts_vertical_orientation
+    session = build_session
+
+    session.split(orientation: :vertical) { }
+
+    node = session.document.root.children.first
+    assert_equal 'vertical', node.opts[:orient]
+  end
+
+  def test_split_raises_on_an_invalid_orientation
+    session = build_session
+
+    error = assert_raises(ArgumentError) { session.split(orientation: :diagonal) }
+    assert_match(/:horizontal or :vertical/, error.message)
+  end
+
+  def test_split_accepts_a_name_like_any_other_container
+    session = build_session
+
+    session.split(:main) { |s| s.pane { } }
+
+    node = session.document.root.children.first
+    assert_equal :main, node.name
+  end
+
+  def test_pane_nests_its_blocks_children
+    session = build_session
+
+    session.split { |s| s.pane { |p| p.button(:go, text: 'Go') } }
+
+    pane_node = session.document.root.children.first.children.first
+    assert_equal [:button], pane_node.children.map(&:type)
+    assert_equal [:go], pane_node.children.map(&:name)
+  end
+
+  def test_pane_accepts_an_optional_name_for_ui_bracket_lookup
+    session = build_session
+
+    session.split { |s| s.pane(:left) }
+
+    assert_equal :left, session[:left].name
+    assert_equal :pane, session[:left].type
+  end
+
+  def test_pane_weight_is_stashed_in_opts_without_leaking_weight_itself
+    session = build_session
+
+    session.split { |s| s.pane(weight: 2) }
+
+    pane_node = session.document.root.children.first.children.first
+    assert_equal 2, pane_node.opts[:pane_weight]
+    refute pane_node.opts.key?(:weight)
+  end
+
+  def test_pane_without_a_weight_stashes_nothing
+    session = build_session
+
+    session.split { |s| s.pane }
+
+    pane_node = session.document.root.children.first.children.first
+    refute pane_node.opts.key?(:pane_weight)
+  end
+
+  def test_pane_outside_ui_split_raises
+    session = build_session
+
+    error = assert_raises(ArgumentError) { session.pane }
+    assert_match(/ui\.split/, error.message)
+  end
+
   def test_raw_creates_a_raw_op_node_attached_to_the_current_parent
     session = build_session
 

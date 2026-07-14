@@ -49,6 +49,20 @@ class TestValidator < Minitest::Test
     assert_match(/not_tabs/, error.message)
   end
 
+  def test_a_pane_node_under_a_non_split_parent_raises
+    # only reachable via direct Node/Document manipulation - WidgetDSL#pane
+    # itself already refuses to run outside a ui.split block.
+    document = Teek::UI::Document.new
+    panel = document.create(type: :panel, name: :not_split)
+    document.root.add_child(panel)
+    stray = document.create(type: :pane, name: :stray)
+    panel.add_child(stray)
+
+    error = assert_raises(Teek::UI::ValidationError) { Teek::UI::Validator.validate!(document) }
+    assert_match(/:pane/, error.message)
+    assert_match(/not_split/, error.message)
+  end
+
   def test_two_widgets_in_the_same_grid_cell_raises
     session = build_session
     session.grid(:g) do |g|

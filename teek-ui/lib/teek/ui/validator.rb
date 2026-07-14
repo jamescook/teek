@@ -65,6 +65,7 @@ module Teek
       def validate!
         check_stray_cell_intent
         check_stray_tab_intent
+        check_stray_pane_intent
         check_grid_cell_collisions
         check_grid_children_missing_a_cell
         check_dangling_event_targets
@@ -116,6 +117,18 @@ module Teek
           next if parent && parent.type == :tabs
 
           @errors << "#{describe(node)} is a :tab but its parent (#{describe(parent)}) isn't a ui.tabs"
+        end
+      end
+
+      # Only reachable via direct Node/Document manipulation, since
+      # {WidgetDSL#pane} already refuses to run outside a +ui.split+ block -
+      # the same defense-in-depth {#check_stray_tab_intent} does for tabs.
+      def check_stray_pane_intent
+        each_node_with_parent do |node, parent|
+          next unless node.type == :pane
+          next if parent && parent.type == :split
+
+          @errors << "#{describe(node)} is a :pane but its parent (#{describe(parent)}) isn't a ui.split"
         end
       end
 

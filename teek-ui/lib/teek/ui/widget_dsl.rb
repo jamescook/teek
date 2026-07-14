@@ -49,6 +49,11 @@ module Teek
       # `scrollable` wrapper needed; `tabs` holds `#tab`-declared panes
       # (below), each realized as its own `ttk::notebook` page; the rest
       # keep the plain unconditional pack every container has always gotten.
+      # `split` is the same shape as `tabs`/`#tab` (holding `#pane`-declared
+      # regions, each realized as its own `ttk::panedwindow` pane) but,
+      # like `#tab`, is declared explicitly below rather than through this
+      # array, since its `orientation:` needs validating/translating to a
+      # real `-orient` option before reaching the widget-creation call.
       CONTAINER_TYPES = %i[panel group canvas window column row grid scrollable tabs].freeze
 
       # Widget type -> the Tk option a bound {Var} plugs into. Not every
@@ -155,6 +160,43 @@ module Teek
       def tab(label, name = nil, **opts, &block)
         current_tabs!('tab')
         append_container(:tab, name, opts.merge(tab_label: label), &block)
+      end
+
+      # Orientation values a `ui.split` accepts - the same plain words Tk's
+      # own -orient option uses, so no translation is needed at realize.
+      ORIENTATIONS = %i[horizontal vertical].freeze
+
+      # A draggable split - two or more `#pane`-declared regions, resizable
+      # by dragging the sash between them. Maps to `ttk::panedwindow`.
+      # @param name [Symbol, nil] for `ui[:name]` lookup, same as any widget
+      # @param orientation [Symbol] +:horizontal+ (panes side by side, a
+      #   vertical sash) or +:vertical+ (panes stacked, a horizontal sash)
+      # @yieldparam s [self] build panes with `s.pane { ... }`
+      # @return [Handle]
+      # @raise [ArgumentError] if orientation isn't :horizontal or :vertical
+      def split(name = nil, orientation: :horizontal, **opts, &block)
+        unless ORIENTATIONS.include?(orientation)
+          raise ArgumentError, "split's orientation must be :horizontal or :vertical (got #{orientation.inspect})"
+        end
+
+        append_container(:split, name, opts.merge(orient: orientation.to_s), &block)
+      end
+
+      # One region of an enclosing `ui.split`. Only valid directly inside a
+      # `ui.split` block; its own block builds the pane's content with the
+      # ordinary widget DSL, same as any other container.
+      # @param name [Symbol, nil] for `ui[:name]` lookup, same as any widget
+      # @param weight [Integer, nil] how much of the leftover space this
+      #   pane absorbs when the split is resized, relative to its sibling
+      #   panes' weights - unset panes get Tk's own default (0, fixed size
+      #   until dragged). The same plain word `ttk::panedwindow` itself
+      #   uses for this.
+      # @return [Handle]
+      # @raise [ArgumentError] if declared anywhere other than directly inside ui.split
+      def pane(name = nil, weight: nil, **opts, &block)
+        current_split!('pane')
+        opts = weight.nil? ? opts : opts.merge(pane_weight: weight)
+        append_container(:pane, name, opts, &block)
       end
 
       # Node types a menu_bar is allowed to attach to - the root window
@@ -317,6 +359,15 @@ module Teek
         end
 
         tabs_node
+      end
+
+      def current_split!(method_name)
+        split_node = @stack.last
+        unless split_node.type == :split
+          raise ArgumentError, "##{method_name} can only be used directly inside ui.split"
+        end
+
+        split_node
       end
 
       def append_container(type, name, opts)

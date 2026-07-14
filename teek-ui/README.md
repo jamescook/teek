@@ -197,6 +197,21 @@ end.run
 
 A tab's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. `on_tab_changed` surfaces Tk's `<<NotebookTabChanged>>`, delivering the newly selected tab's own name if it has one, otherwise its zero-based index. New tabs can be added at runtime via `session.add`.
 
+## Split Panes
+
+`ui.split(name = nil, orientation: :horizontal) { }` is a `ttk::panedwindow`; `s.pane(name = nil, weight: nil) { }` declares one region, only valid directly inside it:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.split(:main, orientation: :horizontal) do |s|
+    s.pane(weight: 1) { |a| a.list(:files) }
+    s.pane(weight: 3) { |b| b.text_area(:editor) }
+  end
+end.run
+```
+
+`:horizontal` lays panes out side by side with a vertical sash; `:vertical` stacks them with a horizontal sash - dragging the sash between two panes resizes them, same as any native split view. `weight:` sets how much of the leftover space a pane absorbs when the split is resized, relative to its sibling panes' weights (the same word `ttk::panedwindow` itself uses) - a pane left unset gets Tk's own default (fixed size until dragged). A pane's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. New panes can be added at runtime via `session.add`.
+
 ## Screens
 
 `ui.screens` is a push/pop stack for swapping which content is on display - pushing conceals whatever screen was on top (if any) before revealing the new one; popping reverses that. It works directly against ordinary handles, so there's no bespoke per-screen class to write:

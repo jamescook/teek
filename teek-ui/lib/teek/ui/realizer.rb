@@ -51,6 +51,8 @@ module Teek
         scrollable: 'ttk::frame',
         tabs: 'ttk::notebook',
         tab: 'ttk::frame',
+        split: 'ttk::panedwindow',
+        pane: 'ttk::frame',
       }.freeze
 
       # DSL-reserved opts keys - layout keywords (gap:/align:/pad:/
@@ -60,11 +62,14 @@ module Teek
       # #setup_window; x:/y: for :scrollable and native-scrollable nodes,
       # applied by #create_scrollable/#create_native_scrollable; scroll:
       # for native-scrollable nodes, applied by #auto_scrollable?; tab_label
-      # for :tab nodes, applied by #setup_tab) - none of these are real Tk
-      # options, so none are ever passed through to a widget-creation call.
+      # for :tab nodes, applied by #setup_tab; pane_weight for :pane nodes,
+      # applied by #setup_pane) - none of these are real Tk options, so none
+      # are ever passed through to a widget-creation call. +:split+'s own
+      # +orient:+ isn't reserved - it's a real `ttk::panedwindow` option
+      # already, so it passes straight through.
       RESERVED_OPTIONS = %i[
         gap align pad stretch_columns stretch_rows on_close
-        title geometry resizable transient modal x y scroll tab_label
+        title geometry resizable transient modal x y scroll tab_label pane_weight
       ].freeze
 
       # Widget types that already speak Tk's native scrolling protocol
@@ -167,6 +172,7 @@ module Teek
           node.realized = RealizedNode.new(app: @app, path: path)
           setup_window(node, path, parent_path) if node.type == :window
           setup_tab(node, path, parent_path) if node.type == :tab
+          setup_pane(node, path, parent_path) if node.type == :pane
         end
 
         if node.type == :scrollable
@@ -215,6 +221,17 @@ module Teek
       # frame is never pack/grid-managed on its own (see NOT_ARRANGED_TYPES).
       def setup_tab(node, path, parent_path)
         @app.command(parent_path, :add, path, text: node.opts[:tab_label])
+      end
+
+      # Adds a freshly created :pane's own frame (just created at +path+) as
+      # a pane of the enclosing panedwindow at +parent_path+, with whatever
+      # `#pane` stashed as pane_weight: (if any). `ttk::panedwindow add` is
+      # the pane's whole placement - unlike every other container, a pane's
+      # frame is never pack/grid-managed on its own (see NOT_ARRANGED_TYPES).
+      def setup_pane(node, path, parent_path)
+        weight = node.opts[:pane_weight]
+        opts = weight.nil? ? {} : { weight: weight }
+        @app.command(parent_path, :add, path, **opts)
       end
 
       # Whether +node+ should auto-attach a scrollbar with no explicit
@@ -482,8 +499,9 @@ module Teek
       # top-level window"); :menu_bar/:context_menu attach via their own
       # -menu config / on_right_click wiring, never via pack/grid either;
       # :tab is placed entirely by `ttk::notebook add` (#setup_tab), not a
-      # geometry manager at all.
-      NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu tab].freeze
+      # geometry manager at all; :pane likewise via `ttk::panedwindow add`
+      # (#setup_pane).
+      NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu tab pane].freeze
 
       def arrange_children(node)
         arrangeable = node.children.reject { |child| NOT_ARRANGED_TYPES.include?(child.type) }
