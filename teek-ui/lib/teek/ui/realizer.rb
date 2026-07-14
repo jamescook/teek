@@ -28,22 +28,9 @@ module Teek
       # DSL node type -> Tk widget-creation command, for any type not yet
       # migrated to a {WidgetType} descriptor (see {WidgetTypes}) - a
       # registered type's tk_command comes from its own descriptor instead
-      # (see {#tk_command_for}). `:divider` is the first migrated leaf, so
-      # it's no longer listed here.
+      # (see {#tk_command_for}). Every leaf widget has migrated; what's
+      # left here is containers and other special types.
       TK_COMMANDS = {
-        text_box: 'ttk::entry',
-        text_area: 'text',
-        label: 'ttk::label',
-        button: 'ttk::button',
-        checkbox: 'ttk::checkbutton',
-        radio: 'ttk::radiobutton',
-        slider: 'ttk::scale',
-        dropdown: 'ttk::combobox',
-        number_box: 'ttk::spinbox',
-        list: 'listbox',
-        table: 'ttk::treeview',
-        tree: 'ttk::treeview',
-        progress: 'ttk::progressbar',
         panel: 'ttk::frame',
         group: 'ttk::labelframe',
         canvas: 'canvas',
@@ -82,8 +69,11 @@ module Teek
       # #resolve_scroll says otherwise (see #auto_scrollable?). A bare
       # :scrollable (for arbitrary content that has no scrolling protocol
       # of its own) always gets the separate canvas+viewport frame
-      # treatment instead - see #create_scrollable.
-      NATIVELY_SCROLLABLE_TYPES = %i[list text_area table tree canvas].freeze
+      # treatment instead - see #create_scrollable. `list`/`text_area`/
+      # `table`/`tree` report their own {WidgetType#natively_scrollable?}
+      # now (see {#natively_scrollable?}); `canvas` is the one container
+      # left here, since containers haven't migrated yet.
+      NATIVELY_SCROLLABLE_TYPES = %i[canvas].freeze
 
       # :column/:row flow-packing config, mirrored across the main axis
       # (stack direction) and cross axis (perpendicular to it).

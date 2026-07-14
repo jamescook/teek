@@ -89,3 +89,16 @@ module Teek
 end
 
 require_relative 'widget_types/divider'
+require_relative 'widget_types/text_box'
+require_relative 'widget_types/text_area'
+require_relative 'widget_types/label'
+require_relative 'widget_types/button'
+require_relative 'widget_types/checkbox'
+require_relative 'widget_types/radio'
+require_relative 'widget_types/slider'
+require_relative 'widget_types/dropdown'
+require_relative 'widget_types/number_box'
+require_relative 'widget_types/list'
+require_relative 'widget_types/table'
+require_relative 'widget_types/tree'
+require_relative 'widget_types/progress'

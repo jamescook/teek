@@ -2,8 +2,53 @@
 
 require_relative 'test_helper'
 require 'teek/ui/widget_types'
+require 'teek/ui/widget_dsl'
 
 class TestWidgetTypes < Minitest::Test
+  # type -> [tk_command, bind_option, natively_scrollable?] for every leaf
+  # migrated off the legacy LEAF_TYPES/TK_COMMANDS/BIND_OPTIONS lists -
+  # matches the original hardcoded mapping exactly (this table is the
+  # migration's own regression check, not a copy of production code).
+  MIGRATED_LEAVES = {
+    text_box: ['ttk::entry', :textvariable, false],
+    text_area: ['text', nil, true],
+    label: ['ttk::label', :textvariable, false],
+    button: ['ttk::button', nil, false],
+    checkbox: ['ttk::checkbutton', :variable, false],
+    radio: ['ttk::radiobutton', nil, false],
+    slider: ['ttk::scale', :variable, false],
+    dropdown: ['ttk::combobox', :textvariable, false],
+    number_box: ['ttk::spinbox', :textvariable, false],
+    list: ['listbox', nil, true],
+    table: ['ttk::treeview', nil, true],
+    tree: ['ttk::treeview', nil, true],
+    progress: ['ttk::progressbar', :variable, false],
+  }.freeze
+
+  def test_every_migrated_leaf_is_registered_with_the_right_metadata
+    MIGRATED_LEAVES.each do |type, (tk_command, bind_option, natively_scrollable)|
+      widget_type = Teek::UI::WidgetTypes.for_type(type)
+
+      refute_nil widget_type, "expected :#{type} to be registered as a WidgetType"
+      assert widget_type.leaf?, ":#{type} should be a leaf"
+      assert_equal tk_command, widget_type.tk_command, ":#{type} tk_command"
+      bind_option.nil? ? assert_nil(widget_type.bind_option, ":#{type} bind_option") : assert_equal(bind_option, widget_type.bind_option, ":#{type} bind_option")
+      assert_equal natively_scrollable, widget_type.natively_scrollable?, ":#{type} natively_scrollable?"
+    end
+  end
+
+  def test_leaf_types_no_longer_exists_now_that_every_leaf_has_migrated
+    refute Teek::UI::WidgetDSL.const_defined?(:LEAF_TYPES)
+  end
+
+  def test_bind_options_no_longer_exists_now_that_every_bindable_leaf_has_migrated
+    refute Teek::UI::WidgetDSL.const_defined?(:BIND_OPTIONS)
+  end
+
+  def test_scrollable_types_shrinks_to_just_the_unmigrated_container_remainder
+    assert_equal [:canvas], Teek::UI::WidgetDSL::SCROLLABLE_TYPES
+  end
+
   def test_divider_is_registered_as_a_built_in
     widget_type = Teek::UI::WidgetTypes.for_type(:divider)
 

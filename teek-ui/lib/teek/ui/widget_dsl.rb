@@ -29,15 +29,6 @@ module Teek
     # {#raise_if_closed!} - true before the initial realize and again for
     # the duration of an +#add+ block, false otherwise).
     module WidgetDSL
-      # Widget kinds with no children of their own - just options. Leaves
-      # migrated to a {WidgetType} descriptor (see {WidgetTypes}) come out
-      # of this list - `:divider` is the first (and, for now, only) one;
-      # its `ui.divider` method comes from {.on_register} below instead.
-      LEAF_TYPES = %i[
-        text_box text_area label button checkbox radio slider dropdown
-        number_box list table tree progress
-      ].freeze
-
       # Widget kinds that hold children, declared in a block. The block
       # yields the same builder object back (not a separate scoped builder),
       # so a name declared inside it is addressable from outside too.
@@ -60,27 +51,12 @@ module Teek
       # real `-orient` option before reaching the widget-creation call.
       CONTAINER_TYPES = %i[panel group canvas window column row grid scrollable tabs].freeze
 
-      # Widget type -> the Tk option a bound {Var} plugs into. Not every
-      # widget can be bound this way (text_area/list/table/tree/divider have
-      # no plain scalar variable option in Tk; radio needs a shared variable
-      # plus a per-widget -value, which isn't wired up yet) - `bind:` raises
-      # for anything not listed here rather than silently doing nothing.
-      BIND_OPTIONS = {
-        text_box: :textvariable, label: :textvariable, dropdown: :textvariable, number_box: :textvariable,
-        checkbox: :variable, slider: :variable, progress: :variable,
-      }.freeze
-
-      # Widget types that auto-attach a scrollbar (see
-      # {Realizer::NATIVELY_SCROLLABLE_TYPES}, which this mirrors) -
-      # `scroll:`/`x:`/`y:` only mean anything on these; `scroll:` raises
-      # for anything else rather than silently doing nothing.
-      SCROLLABLE_TYPES = %i[list text_area table tree canvas].freeze
-
-      LEAF_TYPES.each do |leaf_type|
-        define_method(leaf_type) do |name = nil, **opts|
-          append_leaf(leaf_type, name, opts)
-        end
-      end
+      # Widget types that auto-attach a scrollbar via the legacy path -
+      # every migrated leaf (`list`/`text_area`/`table`/`tree`) reports its
+      # own {WidgetType#natively_scrollable?} instead (see
+      # {#natively_scrollable_for?}); `canvas` is the one container left
+      # here, since containers haven't migrated yet.
+      SCROLLABLE_TYPES = %i[canvas].freeze
 
       CONTAINER_TYPES.each do |container_type|
         define_method(container_type) do |name = nil, **opts, &block|
@@ -337,20 +313,22 @@ module Teek
         opts.reject { |k, _| k == :bind }.merge(tk_option => opts[:bind].name)
       end
 
-      # {WidgetTypes} first, falling back to the legacy {BIND_OPTIONS} hash
-      # for any type not yet registered as a {WidgetType}.
+      # Every leaf that supports `bind:` is {WidgetType}-registered now, so
+      # this is just its descriptor's own `bind_option:` - `nil` (raising
+      # below) for anything unregistered or genuinely unsupported. No
+      # legacy fallback list is left to consult (unlike
+      # {#natively_scrollable_for?}'s {SCROLLABLE_TYPES}): no
+      # not-yet-migrated container has ever supported `bind:` either,
+      # since there's no single scalar Tk variable option on a container.
       def bind_option_for(type)
-        registered = WidgetTypes.for_type(type)
-        return registered.bind_option if registered
-
-        BIND_OPTIONS[type]
+        WidgetTypes.for_type(type)&.bind_option
       end
 
       def validate_scroll!(type, opts)
         return unless opts.key?(:scroll)
         return if natively_scrollable_for?(type)
 
-        raise ArgumentError, "##{type} doesn't support scroll: (only #{SCROLLABLE_TYPES.join('/')} do)"
+        raise ArgumentError, "##{type} doesn't support scroll: (only #{scrollable_type_names.join('/')} do)"
       end
 
       # {WidgetTypes} first, falling back to the legacy {SCROLLABLE_TYPES}
@@ -360,6 +338,13 @@ module Teek
         return registered.natively_scrollable? if registered
 
         SCROLLABLE_TYPES.include?(type)
+      end
+
+      # The full set of types `scroll:` actually works on - {SCROLLABLE_TYPES}
+      # alone would under-report now that most of them are {WidgetType}
+      # descriptors instead of legacy list entries.
+      def scrollable_type_names
+        (SCROLLABLE_TYPES + WidgetTypes.each.select(&:natively_scrollable?).map(&:type)).sort
       end
 
       # `grow:` is this child's intent within its parent, not a Tk option -
