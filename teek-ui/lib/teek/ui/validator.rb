@@ -15,14 +15,35 @@ module Teek
     # too under +strict: true+.
     #
     # @note "Mixed pack+grid geometry in one container" (the classic Tk-hangs
-    #   hazard) isn't checked here because it's structurally impossible given
-    #   how {Realizer} is built: it picks exactly one arrangement strategy
-    #   per container, from that container's own node type, so one
-    #   container's children can never receive a mix of +pack+ and +grid+
-    #   calls. What IS checked instead is the closest real analog: a node
-    #   carrying grid-cell position intent whose parent isn't actually a
-    #   +:grid+ - only reachable via direct Node/Document manipulation, since
-    #   {WidgetDSL#cell} already refuses to run outside a +ui.grid+ block.
+    #   hazard) isn't checked here because, within the pure DSL layout path,
+    #   it can't happen: {Realizer#arrange_children} picks exactly one
+    #   arrangement strategy per container, from that container's own node
+    #   type, and every container realizes into its own dedicated Tk master
+    #   - a guarantee locked down by a realizer test (test_realizer.rb)
+    #   asserting no master ever receives calls from more than one manager,
+    #   so a future refactor that shares/flattens frames fails a test
+    #   instead of shipping the hazard silently.
+    #
+    #   That guarantee only covers what the DSL itself can construct,
+    #   though - it says nothing about the escape hatch. +ui.raw+,
+    #   +session.app.command+, and a live handle's own +app.command+ calls
+    #   are opaque Procs the tree-walking validator can't see inside, so a
+    #   raw +pack+/+grid+ call from one of those can still target a master
+    #   the DSL already manages - that's the one real, unguardable vector,
+    #   not "direct Node/Document manipulation" (which is what the narrower
+    #   check below actually guards against). If it happens, Tk itself is a
+    #   synchronous backstop: it refuses a second geometry manager on an
+    #   already-managed master with an immediate, clear +Teek::TclError+
+    #   ("cannot use geometry manager X inside Y") rather than the classic
+    #   silent hang - but the DSL has no way to stop the mistake up front,
+    #   so avoid mixing raw geometry calls onto a DSL-managed master (see
+    #   the README's escape hatch section).
+    #
+    #   What IS checked here is the closest real analog reachable through
+    #   the tree: a node carrying grid-cell position intent whose parent
+    #   isn't actually a +:grid+ - only reachable via direct Node/Document
+    #   manipulation, since {WidgetDSL#cell} already refuses to run outside
+    #   a +ui.grid+ block.
     class Validator
       # @param document [Document]
       # @param strict [Boolean] promote warn-level problems (currently just

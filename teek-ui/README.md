@@ -338,6 +338,8 @@ end.run
 
 So: `ui.raw` for build-time raw work, `session.app` (or a realized `Handle`) for anything after.
 
+One caveat either way: don't issue a raw `pack`/`grid` call against a master the DSL already manages (a `column`/`row`/`grid`/etc.'s own Tk frame) - Tk allows exactly one geometry manager per master, and mixing them raises a clear `Teek::TclError` immediately rather than silently hanging, but the DSL has no way to catch the mistake for you up front since it can't see inside an escape-hatch block.
+
 ## Dynamic UIs
 
 "Nothing happens until realize" describes the *initial* declaration only - `session.add(parent_name) { }` builds a subtree with the exact same widget DSL and realizes just that subtree immediately, as a child of an already-realized widget, for UIs that grow after the window is already up (adding rows to a list, rebuilding a menu on right-click):
