@@ -337,6 +337,43 @@ class TestWidgetDsl < Minitest::Test
     assert_match(/grid/, error.message)
   end
 
+  def test_tabs_is_a_container_type
+    session = build_session
+
+    session.tabs(:t) { |t| t.tab('General') { |g| g.button(:go, text: 'Go') } }
+
+    node = session.document.root.children.first
+    assert_equal :tabs, node.type
+    assert_equal [:tab], node.children.map(&:type)
+  end
+
+  def test_tab_stashes_its_label_and_nests_its_blocks_children
+    session = build_session
+
+    session.tabs { |t| t.tab('General') { |g| g.button(:go, text: 'Go') } }
+
+    tab_node = session.document.root.children.first.children.first
+    assert_equal 'General', tab_node.opts[:tab_label]
+    assert_equal [:button], tab_node.children.map(&:type)
+    assert_equal [:go], tab_node.children.map(&:name)
+  end
+
+  def test_tab_accepts_an_optional_name_for_ui_bracket_lookup
+    session = build_session
+
+    session.tabs { |t| t.tab('Advanced', :advanced_tab) }
+
+    assert_equal :advanced_tab, session[:advanced_tab].name
+    assert_equal :tab, session[:advanced_tab].type
+  end
+
+  def test_tab_outside_ui_tabs_raises
+    session = build_session
+
+    error = assert_raises(ArgumentError) { session.tab('General') }
+    assert_match(/ui\.tabs/, error.message)
+  end
+
   def test_raw_creates_a_raw_op_node_attached_to_the_current_parent
     session = build_session
 

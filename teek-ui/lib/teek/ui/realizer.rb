@@ -49,6 +49,8 @@ module Teek
         spacer: 'ttk::frame',
         grid: 'ttk::frame',
         scrollable: 'ttk::frame',
+        tabs: 'ttk::notebook',
+        tab: 'ttk::frame',
       }.freeze
 
       # DSL-reserved opts keys - layout keywords (gap:/align:/pad:/
@@ -57,12 +59,12 @@ module Teek
       # geometry:/resizable:/transient:/modal: for :window nodes, applied by
       # #setup_window; x:/y: for :scrollable and native-scrollable nodes,
       # applied by #create_scrollable/#create_native_scrollable; scroll:
-      # for native-scrollable nodes, applied by #auto_scrollable?) - none
-      # of these are real Tk options, so none are ever passed through to a
-      # widget-creation call.
+      # for native-scrollable nodes, applied by #auto_scrollable?; tab_label
+      # for :tab nodes, applied by #setup_tab) - none of these are real Tk
+      # options, so none are ever passed through to a widget-creation call.
       RESERVED_OPTIONS = %i[
         gap align pad stretch_columns stretch_rows on_close
-        title geometry resizable transient modal x y scroll
+        title geometry resizable transient modal x y scroll tab_label
       ].freeze
 
       # Widget types that already speak Tk's native scrolling protocol
@@ -164,6 +166,7 @@ module Teek
           @app.command(tk_command, path, **node.opts.except(*RESERVED_OPTIONS))
           node.realized = RealizedNode.new(app: @app, path: path)
           setup_window(node, path, parent_path) if node.type == :window
+          setup_tab(node, path, parent_path) if node.type == :tab
         end
 
         if node.type == :scrollable
@@ -203,6 +206,15 @@ module Teek
         @app.command(path, :configure, menu: parent_menu) unless parent_menu.nil? || parent_menu.empty?
       rescue Teek::TclError
         nil
+      end
+
+      # Adds a freshly created :tab's own frame (just created at +path+) as
+      # a page of the enclosing notebook at +parent_path+, labeled with
+      # whatever `#tab` stashed as tab_label:. `ttk::notebook add` is the
+      # page's whole placement - unlike every other container, a tab's
+      # frame is never pack/grid-managed on its own (see NOT_ARRANGED_TYPES).
+      def setup_tab(node, path, parent_path)
+        @app.command(parent_path, :add, path, text: node.opts[:tab_label])
       end
 
       # Whether +node+ should auto-attach a scrollbar with no explicit
@@ -468,8 +480,10 @@ module Teek
       # manager, not by whatever pack/grid strategy its nominal parent uses
       # (packing/gridding a toplevel into its parent is a Tk error, "it's a
       # top-level window"); :menu_bar/:context_menu attach via their own
-      # -menu config / on_right_click wiring, never via pack/grid either.
-      NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu].freeze
+      # -menu config / on_right_click wiring, never via pack/grid either;
+      # :tab is placed entirely by `ttk::notebook add` (#setup_tab), not a
+      # geometry manager at all.
+      NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu tab].freeze
 
       def arrange_children(node)
         arrangeable = node.children.reject { |child| NOT_ARRANGED_TYPES.include?(child.type) }

@@ -161,6 +161,22 @@ session[:confirm].show   # grabs and focuses automatically - it's a dialog
 
 Every other container (`panel`/`group`/`canvas`) still just packs its children top-to-bottom with no options - reach for `column`/`row`/`grid` when you actually want control over spacing/alignment/positions. Overlay layout isn't built yet.
 
+## Tabs
+
+`ui.tabs { }` is a `ttk::notebook`; `t.tab(label, name = nil) { }` declares one page, only valid directly inside it:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.tabs(:settings) do |t|
+    t.tab('General') { |g| g.checkbox(text: 'Dark mode') }
+    t.tab('Advanced', :advanced_tab) { |a| a.label(text: 'Here be dragons') }
+  end
+  ui[:settings].on_tab_changed { |tab| puts "switched to #{tab}" }  # :advanced_tab, or 0/1 if unnamed
+end.run
+```
+
+A tab's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. `on_tab_changed` surfaces Tk's `<<NotebookTabChanged>>`, delivering the newly selected tab's own name if it has one, otherwise its zero-based index. New tabs can be added at runtime via `session.add`.
+
 ## Screens
 
 `ui.screens` is a push/pop stack for swapping which content is on display - pushing conceals whatever screen was on top (if any) before revealing the new one; popping reverses that. It works directly against ordinary handles, so there's no bespoke per-screen class to write:

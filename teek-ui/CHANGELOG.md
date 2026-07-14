@@ -22,6 +22,7 @@ Nothing has shipped yet - this section is a snapshot of the current API, not a r
 - Reactive variables: `ui.var`, `bind:`, `#value`/`#value=`, `#on_change`.
 - Menus: `menu_bar`/`menu`/`context_menu`, shared `item`/`separator`/`checkbox`/`radio` vocabulary.
 - Windows: `ui.window`/`ui.dialog` - managed toplevels with `show`/`hide`/`modal`.
+- Tabs: `ui.tabs`/`t.tab(label, name)` - `ttk::notebook`, `on_tab_changed` event.
 - Screens: `ui.screens` - push/pop stack for swapping displayed content.
 - Modal stacking: `ui.modal` - push/pop stack for stacked dialogs, with enter/exit/focus-change callbacks.
 - Dynamic UIs: `session.add` builds and realizes a subtree into an already-running app.

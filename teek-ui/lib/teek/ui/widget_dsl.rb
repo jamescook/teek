@@ -42,9 +42,10 @@ module Teek
       # own `x:`/`y:` options - for a bare `list`/`text_area`/`table`/
       # `tree`/`canvas`, a scrollbar auto-attaches wherever it's declared
       # instead (see {#validate_scroll!}/{Realizer#auto_scrollable?}), no
-      # `scrollable` wrapper needed; the rest keep the plain unconditional
-      # pack every container has always gotten.
-      CONTAINER_TYPES = %i[panel group canvas window column row grid scrollable].freeze
+      # `scrollable` wrapper needed; `tabs` holds `#tab`-declared panes
+      # (below), each realized as its own `ttk::notebook` page; the rest
+      # keep the plain unconditional pack every container has always gotten.
+      CONTAINER_TYPES = %i[panel group canvas window column row grid scrollable tabs].freeze
 
       # Widget type -> the Tk option a bound {Var} plugs into. Not every
       # widget can be bound this way (text_area/list/table/tree/divider have
@@ -137,6 +138,19 @@ module Teek
 
         grid_node.opts[:stretch_columns] = Array(columns) if columns.any?
         grid_node.opts[:stretch_rows] = Array(rows) if rows.any?
+      end
+
+      # One page of an enclosing `ui.tabs`, labeled `label` in the tab bar.
+      # Only valid directly inside a `ui.tabs` block; its own block builds
+      # the pane's content with the ordinary widget DSL, same as any other
+      # container.
+      # @param label [String] the tab's title, shown in the tab bar
+      # @param name [Symbol, nil] for `ui[:name]` lookup, same as any widget
+      # @return [Handle]
+      # @raise [ArgumentError] if declared anywhere other than directly inside ui.tabs
+      def tab(label, name = nil, **opts, &block)
+        current_tabs!('tab')
+        append_container(:tab, name, opts.merge(tab_label: label), &block)
       end
 
       # Node types a menu_bar is allowed to attach to - the root window
@@ -277,6 +291,15 @@ module Teek
         end
 
         grid_node
+      end
+
+      def current_tabs!(method_name)
+        tabs_node = @stack.last
+        unless tabs_node.type == :tabs
+          raise ArgumentError, "##{method_name} can only be used directly inside ui.tabs"
+        end
+
+        tabs_node
       end
 
       def append_container(type, name, opts)

@@ -43,6 +43,7 @@ module Teek
       # @return [void]
       def validate!
         check_stray_cell_intent
+        check_stray_tab_intent
         check_grid_cell_collisions
         check_dangling_event_targets
         check_orphans
@@ -60,6 +61,18 @@ module Teek
 
           @errors << "#{describe(node)} has a grid cell position but its parent (#{describe(parent)}) isn't a " \
                       "ui.grid - its row/col/span would be silently ignored"
+        end
+      end
+
+      # Only reachable via direct Node/Document manipulation, since
+      # {WidgetDSL#tab} already refuses to run outside a +ui.tabs+ block -
+      # the same defense-in-depth {#check_stray_cell_intent} does for grid.
+      def check_stray_tab_intent
+        each_node_with_parent do |node, parent|
+          next unless node.type == :tab
+          next if parent && parent.type == :tabs
+
+          @errors << "#{describe(node)} is a :tab but its parent (#{describe(parent)}) isn't a ui.tabs"
         end
       end
 

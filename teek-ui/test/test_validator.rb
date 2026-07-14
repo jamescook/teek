@@ -35,6 +35,20 @@ class TestValidator < Minitest::Test
     assert_match(/not_a_grid/, error.message)
   end
 
+  def test_a_tab_node_under_a_non_tabs_parent_raises
+    # only reachable via direct Node/Document manipulation - WidgetDSL#tab
+    # itself already refuses to run outside a ui.tabs block.
+    document = Teek::UI::Document.new
+    panel = document.create(type: :panel, name: :not_tabs)
+    document.root.add_child(panel)
+    stray = document.create(type: :tab, name: :stray, opts: { tab_label: 'Stray' })
+    panel.add_child(stray)
+
+    error = assert_raises(Teek::UI::ValidationError) { Teek::UI::Validator.validate!(document) }
+    assert_match(/:tab/, error.message)
+    assert_match(/not_tabs/, error.message)
+  end
+
   def test_two_widgets_in_the_same_grid_cell_raises
     session = build_session
     session.grid(:g) do |g|

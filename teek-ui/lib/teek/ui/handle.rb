@@ -135,6 +135,29 @@ module Teek
         self
       end
 
+      # Fires when the selected tab changes (Tk's <<NotebookTabChanged>>).
+      # The block receives the newly selected tab's own name (the Symbol
+      # given via `t.tab(label, name)`) if it has one, otherwise its plain
+      # zero-based index - preferring a name over a raw Tk index, same as
+      # `ui[:name]` lookup does everywhere else in the DSL. Only valid on a
+      # `ui.tabs` handle.
+      # @yield [name_or_index] Symbol or Integer
+      # @return [self]
+      # @raise [ArgumentError] if this handle isn't a tabs container
+      def on_tab_changed(&block)
+        unless type == :tabs
+          raise ArgumentError, "on_tab_changed only makes sense on a tabs container (got a :#{type})"
+        end
+
+        wrapped = lambda {
+          index = realized.app.command(realized.path, :index, :current).to_i
+          tab_node = @node.children[index]
+          block.call(tab_node&.name || index)
+        }
+        bind_event('<<NotebookTabChanged>>', wrapped)
+        self
+      end
+
       # Show the window modally: grabs input and sets focus on it
       # immediately. Release it explicitly with {#grab_release} (typically
       # from the window's own dismiss/close handling) when the dialog is
