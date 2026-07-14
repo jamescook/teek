@@ -37,9 +37,11 @@ module Teek
       # `column`/`row` additionally get flow-layout packing from the
       # realizer (see {Realizer::FLOW}) driven by their own `gap:`/`align:`/
       # `pad:` options; `grid` gets real Tk grid arrangement driven by
-      # `#cell`/`#stretch` (below); the others keep the plain unconditional
-      # pack every container has always gotten.
-      CONTAINER_TYPES = %i[panel group canvas window column row grid].freeze
+      # `#cell`/`#stretch` (below); `scrollable` auto-wires a scrollbar to
+      # its content (see {Realizer#create_scrollable}) driven by its own
+      # `x:`/`y:` options; the others keep the plain unconditional pack
+      # every container has always gotten.
+      CONTAINER_TYPES = %i[panel group canvas window column row grid scrollable].freeze
 
       # Widget type -> the Tk option a bound {Var} plugs into. Not every
       # widget can be bound this way (text_area/list/table/tree/divider have

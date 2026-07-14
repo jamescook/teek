@@ -48,18 +48,29 @@ module Teek
         row: 'ttk::frame',
         spacer: 'ttk::frame',
         grid: 'ttk::frame',
+        scrollable: 'ttk::frame',
       }.freeze
 
       # DSL-reserved opts keys - layout keywords (gap:/align:/pad:/
       # stretch_columns/stretch_rows) plus other entries the DSL stashes on
       # node.opts for the realizer to pick up later (on_close:, and title:/
       # geometry:/resizable:/transient:/modal: for :window nodes, applied by
-      # #setup_window) - none of these are real Tk options, so none are
-      # ever passed through to a widget-creation call.
+      # #setup_window; x:/y: for :scrollable nodes, applied by
+      # #create_scrollable) - none of these are real Tk options, so none
+      # are ever passed through to a widget-creation call.
       RESERVED_OPTIONS = %i[
         gap align pad stretch_columns stretch_rows on_close
-        title geometry resizable transient modal
+        title geometry resizable transient modal x y
       ].freeze
+
+      # Widget types that already speak Tk's native scrolling protocol
+      # (-yscrollcommand/-xscrollcommand + yview/xview) - a :scrollable
+      # whose single child is one of these wires a scrollbar straight to
+      # it. Anything else (no children, several, or a plain container) is
+      # wrapped in a canvas + embedded frame instead - the classic Tk
+      # "scrollable frame" trick, since arbitrary widgets have no
+      # scrolling protocol of their own to hook a scrollbar into.
+      NATIVELY_SCROLLABLE_TYPES = %i[list text_area table tree canvas].freeze
 
       # :column/:row flow-packing config, mirrored across the main axis
       # (stack direction) and cross axis (perpendicular to it).
@@ -143,7 +154,11 @@ module Teek
           setup_window(node, path, parent_path) if node.type == :window
         end
 
-        node.children.each { |child| create(child, path) }
+        if node.type == :scrollable
+          create_scrollable(node, path)
+        else
+          node.children.each { |child| create(child, path) }
+        end
       end
 
       # Sets up a freshly created toplevel: title/geometry/resizable setup,
@@ -176,6 +191,83 @@ module Teek
         @app.command(path, :configure, menu: parent_menu) unless parent_menu.nil? || parent_menu.empty?
       rescue Teek::TclError
         nil
+      end
+
+      # A :scrollable's own widget (created just before this runs) is a
+      # plain ttk::frame at +path+ - this fills it in, taking over child
+      # creation instead of the generic node.children.each loop #create
+      # otherwise uses, since where a :scrollable's children actually live
+      # in the Tk tree depends on which of the two cases below applies.
+      #
+      # Native case (single child, a listbox/text/treeview/canvas): the
+      # child is created directly under +path+ as usual, then a scrollbar
+      # is wired straight to it (-yscrollcommand/-xscrollcommand + its own
+      # -command calling back to +yview+/+xview+) - zero extra widgets.
+      #
+      # Frame case (anything else - no children, several, or a plain
+      # container): there's no Tk protocol to hook a scrollbar into
+      # arbitrary widgets, so children are created inside an embedded
+      # frame instead - +path+.canvas.viewport - packed inside a canvas
+      # that the scrollbar drives. The viewport's own size changes (as its
+      # content changes) keep the canvas's -scrollregion in sync; unless
+      # horizontal scrolling is on, the canvas's own size changes keep the
+      # viewport's width matched to it too, so content isn't left
+      # narrower than the visible area.
+      def create_scrollable(node, path)
+        y = node.opts.fetch(:y, true)
+        x = node.opts.fetch(:x, false)
+        child = native_scrollable_child(node)
+
+        if child
+          create(child, path)
+          wire_scrollbars(path, child.realized.path, x: x, y: y)
+        else
+          canvas_path = "#{path}.canvas"
+          viewport_path = "#{canvas_path}.viewport"
+          @app.command('canvas', canvas_path, highlightthickness: 0)
+          @app.command('ttk::frame', viewport_path)
+          window_id = @app.command(canvas_path, :create, :window, 0, 0, window: viewport_path, anchor: 'nw')
+
+          node.children.each { |grandchild| create(grandchild, viewport_path) }
+
+          @app.bind(viewport_path, '<Configure>') {
+            @app.command(canvas_path, :configure, scrollregion: @app.command(canvas_path, :bbox, :all))
+          }
+          unless x
+            @app.bind(canvas_path, '<Configure>', :width) { |width|
+              @app.command(canvas_path, :itemconfigure, window_id, width: width)
+            }
+          end
+
+          wire_scrollbars(path, canvas_path, x: x, y: y)
+        end
+      end
+
+      def wire_scrollbars(path, target_path, x:, y:)
+        vsb_path = "#{path}.vsb"
+        hsb_path = "#{path}.hsb"
+
+        if y
+          @app.command('ttk::scrollbar', vsb_path, orient: 'vertical', command: "#{target_path} yview")
+          @app.command(target_path, :configure, yscrollcommand: "#{vsb_path} set")
+        end
+        if x
+          @app.command('ttk::scrollbar', hsb_path, orient: 'horizontal', command: "#{target_path} xview")
+          @app.command(target_path, :configure, xscrollcommand: "#{hsb_path} set")
+        end
+
+        @app.command(:grid, target_path, row: 0, column: 0, sticky: 'nsew')
+        @app.command(:grid, vsb_path, row: 0, column: 1, sticky: 'ns') if y
+        @app.command(:grid, hsb_path, row: 1, column: 0, sticky: 'ew') if x
+        @app.command(:grid, :columnconfigure, path, 0, weight: 1)
+        @app.command(:grid, :rowconfigure, path, 0, weight: 1)
+      end
+
+      def native_scrollable_child(node)
+        return nil unless node.children.length == 1
+
+        candidate = node.children.first
+        NATIVELY_SCROLLABLE_TYPES.include?(candidate.type) ? candidate : nil
       end
 
       # Builds one menu widget (a menu_bar, a nested cascade, or a
@@ -242,12 +334,22 @@ module Teek
       NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu].freeze
 
       def arrange_children(node)
+        # The native case already placed its one child with grid (see
+        # #wire_scrollbars) - packing it again here would conflict.
+        return if node.type == :scrollable && native_scrollable_child(node)
+
         arrangeable = node.children.reject { |child| NOT_ARRANGED_TYPES.include?(child.type) }
 
         if FLOW.key?(node.type)
           arrange_flow(node, arrangeable)
         elsif node.type == :grid
           arrange_grid(node, arrangeable)
+        elsif node.type == :scrollable
+          # The frame case's children live in the embedded viewport frame
+          # (see #create_scrollable) - fill/expand by default so content
+          # stretches to the visible width instead of hugging its own
+          # natural size.
+          arrangeable.each { |child| @app.command(:pack, child.realized.path, fill: 'both', expand: true) }
         else
           arrangeable.each { |child| @app.command(:pack, child.realized.path) }
         end

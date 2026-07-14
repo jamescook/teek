@@ -340,6 +340,39 @@ class TestWidgetDsl < Minitest::Test
     refute executed, "ui.raw should defer its block to realize, not run it during build"
   end
 
+  def test_scrollable_nests_children_declared_in_its_block
+    session = build_session
+
+    session.scrollable(:region) do |s|
+      s.list(:items)
+    end
+
+    node = session.document.root.children.first
+    assert_equal :scrollable, node.type
+    assert_equal [:list], node.children.map(&:type)
+    assert_equal [:items], node.children.map(&:name)
+  end
+
+  def test_scrollable_x_and_y_opts_land_on_the_node
+    session = build_session
+
+    session.scrollable(:region, x: true, y: false) { |s| s.list(:items) }
+
+    node = session.document.root.children.first
+    assert_equal true, node.opts[:x]
+    assert_equal false, node.opts[:y]
+  end
+
+  def test_scrollable_without_a_block_still_creates_a_childless_node
+    session = build_session
+
+    session.scrollable(:region)
+
+    node = session.document.root.children.first
+    assert_equal :scrollable, node.type
+    assert_equal [], node.children
+  end
+
   def test_screens_is_memoized_across_calls
     session = build_session
 

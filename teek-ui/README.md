@@ -102,6 +102,19 @@ end.run
 
 `cell`/`stretch` only work directly inside a `ui.grid` block - both raise otherwise.
 
+## Scrolling
+
+`ui.scrollable(x: false, y: true) { }` wraps its content with a working scrollbar - no `-yscrollcommand`/`-xscrollcommand`/scrollbar widget wiring in app code:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.scrollable { |s| s.list(:log) }
+  ui.scrollable { |s| s.column { |c| 50.times { |i| c.label(text: "Row #{i}") } } }
+end.run
+```
+
+A single `list`/`text_area`/`table`/`tree`/`canvas` child is natively scrollable in Tk, so the scrollbar hooks straight into it. Anything else - no children, several, or a plain container full of arbitrary widgets - has no scrolling protocol of its own, so it's wrapped in an embedded frame that a scrollbar drives instead; that frame fills the visible width automatically unless `x:` scrolling is on. `y:` defaults to `true`, `x:` to `false` - pass either as `false`/`true` to change which scrollbar(s) appear.
+
 ## Windows
 
 `ui.window(title:, geometry:, resizable:, modal:) { }` is a managed toplevel - unlike the plain container types, it wires up the wm-level bookkeeping a secondary window actually needs (title, initial geometry, resizable, transient-to-its-parent, macOS's shared-menubar quirk) and starts **withdrawn** - it isn't shown until you call `.show`:
