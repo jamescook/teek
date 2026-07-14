@@ -6,6 +6,7 @@ require_relative 'var'
 require_relative 'menu_builder'
 require_relative 'screens'
 require_relative 'modal_stack'
+require_relative 'widget_types'
 
 module Teek
   module UI
@@ -28,10 +29,13 @@ module Teek
     # {#raise_if_closed!} - true before the initial realize and again for
     # the duration of an +#add+ block, false otherwise).
     module WidgetDSL
-      # Widget kinds with no children of their own - just options.
+      # Widget kinds with no children of their own - just options. Leaves
+      # migrated to a {WidgetType} descriptor (see {WidgetTypes}) come out
+      # of this list - `:divider` is the first (and, for now, only) one;
+      # its `ui.divider` method comes from {.on_register} below instead.
       LEAF_TYPES = %i[
         text_box text_area label button checkbox radio slider dropdown
-        number_box list table tree progress divider
+        number_box list table tree progress
       ].freeze
 
       # Widget kinds that hold children, declared in a block. The block
@@ -83,6 +87,14 @@ module Teek
           append_container(container_type, name, opts, &block)
         end
       end
+
+      # Every {WidgetType}-registered type gets its own `ui.<type>`
+      # method(s) here instead of a LEAF_TYPES/CONTAINER_TYPES entry -
+      # {WidgetTypes.on_register} replays every type already registered
+      # (built-ins like `:divider` load before this file does) and keeps
+      # firing for any registered later, so a type registered by
+      # third-party code lights up here with no edit to either array above.
+      WidgetTypes.on_register { |widget_type| widget_type.define_dsl_method!(self) }
 
       # `box` is a bare alternate spelling of `panel` - same node type, so
       # the realizer only ever has to know about `:panel`.
@@ -320,17 +332,34 @@ module Teek
       def resolve_bind(type, opts)
         return opts unless opts.key?(:bind)
 
-        tk_option = BIND_OPTIONS.fetch(type) {
+        tk_option = bind_option_for(type) or
           raise ArgumentError, "##{type} doesn't support bind: (no bindable Tk option is mapped for it)"
-        }
         opts.reject { |k, _| k == :bind }.merge(tk_option => opts[:bind].name)
+      end
+
+      # {WidgetTypes} first, falling back to the legacy {BIND_OPTIONS} hash
+      # for any type not yet registered as a {WidgetType}.
+      def bind_option_for(type)
+        registered = WidgetTypes.for_type(type)
+        return registered.bind_option if registered
+
+        BIND_OPTIONS[type]
       end
 
       def validate_scroll!(type, opts)
         return unless opts.key?(:scroll)
-        return if SCROLLABLE_TYPES.include?(type)
+        return if natively_scrollable_for?(type)
 
         raise ArgumentError, "##{type} doesn't support scroll: (only #{SCROLLABLE_TYPES.join('/')} do)"
+      end
+
+      # {WidgetTypes} first, falling back to the legacy {SCROLLABLE_TYPES}
+      # list for any type not yet registered as a {WidgetType}.
+      def natively_scrollable_for?(type)
+        registered = WidgetTypes.for_type(type)
+        return registered.natively_scrollable? if registered
+
+        SCROLLABLE_TYPES.include?(type)
       end
 
       # `grow:` is this child's intent within its parent, not a Tk option -

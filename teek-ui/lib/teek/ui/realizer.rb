@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'realized_node'
+require_relative 'widget_types'
 
 module Teek
   module UI
@@ -24,7 +25,11 @@ module Teek
     #   placeholder for every other container type - their children just
     #   pack top-to-bottom with no options. There's no overlay layout yet.
     class Realizer
-      # DSL node type -> Tk widget-creation command.
+      # DSL node type -> Tk widget-creation command, for any type not yet
+      # migrated to a {WidgetType} descriptor (see {WidgetTypes}) - a
+      # registered type's tk_command comes from its own descriptor instead
+      # (see {#tk_command_for}). `:divider` is the first migrated leaf, so
+      # it's no longer listed here.
       TK_COMMANDS = {
         text_box: 'ttk::entry',
         text_area: 'text',
@@ -39,7 +44,6 @@ module Teek
         table: 'ttk::treeview',
         tree: 'ttk::treeview',
         progress: 'ttk::progressbar',
-        divider: 'ttk::separator',
         panel: 'ttk::frame',
         group: 'ttk::labelframe',
         canvas: 'canvas',
@@ -146,6 +150,15 @@ module Teek
       # their own to visit separately.
       MENU_ROOT_TYPES = %i[menu_bar context_menu].freeze
 
+      # {WidgetTypes} first, falling back to the legacy {TK_COMMANDS} hash
+      # for any type not yet registered as a {WidgetType}.
+      def tk_command_for(type)
+        registered = WidgetTypes.for_type(type)
+        return registered.tk_command if registered
+
+        TK_COMMANDS.fetch(type) { raise ArgumentError, "no Tk command mapped for node type :#{type}" }
+      end
+
       def create(node, parent_path)
         if MENU_ROOT_TYPES.include?(node.type)
           create_menu_tree(node, parent_path)
@@ -165,14 +178,12 @@ module Teek
           end
 
         unless NON_WIDGET_TYPES.include?(node.type)
-          tk_command = TK_COMMANDS.fetch(node.type) {
-            raise ArgumentError, "no Tk command mapped for node type :#{node.type}"
-          }
-          @app.command(tk_command, path, **node.opts.except(*RESERVED_OPTIONS))
+          @app.command(tk_command_for(node.type), path, **node.opts.except(*RESERVED_OPTIONS))
           node.realized = RealizedNode.new(app: @app, path: path)
           setup_window(node, path, parent_path) if node.type == :window
           setup_tab(node, path, parent_path) if node.type == :tab
           setup_pane(node, path, parent_path) if node.type == :pane
+          WidgetTypes.for_type(node.type)&.post_create(@app, node, path)
         end
 
         if node.type == :scrollable
@@ -240,7 +251,17 @@ module Teek
       # settles the 3-level override (widget's own +scroll:+, then the
       # session's app-wide default, then the global one).
       def auto_scrollable?(node)
-        NATIVELY_SCROLLABLE_TYPES.include?(node.type) && resolve_scroll(node)
+        natively_scrollable?(node.type) && resolve_scroll(node)
+      end
+
+      # {WidgetTypes} first, falling back to the legacy
+      # {NATIVELY_SCROLLABLE_TYPES} list for any type not yet registered as
+      # a {WidgetType}.
+      def natively_scrollable?(type)
+        registered = WidgetTypes.for_type(type)
+        return registered.natively_scrollable? if registered
+
+        NATIVELY_SCROLLABLE_TYPES.include?(type)
       end
 
       def resolve_scroll(node)
@@ -268,7 +289,7 @@ module Teek
       # {RealizedNode}.
       def create_native_scrollable(node, path)
         widget_path = "#{path}.widget"
-        tk_command = TK_COMMANDS.fetch(node.type)
+        tk_command = tk_command_for(node.type)
 
         @app.command('ttk::frame', path)
         @app.command(tk_command, widget_path, **node.opts.except(*RESERVED_OPTIONS))

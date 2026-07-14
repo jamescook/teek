@@ -28,6 +28,12 @@ module Teek
     # type. One depth-first walk covers both the document-level checks
     # below and every registered widget validator.
     #
+    # A {WidgetType} descriptor's own +validator:+ (see {WidgetTypes})
+    # needs no separate handling here at all - {WidgetTypes.register}
+    # forwards it into {WidgetValidators} directly, so it's dispatched
+    # through the exact same +WidgetValidators.for_type+ call every other
+    # validator already goes through.
+    #
     # @note "Mixed pack+grid geometry in one container" (the classic Tk-hangs
     #   hazard) isn't checked here because, within the pure DSL layout path,
     #   it can't happen: {Realizer#arrange_children} picks exactly one
