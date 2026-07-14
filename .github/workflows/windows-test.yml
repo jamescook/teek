@@ -88,6 +88,10 @@ jobs:
       timeout-minutes: 5
       run: bundle exec rake sdl2:test TESTOPTS="-v"
 
+    - name: Run UI tests
+      timeout-minutes: 5
+      run: bundle exec rake ui:test TESTOPTS="-v"
+
     - name: Save MSYS2 installed packages
       if: always() && steps.msys2-cache.outputs.cache-hit != 'true'
       uses: actions/cache/save@v5
