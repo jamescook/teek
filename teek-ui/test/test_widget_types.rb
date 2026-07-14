@@ -45,8 +45,15 @@ class TestWidgetTypes < Minitest::Test
     refute Teek::UI::WidgetDSL.const_defined?(:BIND_OPTIONS)
   end
 
-  def test_scrollable_types_shrinks_to_just_the_unmigrated_container_remainder
-    assert_equal [:canvas], Teek::UI::WidgetDSL::SCROLLABLE_TYPES
+  def test_scrollable_types_no_longer_exists_now_that_canvas_has_migrated
+    refute Teek::UI::WidgetDSL.const_defined?(:SCROLLABLE_TYPES)
+  end
+
+  def test_canvas_is_registered_as_natively_scrollable
+    widget_type = Teek::UI::WidgetTypes.for_type(:canvas)
+
+    refute_nil widget_type
+    assert widget_type.natively_scrollable?
   end
 
   def test_divider_is_registered_as_a_built_in
@@ -154,18 +161,53 @@ class TestWidgetTypes < Minitest::Test
   def test_post_create_defaults_to_a_no_op
     widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_no_post_create__, tk_command: 'ttk::label')
 
-    assert_nil widget_type.post_create(:app, :node, :path)
+    assert_nil widget_type.post_create(:app, :node, :path, :parent_path)
   end
 
   def test_post_create_runs_the_given_hook
     calls = []
     widget_type = Teek::UI::WidgetType.new(
       type: :__test_widget_type_post_create__, tk_command: 'ttk::label',
-      post_create: ->(app, node, path) { calls << [app, node, path] }
+      post_create: ->(app, node, path, parent_path) { calls << [app, node, path, parent_path] }
     )
 
-    widget_type.post_create(:app, :node, :path)
+    widget_type.post_create(:app, :node, :path, :parent_path)
 
-    assert_equal [[:app, :node, :path]], calls
+    assert_equal [[:app, :node, :path, :parent_path]], calls
+  end
+
+  def test_flow_defaults_to_nil
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_no_flow__, tk_command: 'ttk::frame')
+
+    assert_nil widget_type.flow
+  end
+
+  def test_arranged_defaults_to_true
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_arranged_default__, tk_command: 'ttk::frame')
+
+    assert widget_type.arranged?
+  end
+
+  def test_arranged_false_is_registered_and_read_back
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_unarranged__, tk_command: 'toplevel', arranged: false)
+
+    refute widget_type.arranged?
+  end
+
+  def test_window_is_registered_as_unarranged
+    widget_type = Teek::UI::WidgetTypes.for_type(:window)
+
+    refute_nil widget_type
+    refute widget_type.arranged?
+  end
+
+  def test_column_and_row_are_registered_with_flow_config
+    column = Teek::UI::WidgetTypes.for_type(:column)
+    row = Teek::UI::WidgetTypes.for_type(:row)
+
+    refute_nil column.flow
+    refute_nil row.flow
+    assert_equal 'top', column.flow[:side]
+    assert_equal 'left', row.flow[:side]
   end
 end

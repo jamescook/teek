@@ -29,34 +29,22 @@ module Teek
     # {#raise_if_closed!} - true before the initial realize and again for
     # the duration of an +#add+ block, false otherwise).
     module WidgetDSL
-      # Widget kinds that hold children, declared in a block. The block
-      # yields the same builder object back (not a separate scoped builder),
-      # so a name declared inside it is addressable from outside too.
+      # Widget kinds that hold children, declared in a block, still on the
+      # legacy path - `panel`/`group`/`canvas`/`window`/`column`/`row`/
+      # `spacer` have all migrated to a {WidgetType} descriptor instead
+      # (see {WidgetTypes}), so this only covers what hasn't yet:
       #
-      # `column`/`row` additionally get flow-layout packing from the
-      # realizer (see {Realizer::FLOW}) driven by their own `gap:`/`align:`/
-      # `pad:` options; `grid` gets real Tk grid arrangement driven by
-      # `#cell`/`#stretch` (below); `scrollable` wraps arbitrary content in
-      # a scrolled frame (see {Realizer#create_scrollable}), driven by its
-      # own `x:`/`y:` options - for a bare `list`/`text_area`/`table`/
-      # `tree`/`canvas`, a scrollbar auto-attaches wherever it's declared
-      # instead (see {#validate_scroll!}/{Realizer#auto_scrollable?}), no
-      # `scrollable` wrapper needed; `tabs` holds `#tab`-declared panes
-      # (below), each realized as its own `ttk::notebook` page; the rest
-      # keep the plain unconditional pack every container has always gotten.
-      # `split` is the same shape as `tabs`/`#tab` (holding `#pane`-declared
-      # regions, each realized as its own `ttk::panedwindow` pane) but,
-      # like `#tab`, is declared explicitly below rather than through this
-      # array, since its `orientation:` needs validating/translating to a
-      # real `-orient` option before reaching the widget-creation call.
-      CONTAINER_TYPES = %i[panel group canvas window column row grid scrollable tabs].freeze
-
-      # Widget types that auto-attach a scrollbar via the legacy path -
-      # every migrated leaf (`list`/`text_area`/`table`/`tree`) reports its
-      # own {WidgetType#natively_scrollable?} instead (see
-      # {#natively_scrollable_for?}); `canvas` is the one container left
-      # here, since containers haven't migrated yet.
-      SCROLLABLE_TYPES = %i[canvas].freeze
+      # `grid` gets real Tk grid arrangement driven by `#cell`/`#stretch`
+      # (below); `scrollable` wraps arbitrary content in a scrolled frame
+      # (see {Realizer#create_scrollable}), driven by its own `x:`/`y:`
+      # options; `tabs` holds `#tab`-declared panes (below), each realized
+      # as its own `ttk::notebook` page. `split` is the same shape as
+      # `tabs`/`#tab` (holding `#pane`-declared regions, each realized as
+      # its own `ttk::panedwindow` pane) but, like `#tab`, is declared
+      # explicitly below rather than through this array, since its
+      # `orientation:` needs validating/translating to a real `-orient`
+      # option before reaching the widget-creation call.
+      CONTAINER_TYPES = %i[grid scrollable tabs].freeze
 
       CONTAINER_TYPES.each do |container_type|
         define_method(container_type) do |name = nil, **opts, &block|
@@ -85,14 +73,6 @@ module Teek
       # @return [Handle]
       def dialog(name = nil, modal: true, resizable: false, **opts, &block)
         append_container(:window, name, opts.merge(modal: modal, resizable: resizable), &block)
-      end
-
-      # A flexible gap - the named replacement for the "invisible spring
-      # row" trick (an empty row/column given all the leftover weight).
-      # Just a leaf with `grow: true` baked in; nothing to configure.
-      # @return [Handle]
-      def spacer
-        append_leaf(:spacer, nil, grow: true)
       end
 
       # Look up a named widget declared anywhere in this build.
@@ -313,13 +293,9 @@ module Teek
         opts.reject { |k, _| k == :bind }.merge(tk_option => opts[:bind].name)
       end
 
-      # Every leaf that supports `bind:` is {WidgetType}-registered now, so
-      # this is just its descriptor's own `bind_option:` - `nil` (raising
-      # below) for anything unregistered or genuinely unsupported. No
-      # legacy fallback list is left to consult (unlike
-      # {#natively_scrollable_for?}'s {SCROLLABLE_TYPES}): no
-      # not-yet-migrated container has ever supported `bind:` either,
-      # since there's no single scalar Tk variable option on a container.
+      # Every leaf/container that supports `bind:` is {WidgetType}-registered
+      # now, so this is just its descriptor's own `bind_option:` - `nil`
+      # (raising below) for anything unregistered or genuinely unsupported.
       def bind_option_for(type)
         WidgetTypes.for_type(type)&.bind_option
       end
@@ -331,20 +307,18 @@ module Teek
         raise ArgumentError, "##{type} doesn't support scroll: (only #{scrollable_type_names.join('/')} do)"
       end
 
-      # {WidgetTypes} first, falling back to the legacy {SCROLLABLE_TYPES}
-      # list for any type not yet registered as a {WidgetType}.
+      # Every type that has ever supported `scroll:` is {WidgetType}-registered
+      # now (list/text_area/table/tree/canvas), so this is just its
+      # descriptor's own `natively_scrollable?` - `false` for anything
+      # unregistered.
       def natively_scrollable_for?(type)
-        registered = WidgetTypes.for_type(type)
-        return registered.natively_scrollable? if registered
-
-        SCROLLABLE_TYPES.include?(type)
+        WidgetTypes.for_type(type)&.natively_scrollable? || false
       end
 
-      # The full set of types `scroll:` actually works on - {SCROLLABLE_TYPES}
-      # alone would under-report now that most of them are {WidgetType}
-      # descriptors instead of legacy list entries.
+      # The full set of types `scroll:` actually works on, for the error
+      # message above.
       def scrollable_type_names
-        (SCROLLABLE_TYPES + WidgetTypes.each.select(&:natively_scrollable?).map(&:type)).sort
+        WidgetTypes.each.select(&:natively_scrollable?).map(&:type).sort
       end
 
       # `grow:` is this child's intent within its parent, not a Tk option -

@@ -28,16 +28,10 @@ module Teek
       # DSL node type -> Tk widget-creation command, for any type not yet
       # migrated to a {WidgetType} descriptor (see {WidgetTypes}) - a
       # registered type's tk_command comes from its own descriptor instead
-      # (see {#tk_command_for}). Every leaf widget has migrated; what's
-      # left here is containers and other special types.
+      # (see {#tk_command_for}). Every leaf widget and the simple/flow
+      # containers have migrated; what's left here is grid/scrollable/tabs
+      # and the other special types.
       TK_COMMANDS = {
-        panel: 'ttk::frame',
-        group: 'ttk::labelframe',
-        canvas: 'canvas',
-        window: 'toplevel',
-        column: 'ttk::frame',
-        row: 'ttk::frame',
-        spacer: 'ttk::frame',
         grid: 'ttk::frame',
         scrollable: 'ttk::frame',
         tabs: 'ttk::notebook',
@@ -50,7 +44,7 @@ module Teek
       # stretch_columns/stretch_rows) plus other entries the DSL stashes on
       # node.opts for the realizer to pick up later (on_close:, and title:/
       # geometry:/resizable:/transient:/modal: for :window nodes, applied by
-      # #setup_window; x:/y: for :scrollable and native-scrollable nodes,
+      # {WindowRealize}; x:/y: for :scrollable and native-scrollable nodes,
       # applied by #create_scrollable/#create_native_scrollable; scroll:
       # for native-scrollable nodes, applied by #auto_scrollable?; tab_label
       # for :tab nodes, applied by #setup_tab; pane_weight for :pane nodes,
@@ -62,33 +56,6 @@ module Teek
         gap align pad stretch_columns stretch_rows on_close
         title geometry resizable transient modal x y scroll tab_label pane_weight
       ].freeze
-
-      # Widget types that already speak Tk's native scrolling protocol
-      # (-yscrollcommand/-xscrollcommand + yview/xview) - one of these,
-      # declared anywhere, auto-attaches a scrollbar wrapper unless
-      # #resolve_scroll says otherwise (see #auto_scrollable?). A bare
-      # :scrollable (for arbitrary content that has no scrolling protocol
-      # of its own) always gets the separate canvas+viewport frame
-      # treatment instead - see #create_scrollable. `list`/`text_area`/
-      # `table`/`tree` report their own {WidgetType#natively_scrollable?}
-      # now (see {#natively_scrollable?}); `canvas` is the one container
-      # left here, since containers haven't migrated yet.
-      NATIVELY_SCROLLABLE_TYPES = %i[canvas].freeze
-
-      # :column/:row flow-packing config, mirrored across the main axis
-      # (stack direction) and cross axis (perpendicular to it).
-      FLOW = {
-        column: {
-          side: 'top', main_pad: :pady, cross_pad: :padx,
-          main_fill: 'y', cross_fill: 'x',
-          anchor: { start: 'w', center: 'center', end: 'e' },
-        },
-        row: {
-          side: 'left', main_pad: :padx, cross_pad: :pady,
-          main_fill: 'x', cross_fill: 'y',
-          anchor: { start: 'n', center: 'center', end: 's' },
-        },
-      }.freeze
 
       # @api private
       # @param default_scroll [Boolean, nil] app-wide override for whether
@@ -170,10 +137,9 @@ module Teek
         unless NON_WIDGET_TYPES.include?(node.type)
           @app.command(tk_command_for(node.type), path, **node.opts.except(*RESERVED_OPTIONS))
           node.realized = RealizedNode.new(app: @app, path: path)
-          setup_window(node, path, parent_path) if node.type == :window
           setup_tab(node, path, parent_path) if node.type == :tab
           setup_pane(node, path, parent_path) if node.type == :pane
-          WidgetTypes.for_type(node.type)&.post_create(@app, node, path)
+          WidgetTypes.for_type(node.type)&.post_create(@app, node, path, parent_path)
         end
 
         if node.type == :scrollable
@@ -181,38 +147,6 @@ module Teek
         else
           node.children.each { |child| create(child, path) }
         end
-      end
-
-      # Sets up a freshly created toplevel: title/geometry/resizable setup,
-      # transient-to-parent (the parent it's actually nested under in this
-      # build, not always the root - computed from parent_path, which is
-      # '.' for a top-level ui.window and another window's own path when
-      # nested inside one), the macOS shared-menubar quirk (each platform
-      # other than macOS gets its own menu bar per window; macOS has a
-      # single app-wide menu bar, so without this a new window falls back
-      # to Tk's default "wish" menu instead of the parent's), and withdrawn
-      # by default - shown explicitly via Handle#show.
-      def setup_window(node, path, parent_path)
-        opts = node.opts
-        window = @app.window(path)
-
-        window.set_title(opts[:title]) if opts[:title]
-        window.set_geometry(opts[:geometry]) if opts[:geometry]
-        if opts.key?(:resizable)
-          pair = opts[:resizable]
-          width, height = pair.is_a?(Array) ? pair : [pair, pair]
-          window.set_resizable(width, height)
-        end
-        @app.command(:wm, :transient, path, parent_path) unless opts[:transient] == false
-        share_macos_menu(path, parent_path) if Teek.platform.darwin?
-        window.withdraw
-      end
-
-      def share_macos_menu(path, parent_path)
-        parent_menu = @app.command(parent_path, :cget, '-menu')
-        @app.command(path, :configure, menu: parent_menu) unless parent_menu.nil? || parent_menu.empty?
-      rescue Teek::TclError
-        nil
       end
 
       # Adds a freshly created :tab's own frame (just created at +path+) as
@@ -236,22 +170,19 @@ module Teek
       end
 
       # Whether +node+ should auto-attach a scrollbar with no explicit
-      # +ui.scrollable+ wrapper - only ever true for
-      # {NATIVELY_SCROLLABLE_TYPES}, and then only once #resolve_scroll
-      # settles the 3-level override (widget's own +scroll:+, then the
-      # session's app-wide default, then the global one).
+      # +ui.scrollable+ wrapper - only ever true for a
+      # {WidgetType#natively_scrollable?} type, and then only once
+      # #resolve_scroll settles the 3-level override (widget's own
+      # +scroll:+, then the session's app-wide default, then the global one).
       def auto_scrollable?(node)
         natively_scrollable?(node.type) && resolve_scroll(node)
       end
 
-      # {WidgetTypes} first, falling back to the legacy
-      # {NATIVELY_SCROLLABLE_TYPES} list for any type not yet registered as
-      # a {WidgetType}.
+      # Every natively scrollable type (list/text_area/table/tree/canvas) is
+      # {WidgetType}-registered, so this is just its descriptor's own
+      # +natively_scrollable?+ - +false+ for anything unregistered.
       def natively_scrollable?(type)
-        registered = WidgetTypes.for_type(type)
-        return registered.natively_scrollable? if registered
-
-        NATIVELY_SCROLLABLE_TYPES.include?(type)
+        WidgetTypes.for_type(type)&.natively_scrollable? || false
       end
 
       def resolve_scroll(node)
@@ -504,21 +435,32 @@ module Teek
       end
 
       # Children a geometry manager should never touch: :raw_op has no
-      # realized path at all; :window (a toplevel) is placed by the window
-      # manager, not by whatever pack/grid strategy its nominal parent uses
-      # (packing/gridding a toplevel into its parent is a Tk error, "it's a
-      # top-level window"); :menu_bar/:context_menu attach via their own
-      # -menu config / on_right_click wiring, never via pack/grid either;
-      # :tab is placed entirely by `ttk::notebook add` (#setup_tab), not a
-      # geometry manager at all; :pane likewise via `ttk::panedwindow add`
-      # (#setup_pane).
-      NOT_ARRANGED_TYPES = %i[raw_op window menu_bar context_menu tab pane].freeze
+      # realized path at all (and isn't a {WidgetType} at all, so there's
+      # nothing to register this against); :menu_bar/:context_menu attach
+      # via their own -menu config / on_right_click wiring, never via
+      # pack/grid either; :tab is placed entirely by `ttk::notebook add`
+      # (#setup_tab), not a geometry manager at all; :pane likewise via
+      # `ttk::panedwindow add` (#setup_pane). A registered type (e.g.
+      # :window, a toplevel placed by the window manager, never by
+      # whatever pack/grid strategy its nominal parent uses) reports this
+      # via its own {WidgetType#arranged?} instead - see #unarranged?.
+      NOT_ARRANGED_TYPES = %i[raw_op menu_bar context_menu tab pane].freeze
+
+      # {WidgetTypes} first, falling back to the legacy {NOT_ARRANGED_TYPES}
+      # list for any type not yet registered as a {WidgetType}.
+      def unarranged?(type)
+        registered = WidgetTypes.for_type(type)
+        return !registered.arranged? if registered
+
+        NOT_ARRANGED_TYPES.include?(type)
+      end
 
       def arrange_children(node)
-        arrangeable = node.children.reject { |child| NOT_ARRANGED_TYPES.include?(child.type) }
+        arrangeable = node.children.reject { |child| unarranged?(child.type) }
 
-        if FLOW.key?(node.type)
-          arrange_flow(node, arrangeable)
+        flow = flow_config_for(node.type)
+        if flow
+          arrange_flow(node, arrangeable, flow)
         elsif node.type == :grid
           arrange_grid(node, arrangeable)
         elsif node.type == :scrollable
@@ -532,8 +474,14 @@ module Teek
         end
       end
 
-      def arrange_flow(node, children)
-        flow = FLOW[node.type]
+      # Every flow-arranged type (column/row) is {WidgetType}-registered,
+      # so this is just its descriptor's own +flow+ - +nil+ for anything
+      # unregistered or not flow-arranged at all.
+      def flow_config_for(type)
+        WidgetTypes.for_type(type)&.flow
+      end
+
+      def arrange_flow(node, children, flow)
         gap = node.opts.fetch(:gap, 0)
         align = node.opts.fetch(:align, :start)
         pad = node.opts.fetch(:pad, 0)

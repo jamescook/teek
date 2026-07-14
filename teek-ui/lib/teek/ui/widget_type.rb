@@ -7,8 +7,8 @@ module Teek
     # A single widget/node type's own metadata, self-contained enough that
     # {WidgetDSL} (the builder), {Realizer}, and {Validator} can each treat
     # a registered type exactly like a hand-written entry in their own
-    # legacy per-type lists (LEAF_TYPES/CONTAINER_TYPES, TK_COMMANDS,
-    # WidgetValidators's own manual registrations) - see {WidgetTypes}.
+    # legacy per-type lists (CONTAINER_TYPES, TK_COMMANDS, WidgetValidators's
+    # own manual registrations) - see {WidgetTypes}.
     #
     # Leaf defaults cover the common case, so a real widget is a ~5-line
     # descriptor: +WidgetType.new(type: :divider, tk_command:
@@ -16,7 +16,7 @@ module Teek
     # or a widget needing bespoke DSL methods/realize setup, overrides
     # +dsl:+/+post_create:+.
     class WidgetType
-      attr_reader :type, :tk_command, :bind_option, :validator
+      attr_reader :type, :tk_command, :bind_option, :validator, :flow
 
       # @param type [Symbol] the node type this describes, e.g. +:divider+
       # @param tk_command [String] the Tk widget-creation command, e.g. +'ttk::separator'+
@@ -24,11 +24,21 @@ module Teek
       #   false for a container that holds a DSL subtree
       # @param natively_scrollable [Boolean] whether this widget already
       #   speaks Tk's -yscrollcommand/-xscrollcommand protocol - see
-      #   {Realizer::NATIVELY_SCROLLABLE_TYPES}, which this mirrors for a
-      #   registered type
+      #   {Realizer#auto_scrollable?}, which consults this for a registered type
+      # @param arranged [Boolean] whether a geometry manager (pack/grid)
+      #   should place this node inside its parent - true (the default) for
+      #   almost everything; false for a type placed some other way
+      #   entirely, e.g. a toplevel window (placed by the window manager,
+      #   not its nominal parent) or a tab/pane (placed by its own
+      #   container's `add` command) - see {Realizer::NOT_ARRANGED_TYPES}
+      #   (the still-hardcoded remainder) and {Realizer#unarranged?}, which
+      #   consults this for a registered type
       # @param bind_option [Symbol, nil] the Tk option `bind:` plugs a
       #   {Var} into for this widget (+:textvariable+/+:variable+/...) -
       #   +nil+ (the default) means this widget doesn't support `bind:`
+      # @param flow [Hash, nil] flow-packing config for a `column`/`row`-
+      #   style container (side/main_pad/cross_pad/main_fill/cross_fill/
+      #   anchor) - +nil+ (the default) means this type isn't flow-arranged
       # @param validator [#call, nil] a +(node, parent, document, errors)+
       #   callable checking this type's own contract - a REFERENCE to an
       #   already-written validator (e.g. an existing WidgetValidators-style
@@ -40,17 +50,20 @@ module Teek
       #   joins later - see {WidgetTypes.on_register}) to define this
       #   type's `ui.<type>` method(s) on the builder module. Defaults to
       #   the leaf/container-appropriate +append_leaf+/+append_container+ call.
-      # @param post_create [Proc, nil] +->(app, node, path) { ... }+, run
-      #   right after the generic widget-creation command at realize -
-      #   mirrors what +setup_window+/+setup_tab+/+setup_pane+ do for
-      #   not-yet-migrated types. Defaults to a no-op.
-      def initialize(type:, tk_command:, leaf: true, natively_scrollable: false,
-                      bind_option: nil, validator: nil, dsl: nil, post_create: nil)
+      # @param post_create [#call, nil] +->(app, node, path, parent_path) { ... }+,
+      #   run right after the generic widget-creation command at realize -
+      #   mirrors what {Realizer#setup_tab}/{Realizer#setup_pane} do for
+      #   not-yet-migrated types (see e.g. {WindowRealize} for :window's
+      #   own use of this hook). Defaults to a no-op.
+      def initialize(type:, tk_command:, leaf: true, natively_scrollable: false, arranged: true,
+                      bind_option: nil, flow: nil, validator: nil, dsl: nil, post_create: nil)
         @type = type.to_sym
         @tk_command = tk_command
         @leaf = leaf
         @natively_scrollable = natively_scrollable
+        @arranged = arranged
         @bind_option = bind_option
+        @flow = flow
         @validator = validator
         @dsl = dsl || default_dsl
         @post_create = post_create
@@ -71,6 +84,11 @@ module Teek
         @natively_scrollable
       end
 
+      # @return [Boolean]
+      def arranged?
+        @arranged
+      end
+
       # Defines this type's `ui.<type>` method(s) on +mod+ (the {WidgetDSL}
       # module) - see {WidgetTypes.on_register}, which drives this.
       # @param mod [Module]
@@ -84,9 +102,10 @@ module Teek
       # @param app [Teek::App]
       # @param node [Node]
       # @param path [String]
+      # @param parent_path [String]
       # @return [void]
-      def post_create(app, node, path)
-        @post_create&.call(app, node, path)
+      def post_create(app, node, path, parent_path)
+        @post_create&.call(app, node, path, parent_path)
       end
 
       private
