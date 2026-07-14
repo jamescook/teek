@@ -5,6 +5,7 @@ require_relative 'widget_validators'
 require_relative 'grid_validator'
 require_relative 'tab_validator'
 require_relative 'pane_validator'
+require_relative 'overlay_validator'
 
 module Teek
   module UI
@@ -23,7 +24,7 @@ module Teek
     # specific widget/container's own contract (a grid's children all need
     # cells, a tab's parent must be a ui.tabs, ...) lives in its own
     # {WidgetValidators}-registered validator instead (see
-    # {GridValidator}/{TabValidator}/{PaneValidator}), dispatched by node
+    # {GridValidator}/{TabValidator}/{PaneValidator}/{OverlayValidator}), dispatched by node
     # type the same way {Teek::CommandInterceptors} dispatches by widget
     # type. One depth-first walk covers both the document-level checks
     # below and every registered widget validator.
@@ -91,13 +92,15 @@ module Teek
       # The single tree traversal every check below rides along on - marks
       # each node reachable (for {#check_orphans}), dispatches to every
       # {WidgetValidators}-registered validator for the node's own type,
-      # and runs {GridValidator#check_stray_cell} (see its own comment for
-      # why that one can't be type-dispatched) plus the dangling-event-
-      # target check, both of which genuinely span arbitrary node types.
+      # and runs {GridValidator#check_stray_cell}/{OverlayValidator#check_stray_overlay}
+      # (see their own comments for why those can't be type-dispatched)
+      # plus the dangling-event-target check, all of which genuinely span
+      # arbitrary node types.
       def walk(node, parent)
         @reachable[node] = true
 
         GridValidator.check_stray_cell(node, parent, @errors)
+        OverlayValidator.check_stray_overlay(node, parent, @errors)
         WidgetValidators.for_type(node.type).each { |validator| validator.call(node, parent, @document, @errors) }
         check_dangling_event_targets(node)
 

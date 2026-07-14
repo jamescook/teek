@@ -14,7 +14,7 @@ Nothing has shipped yet - this section is a snapshot of the current API, not a r
 - Widgets: `ui.<widget>` for every leaf/container type, addressable via `ui[:name]`.
 - Realize/validation: atomic realize; tree-wide validation surfaces every problem at once, including a grid child missing `g.cell(...)`; build methods raise `ClosedBuilderError` once realized, redirecting to `session.add`.
 - Scrolling: native widgets (`list`/`text_area`/`table`/`tree`) auto-attach a scrollbar (`scroll:` opt-out, 3-level default); `canvas` opts in instead; `ui.scrollable` wraps arbitrary content; both auto-hide and support mouse wheel.
-- Layout: `column`/`row` flow containers (`gap:`/`align:`/`pad:`/`grow:`), `ui.grid` for the rest.
+- Layout: `column`/`row` flow containers (`gap:`/`align:`/`pad:`/`grow:`), `ui.grid` for the rest, `cv.overlay(at: anchor)` to float a widget over a `ui.canvas`.
 - Handles: one handle type across both phases - `.path`/`.configure`.
 - Events: `on_click`/`on_right_click`/`on_drag`/`on_key`, queue before realize, wire immediately after.
 - Close handling: `on_close` on windows, overridable default-destroy.

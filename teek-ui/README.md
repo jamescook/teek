@@ -116,6 +116,17 @@ For the common case of "let the user drag this around", `draggable` does that `o
 ball.draggable
 ```
 
+A canvas can also float ordinary widgets on top of its own content - a status readout, a button bar - via `overlay`, a "use sparingly" escape valve for the one legitimate absolute-position case:
+
+```ruby
+ui.canvas(:board, width: 400, height: 300) do |cv|
+  cv.overlay(at: :top_left) { ui.label(:status, text: 'Ready') }
+  cv.overlay(at: :bottom_right) { ui.row { ui.button(:pause, text: 'Pause') } }
+end
+```
+
+`at:` is a corner/edge/center anchor (`:top_left`, `:top`, `:top_right`, `:left`, `:center`, `:right`, `:bottom_left`, `:bottom`, `:bottom_right`) - plain English standing in for Tk's own `place -relx/-rely/-anchor`, so it stays correctly positioned across a canvas resize with nothing to redo by hand.
+
 ## Layout
 
 `column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:

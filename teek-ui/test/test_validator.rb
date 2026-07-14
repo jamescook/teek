@@ -35,6 +35,21 @@ class TestValidator < Minitest::Test
     assert_match(/not_a_grid/, error.message)
   end
 
+  def test_stray_overlay_intent_under_a_non_canvas_parent_raises
+    # only reachable via direct Node/Document manipulation - WidgetDSL#overlay
+    # itself already refuses to run outside a ui.canvas block.
+    document = Teek::UI::Document.new
+    panel = document.create(type: :panel, name: :not_a_canvas)
+    document.root.add_child(panel)
+    stray = document.create(type: :label, name: :stray)
+    stray.layout = { overlay: { at: :top_left } }
+    panel.add_child(stray)
+
+    error = assert_raises(Teek::UI::ValidationError) { Teek::UI::Validator.validate!(document) }
+    assert_match(/overlay/, error.message)
+    assert_match(/not_a_canvas/, error.message)
+  end
+
   def test_a_tab_node_under_a_non_tabs_parent_raises
     # only reachable via direct Node/Document manipulation - WidgetDSL#tab
     # itself already refuses to run outside a ui.tabs block.

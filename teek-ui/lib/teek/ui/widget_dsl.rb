@@ -7,6 +7,7 @@ require_relative 'menu_builder'
 require_relative 'screens'
 require_relative 'modal_stack'
 require_relative 'widget_types'
+require_relative 'overlay_anchors'
 
 module Teek
   module UI
@@ -96,6 +97,39 @@ module Teek
 
         grid_node.opts[:stretch_columns] = Array(columns) if columns.any?
         grid_node.opts[:stretch_rows] = Array(rows) if rows.any?
+      end
+
+      # Floats the single widget declared in the block on top of the
+      # enclosing `ui.canvas`, positioned at a fixed corner/edge/center
+      # anchor via Tk's `place` geometry manager - a "use sparingly"
+      # escape valve for the one legitimate absolute-position case (a
+      # status readout or button bar layered over canvas content), not a
+      # general-purpose layout mode. Stays correctly positioned across a
+      # canvas resize with nothing to redo by hand - `place`'s relative
+      # coordinates are fractions of the canvas's current size, recomputed
+      # live by Tk on every resize. Only valid directly inside a
+      # `ui.canvas` block.
+      # @param at [Symbol] one of {OverlayAnchors::POSITIONS}'s keys
+      # @return [void]
+      # @raise [ArgumentError] if declared anywhere other than directly
+      #   inside ui.canvas, given an unrecognized at:, or its block builds
+      #   anything other than exactly one widget
+      def overlay(at:)
+        canvas_node = current_canvas!('overlay')
+        unless OverlayAnchors::POSITIONS.key?(at)
+          raise ArgumentError, "overlay's at: must be one of #{OverlayAnchors::POSITIONS.keys.join(', ')} (got #{at.inspect})"
+        end
+
+        before = canvas_node.children.length
+        yield if block_given?
+        placed = canvas_node.children[before..]
+
+        unless placed.length == 1
+          raise ArgumentError, "overlay needs exactly one widget declared in its block (got #{placed.length})"
+        end
+
+        node = placed.first
+        node.layout = (node.layout || {}).merge(overlay: { at: at })
       end
 
       # One page of an enclosing `ui.tabs`, labeled `label` in the tab bar.
@@ -334,6 +368,15 @@ module Teek
         end
 
         split_node
+      end
+
+      def current_canvas!(method_name)
+        canvas_node = @stack.last
+        unless canvas_node.type == :canvas
+          raise ArgumentError, "##{method_name} can only be used directly inside ui.canvas"
+        end
+
+        canvas_node
       end
 
       def append_container(type, name, opts)

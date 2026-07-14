@@ -2,6 +2,7 @@
 
 require_relative 'realized_node'
 require_relative 'widget_types'
+require_relative 'overlay_anchors'
 
 module Teek
   module UI
@@ -20,10 +21,11 @@ module Teek
     # teek's interceptor/leak-cleanup layer applies automatically.
     #
     # @note Layout is real for +:column+/+:row+ (flow packing driven by
-    #   +gap:+/+align:+/+pad:+ and each child's +grow:+) and +:grid+ (real Tk
-    #   grid arrangement driven by +#cell+/+#stretch+), but still a
-    #   placeholder for every other container type - their children just
-    #   pack top-to-bottom with no options. There's no overlay layout yet.
+    #   +gap:+/+align:+/+pad:+ and each child's +grow:+), +:grid+ (real Tk
+    #   grid arrangement driven by +#cell+/+#stretch+), and a +ui.canvas+
+    #   child positioned via +#overlay+ (Tk +place+, driven by an anchor -
+    #   see {OverlayAnchors}) - everything else is still a placeholder,
+    #   its children just packing top-to-bottom with no options.
     class Realizer
       # DSL-reserved opts keys - layout keywords (gap:/align:/pad:/
       # stretch_columns/stretch_rows) plus other entries the DSL stashes on
@@ -445,7 +447,8 @@ module Teek
       end
 
       def arrange_children(node)
-        arrangeable = node.children.reject { |child| unarranged?(child.type) }
+        overlaid, rest = node.children.partition { |child| child.layout && child.layout[:overlay] }
+        arrangeable = rest.reject { |child| unarranged?(child.type) }
         registered = WidgetTypes.for_type(node.type)
 
         if registered&.arrange?
@@ -453,6 +456,21 @@ module Teek
         else
           arrangeable.each { |child| @app.command(:pack, child.realized.arrange_path) }
         end
+
+        overlaid.each { |child| place_overlay(node, child) }
+      end
+
+      # `place`s an overlay-tagged child (see {WidgetDSL#overlay}) at its
+      # anchor's -relx/-rely/-anchor, `-in` its parent - the canvas
+      # #arrange_children is currently walking, whatever container that
+      # turns out to be validated to (see {OverlayValidator}). Runs
+      # independently of whatever geometry manager arranges the rest of
+      # that parent's children, since `place` coexists with `pack`/`grid`
+      # on the same master as long as it targets a different slave.
+      def place_overlay(parent, child)
+        at = child.layout[:overlay][:at]
+        position = OverlayAnchors::POSITIONS.fetch(at)
+        @app.command(:place, child.realized.arrange_path, in: parent.realized.path, **position)
       end
 
       def arrange_flow(node, children, flow)
