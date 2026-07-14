@@ -240,6 +240,7 @@ module Teek
           end
 
           wire_scrollbars(path, canvas_path, x: x, y: y)
+          wire_wheel_scroll(canvas_path, viewport_path, node, x: x, y: y)
         end
       end
 
@@ -261,6 +262,63 @@ module Teek
         @app.command(:grid, hsb_path, row: 1, column: 0, sticky: 'ew') if x
         @app.command(:grid, :columnconfigure, path, 0, weight: 1)
         @app.command(:grid, :rowconfigure, path, 0, weight: 1)
+      end
+
+      # Tk's own Scrollbar class binds <MouseWheel> at this same ratio (see
+      # scrlbar.tcl) - matched here so wheeling directly over the frame
+      # case's content feels identical to wheeling over its scrollbar.
+      WHEEL_UNITS_PER_NOTCH = 40.0
+
+      # The frame case's scrollbar and -yscrollcommand/-xscrollcommand
+      # wiring (see #wire_scrollbars) only covers dragging the scrollbar
+      # itself - the canvas has no default wheel handling of its own (a
+      # bare canvas isn't a Scrollbar), and neither do any of the
+      # arbitrary widgets embedded in its viewport. A <MouseWheel>/
+      # <Button-4>/<Button-5> binding placed directly on the canvas alone
+      # wouldn't fire for those descendants either: Tk delivers pointer
+      # events to whichever widget is actually under the cursor, and a
+      # child widget layered inside the viewport intercepts them before
+      # the canvas ever sees them.
+      #
+      # The fix is the classic one - give the canvas, the viewport, and
+      # every widget already inside it (walked recursively, since new
+      # widgets can nest arbitrarily deep) a shared custom bindtag, and
+      # bind the wheel handler once on that tag instead of on any single
+      # widget. Every widget carrying the tag then responds identically,
+      # regardless of which one the pointer happens to be over - the same
+      # mechanism Tk's own class bindings (Button, Entry, ...) use, just
+      # scoped to this one scrollable region instead of a widget class.
+      #
+      # @note widgets added later via +Session#add+ don't pick up the tag
+      #   automatically - wheel-scrolling a scrollable frame's dynamically
+      #   added content isn't covered yet.
+      def wire_wheel_scroll(canvas_path, viewport_path, node, x:, y:)
+        return unless x || y
+
+        tag = "TeekScrollRegion#{canvas_path.tr('.', '_')}"
+        add_bindtag(canvas_path, tag)
+        add_bindtag(viewport_path, tag)
+        node.children.each { |child| child.each { |descendant| add_bindtag(descendant.realized.path, tag) if descendant.realized } }
+
+        if y
+          @app.bind(tag, '<MouseWheel>', :mouse_wheel) { |delta|
+            @app.command(canvas_path, :yview, :scroll, delta.to_f / -WHEEL_UNITS_PER_NOTCH, :units)
+          }
+          @app.bind(tag, '<Button-4>') { @app.command(canvas_path, :yview, :scroll, -1, :units) }
+          @app.bind(tag, '<Button-5>') { @app.command(canvas_path, :yview, :scroll, 1, :units) }
+        end
+        if x
+          @app.bind(tag, '<Shift-MouseWheel>', :mouse_wheel) { |delta|
+            @app.command(canvas_path, :xview, :scroll, delta.to_f / -WHEEL_UNITS_PER_NOTCH, :units)
+          }
+          @app.bind(tag, '<Shift-Button-4>') { @app.command(canvas_path, :xview, :scroll, -1, :units) }
+          @app.bind(tag, '<Shift-Button-5>') { @app.command(canvas_path, :xview, :scroll, 1, :units) }
+        end
+      end
+
+      def add_bindtag(path, tag)
+        current = @app.split_list(@app.command(:bindtags, path))
+        @app.command(:bindtags, path, current + [tag])
       end
 
       def native_scrollable_child(node)
