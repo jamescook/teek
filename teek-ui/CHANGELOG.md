@@ -20,6 +20,7 @@ Nothing has shipped yet - this section is a snapshot of the current API, not a r
 - Close handling: `on_close` on windows, overridable default-destroy.
 - Escape hatch: `session.app`/`#every`/`#after` post-realize, `ui.raw { |app| }` pre-realize.
 - Reactive variables: `ui.var`, `bind:`, `#value`/`#value=`, `#on_change`.
+- Event bus: `ui.on`/`ui.emit`/`ui.off` - in-process pub/sub for decoupled widgets, app-scoped (not a global singleton), works before realize.
 - Menus: `menu_bar`/`menu`/`context_menu`, shared `item`/`separator`/`checkbox`/`radio` vocabulary; named `item`/`checkbox`/`radio` entries are addressable via `ui[:name]`, immune to entry renumbering.
 - Windows: `ui.window`/`ui.dialog` - managed toplevels with `show`/`hide`/`modal`.
 - Tabs: `ui.tabs`/`t.tab(label, name)` - `ttk::notebook`, `on_tab_changed` event.

@@ -5,6 +5,7 @@ require_relative 'document'
 require_relative 'widget_dsl'
 require_relative 'realizer'
 require_relative 'validator'
+require_relative 'event_bus'
 
 module Teek
   module UI
@@ -37,6 +38,7 @@ module Teek
         @vars = []
         @app = nil
         @in_add = false
+        @bus = EventBus.new
       end
 
       # @return [Teek::App] the underlying app - the DSL's escape hatch.
@@ -103,6 +105,24 @@ module Teek
         realize(strict: strict)
         @app.show
         self
+      end
+
+      # @see EventBus#on
+      # @return [Proc] the block, to pass to a later #off
+      def on(event, &block)
+        @bus.on(event, &block)
+      end
+
+      # @see EventBus#emit
+      # @return [void]
+      def emit(event, *args, **kwargs)
+        @bus.emit(event, *args, **kwargs)
+      end
+
+      # @see EventBus#off
+      # @return [void]
+      def off(event, block)
+        @bus.off(event, block)
       end
 
       # @see Teek::App#every

@@ -340,6 +340,19 @@ session.run
 
 `var.value`/`var.value =` read and write it directly (typed to match the initial value - Integer/Float/Boolean, else String); `var.on_change { |v| }` fires with the coerced value on every change, regardless of whether Ruby or a bound widget caused it. `bind:` is mapped per widget type (`text_box`/`label`/`dropdown`/`number_box` use `-textvariable`; `checkbox`/`slider`/`progress` use `-variable`) - widgets without a sensible single bindable value (`text_area`, `list`, `table`/`tree`, `radio`, containers) raise if you try.
 
+## Event Bus
+
+For widgets that need to react to something without holding a direct reference to whoever caused it - `ui.on`/`ui.emit` is in-process publish/subscribe, not a Tk event. Reach for it when a direct handle (`ui[:name]`) or a shared `ui.var` would couple things that should stay decoupled - e.g. three unrelated panels all reacting to "an item was added," with the thing that added it never knowing any of them exist:
+
+```ruby
+ui.on(:item_added) { |product| cart_badge.configure(text: "#{count += 1} items") }
+ui.on(:item_added) { |product| activity_log.append("Added #{product[:name]}") }
+
+add_button.on_click { ui.emit(:item_added, product) } # emits once, no idea who's listening
+```
+
+`ui.off(:item_added, block)` unsubscribes (`block` is what `on` returned). Works before realize too - it's pure Ruby, no Tk involved - and each `Teek::UI.app` instance owns its own bus, so two running in the same process never see each other's events. See `sample/event_bus_demo.rb` for a full working example, including what the same UI would look like *without* it.
+
 ## Menus
 
 `ui.menu_bar { }` declares a window's menu bar - the row of dropdowns (File/Edit/...) along its top edge - attaching automatically to whichever window it's declared in (the top level of the build, or directly inside `ui.window`). `.menu(label:) { }` is one recursive method for every dropdown, nested cascade, or submenu - there's no separate Tk `cascade`/`tearoff` vocabulary to learn:
