@@ -67,4 +67,54 @@ class TestComponentRealTk < Minitest::Test
       session.app.destroy
     end
   end
+
+  def test_mounting_the_same_component_three_times_under_one_parent_gets_three_distinct_paths
+    assert_tk_app("mounting the same component 3x directly under one parent (not each under its own sub-panel) should realize 3 distinct :save widgets, each addressable through its own mount's facade") do
+      require 'teek/ui'
+
+      row = ->(ui, label) { ui.component { |c| c.button(:save, text: label) } }
+
+      facades = []
+      session = Teek::UI.app(title: 'Component Test') do |ui|
+        ui.panel(:list) { |p| 3.times { |i| facades << row.call(p, "Row #{i + 1}") } }
+      end
+      session.run_async
+      session.app.update
+
+      paths = facades.map { |f| f[:save].path }
+      assert_equal 3, paths.uniq.length, "each mount's :save should realize its own distinct Tk path (got #{paths.inspect})"
+      assert_equal ['Row 1', 'Row 2', 'Row 3'], paths.map { |path| session.app.command(path, :cget, '-text') }
+
+      facades[1][:save].configure(text: 'Changed')
+      assert_equal 'Row 1', session.app.command(paths[0], :cget, '-text')
+      assert_equal 'Changed', session.app.command(paths[1], :cget, '-text'),
+        "configuring through the second mount's facade should mutate the second mount's own widget"
+      assert_equal 'Row 3', session.app.command(paths[2], :cget, '-text')
+
+      session.app.destroy
+    end
+  end
+
+  def test_an_event_bound_inside_a_repeated_mount_fires_for_that_mounts_own_widget_only
+    assert_tk_app("a click handler declared inside one mount of a 3x-repeated component should fire only for that mount's own widget, never a sibling mount's") do
+      require 'teek/ui'
+
+      fired = []
+      row = ->(ui, label) { ui.component { |c| c.button(:save, text: label).on_click { fired << label } } }
+
+      facades = []
+      session = Teek::UI.app(title: 'Component Test') do |ui|
+        ui.panel(:list) { |p| 3.times { |i| facades << row.call(p, "Row #{i + 1}") } }
+      end
+      session.run_async
+      session.app.update
+
+      session.app.tcl_eval("event generate #{facades[1][:save].path} <Button-1>")
+      session.app.update
+
+      assert_equal ['Row 2'], fired, "clicking the second mount's widget should fire only its own handler"
+
+      session.app.destroy
+    end
+  end
 end

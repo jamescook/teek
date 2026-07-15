@@ -63,6 +63,10 @@ module Teek
       # structure); for anything without an independent Tk path of its
       # own (a menu entry, say), an {Addressing} strategy extends past
       # this with its own marker rather than pretending it's a real one.
+      # The other documented exception: a reusable component mounted more
+      # than once under the same real parent - {Realizer#allocate_path}
+      # only discovers that repeat (and disambiguates the later mounts'
+      # paths) at realize, so this can't predict it ahead of time either.
       # A node that isn't attached anywhere yet (+parent+ nil, and not
       # itself the root) is treated as top-level - the best answer
       # available without a tree to place it in.

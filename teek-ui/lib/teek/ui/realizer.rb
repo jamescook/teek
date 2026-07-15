@@ -53,6 +53,7 @@ module Teek
         @app = app
         @document = document
         @default_scroll = default_scroll
+        @used_segments = {}
       end
 
       # @return [void]
@@ -551,8 +552,24 @@ module Teek
         # creation (Document#create) - not a per-Realizer-instance counter,
         # which would collide across separate realize_subtree calls (each
         # gets its own Realizer instance, e.g. one per Session#add call).
-        segment = node.name ? node.name.to_s : node.key
+        segment = unique_segment(parent_path, node.name ? node.name.to_s : node.key)
         parent_path == '.' ? ".#{segment}" : "#{parent_path}.#{segment}"
+      end
+
+      # A reusable component mounted more than once under the SAME real
+      # parent requests the same key/segment every time (each mount's own
+      # {Scope} already keeps them apart in the {Document} index - see
+      # {WidgetDSL#component} - this is purely about the Tk path they'd
+      # otherwise collide on). Suffixed only on an actual repeat, so the
+      # overwhelmingly common case (no repeat under this parent) keeps its
+      # plain, name-derived path exactly as before - this is per-Realizer-
+      # instance state, so it only catches repeats realized together in one
+      # #realize/#realize_subtree pass, same scope as the note above.
+      def unique_segment(parent_path, segment)
+        seen = (@used_segments[parent_path] ||= Hash.new(0))
+        count = seen[segment]
+        seen[segment] += 1
+        count.zero? ? segment : "#{segment}##{count + 1}"
       end
     end
   end

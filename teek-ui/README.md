@@ -100,6 +100,8 @@ end.run
 
 `screen[:save]` (or the equivalent `screen.handle(:save)`) resolves within the component's own scope and returns a `Handle`, or `nil` if the component never declared that name - same convention as `ui[:name]`. Move the component to another file or mount it under a different parent and nothing external breaks, since callers never reach in by global name.
 
+A component is mountable more than once - a list of identical rows, say - each `ui.component` call gets its own scope, so instances never collide there. Mounting the same component several times directly under one shared parent is also handled automatically: each instance gets its own facade addressing only its own widgets, with no Tk path collision even when every instance uses the same local names.
+
 ## Widgets
 
 `ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:
