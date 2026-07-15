@@ -119,6 +119,50 @@ module Teek
         @app.after(ms, on_error: on_error, &block)
       end
 
+      # Show the native "choose file to open" dialog.
+      # @see Teek::App#choose_open_file
+      # @raise [NotRealizedError] if called before #realize
+      def open_file(filetypes: nil, initialdir: nil, initialfile: nil, title: nil, multiple: false, parent: nil)
+        raise_unless_realized!
+        @app.choose_open_file(filetypes: filetypes, initialdir: initialdir, initialfile: initialfile,
+                               title: title, multiple: multiple, parent: parent)
+      end
+
+      # Show the native "choose file to save" dialog.
+      # @see Teek::App#choose_save_file
+      # @raise [NotRealizedError] if called before #realize
+      def save_file(filetypes: nil, initialdir: nil, initialfile: nil, title: nil,
+                     defaultextension: nil, confirmoverwrite: true, parent: nil)
+        raise_unless_realized!
+        @app.choose_save_file(filetypes: filetypes, initialdir: initialdir, initialfile: initialfile, title: title,
+                               defaultextension: defaultextension, confirmoverwrite: confirmoverwrite, parent: parent)
+      end
+
+      # Show a message box with one or more buttons.
+      # @see Teek::App#message_box
+      # @raise [NotRealizedError] if called before #realize
+      def message(message:, title: nil, detail: nil, icon: :info, type: :ok, default: nil, parent: nil)
+        raise_unless_realized!
+        @app.message_box(message: message, title: title, detail: detail, icon: icon,
+                          type: type, default: default, parent: parent)
+      end
+
+      # Show the native color picker dialog.
+      # @see Teek::App#choose_color
+      # @raise [NotRealizedError] if called before #realize
+      def choose_color(initial: nil, title: nil, parent: nil)
+        raise_unless_realized!
+        @app.choose_color(initial: initial, title: title, parent: parent)
+      end
+
+      # Show the native "choose directory" dialog.
+      # @see Teek::App#choose_dir
+      # @raise [NotRealizedError] if called before #realize
+      def choose_dir(initialdir: nil, mustexist: false, title: nil, parent: nil)
+        raise_unless_realized!
+        @app.choose_dir(initialdir: initialdir, mustexist: mustexist, title: title, parent: parent)
+      end
+
       # Build and immediately realize a subtree into the already-running
       # app, as a child of an already-realized widget named +parent_name+ -
       # for dynamic UIs (adding cards/rows/menu entries at runtime), not

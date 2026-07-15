@@ -432,3 +432,17 @@ session.every(1000) { puts 'tick' }
 session.after(500) { puts 'once' }
 session.app.mainloop
 ```
+
+## Dialogs
+
+The standard native dialogs are reachable directly on `ui` - also realize-only, same as the timers above:
+
+```ruby
+path = ui.open_file(filetypes: [['Images', ['.png', '.jpg']]])
+ui.save_file(initialfile: 'export.png')
+answer = ui.message(message: 'Delete this?', type: :yesno)
+color = ui.choose_color(initial: '#3366ff')
+dir = ui.choose_dir(title: 'Pick a project folder')
+```
+
+Each returns `nil` if the user cancels (`ui.message` returns the pressed button as a Symbol - `:ok`/`:yes`/`:no`/... - instead, since there's no single "cancelled" case across every button layout). See `Teek::App#choose_open_file`/`#choose_save_file`/`#message_box`/`#choose_color`/`#choose_dir` for every option.

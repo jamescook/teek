@@ -149,6 +149,158 @@ class TestUI < Minitest::Test
     end
   end
 
+  def test_dialog_methods_raise_before_realize
+    assert_tk_app("session's dialog methods should raise a clear error before realize, not queue") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Dialogs Test')
+
+      assert_raises(Teek::UI::NotRealizedError) { session.open_file }
+      assert_raises(Teek::UI::NotRealizedError) { session.save_file }
+      assert_raises(Teek::UI::NotRealizedError) { session.message(message: 'Hi') }
+      assert_raises(Teek::UI::NotRealizedError) { session.choose_color }
+      assert_raises(Teek::UI::NotRealizedError) { session.choose_dir }
+    end
+  end
+
+  def test_open_file_forwards_every_option_under_its_real_tk_flag_name
+    assert_tk_app("session.open_file should forward every option to App#choose_open_file under the right flag") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Dialogs Test')
+      session.run_async
+      session.app.tcl_eval(<<~TCL)
+        proc tk_getOpenFile {args} {
+          set ::last_call $args
+          return {/tmp/picked.png}
+        }
+      TCL
+
+      result = session.open_file(
+        initialdir: '/tmp/open', initialfile: 'pick.png', title: 'Open It', multiple: true, parent: '.mywin'
+      )
+
+      assert_equal ['/tmp/picked.png'], result, "multiple: true should split Tk's result into an array"
+      captured = Hash[*session.app.split_list(session.app.tcl_eval('set ::last_call'))]
+      assert_equal(
+        { '-initialdir' => '/tmp/open', '-initialfile' => 'pick.png', '-title' => 'Open It',
+          '-parent' => '.mywin', '-multiple' => '1' },
+        captured
+      )
+
+      session.app.destroy
+    end
+  end
+
+  def test_save_file_forwards_every_option_under_its_real_tk_flag_name
+    assert_tk_app("session.save_file should forward every option to App#choose_save_file under the right flag") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Dialogs Test')
+      session.run_async
+      session.app.tcl_eval(<<~TCL)
+        proc tk_getSaveFile {args} {
+          set ::last_call $args
+          return {/tmp/out.png}
+        }
+      TCL
+
+      result = session.save_file(
+        initialdir: '/tmp/save', initialfile: 'out.png', title: 'Save It',
+        defaultextension: '.png', confirmoverwrite: false, parent: '.mywin'
+      )
+
+      assert_equal '/tmp/out.png', result
+      captured = Hash[*session.app.split_list(session.app.tcl_eval('set ::last_call'))]
+      assert_equal(
+        { '-initialdir' => '/tmp/save', '-initialfile' => 'out.png', '-title' => 'Save It',
+          '-defaultextension' => '.png', '-confirmoverwrite' => '0', '-parent' => '.mywin' },
+        captured
+      )
+
+      session.app.destroy
+    end
+  end
+
+  def test_message_forwards_every_option_under_its_real_tk_flag_name
+    assert_tk_app("session.message should forward every option to App#message_box under the right flag") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Dialogs Test')
+      session.run_async
+      session.app.tcl_eval(<<~TCL)
+        proc tk_messageBox {args} {
+          set ::last_call $args
+          return {yes}
+        }
+      TCL
+
+      result = session.message(
+        message: 'Sure?', title: 'Confirm', detail: 'Cannot be undone',
+        icon: :warning, type: :yesno, default: :no, parent: '.mywin'
+      )
+
+      assert_equal :yes, result
+      captured = Hash[*session.app.split_list(session.app.tcl_eval('set ::last_call'))]
+      assert_equal(
+        { '-message' => 'Sure?', '-title' => 'Confirm', '-detail' => 'Cannot be undone',
+          '-icon' => 'warning', '-type' => 'yesno', '-default' => 'no', '-parent' => '.mywin' },
+        captured
+      )
+
+      session.app.destroy
+    end
+  end
+
+  def test_choose_color_forwards_every_option_under_its_real_tk_flag_name
+    assert_tk_app("session.choose_color should forward every option to App#choose_color under the right flag") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Dialogs Test')
+      session.run_async
+      session.app.tcl_eval(<<~TCL)
+        proc tk_chooseColor {args} {
+          set ::last_call $args
+          return {#ff0080}
+        }
+      TCL
+
+      result = session.choose_color(initial: '#112233', title: 'Pick', parent: '.mywin')
+
+      assert_equal '#ff0080', result
+      captured = Hash[*session.app.split_list(session.app.tcl_eval('set ::last_call'))]
+      assert_equal({ '-initialcolor' => '#112233', '-title' => 'Pick', '-parent' => '.mywin' }, captured)
+
+      session.app.destroy
+    end
+  end
+
+  def test_choose_dir_forwards_every_option_under_its_real_tk_flag_name
+    assert_tk_app("session.choose_dir should forward every option to App#choose_dir under the right flag") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Dialogs Test')
+      session.run_async
+      session.app.tcl_eval(<<~TCL)
+        proc tk_chooseDirectory {args} {
+          set ::last_call $args
+          return {/tmp/some dir}
+        }
+      TCL
+
+      result = session.choose_dir(initialdir: '/tmp/dir', mustexist: true, title: 'Folder', parent: '.mywin')
+
+      assert_equal '/tmp/some dir', result
+      captured = Hash[*session.app.split_list(session.app.tcl_eval('set ::last_call'))]
+      assert_equal(
+        { '-initialdir' => '/tmp/dir', '-mustexist' => '1', '-title' => 'Folder', '-parent' => '.mywin' },
+        captured
+      )
+
+      session.app.destroy
+    end
+  end
+
   def test_realize_validates_before_constructing_any_interpreter
     assert_tk_app("a validation failure should prevent any Teek::App/Interp from being constructed at all") do
       require 'teek/ui'
