@@ -15,6 +15,7 @@ require_relative 'teek/dialogs'
 require_relative 'teek/winfo'
 require_relative 'teek/wm'
 require_relative 'teek/window'
+require_relative 'teek/clipboard'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
 # with Ruby callbacks, event bindings, and background work support.
@@ -91,7 +92,7 @@ module Teek
   ].freeze
 
   class App
-    attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo, :wm
+    attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo, :wm, :clipboard
     attr_writer :_pending_exception # @api private
 
     def initialize(title: nil, track_widgets: true, debug: false, &block)
@@ -99,6 +100,7 @@ module Teek
       @interp.tcl_eval('package require Tk')
       @winfo = Teek::Winfo.new(self)
       @wm = Teek::Wm.new(self)
+      @clipboard = Teek::Clipboard.new(self)
       hide
       @widgets = {}
       @widget_counters = Hash.new(0)
