@@ -13,7 +13,7 @@ module Teek
     # the whole build phase; a realizer fills it in later with a live
     # handle.
     class Node
-      attr_reader :type, :name, :opts, :children, :events
+      attr_reader :type, :name, :opts, :children, :events, :parent
       attr_accessor :key, :layout, :realized
 
       # @param type [Symbol] node kind, e.g. +:button+, +:column+, +:var+
@@ -29,12 +29,14 @@ module Teek
         @layout = nil
         @events = []
         @realized = nil
+        @parent = nil
       end
 
       # @param node [Node]
       # @return [Node] the node just added
       def add_child(node)
         @children << node
+        node.parent = self
         node
       end
 
@@ -47,6 +49,28 @@ module Teek
         block.call(self)
         children.each { |child| child.each(&block) }
       end
+
+      # This node's address, computed purely from the retained tree
+      # (name/key + {#parent}) - no Tk involved, correct before realize.
+      # For an ordinary widget this already equals the real Tk path
+      # ({Realizer#allocate_path} walks this identical parent/segment
+      # structure); for anything without an independent Tk path of its
+      # own (a menu entry, say), an {Addressing} strategy extends past
+      # this with its own marker rather than pretending it's a real one.
+      # A node that isn't attached anywhere yet (+parent+ nil, and not
+      # itself the root) is treated as top-level - the best answer
+      # available without a tree to place it in.
+      # @return [String] e.g. +"."+, +".toolbar"+, +".toolbar.save"+
+      def logical_path
+        return '.' if type == :root
+
+        prefix = (parent.nil? || parent.type == :root) ? '.' : "#{parent.logical_path}."
+        "#{prefix}#{name || key}"
+      end
+
+      protected
+
+      attr_writer :parent
     end
   end
 end

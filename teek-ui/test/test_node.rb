@@ -73,4 +73,59 @@ class TestNode < Minitest::Test
 
     assert_equal [:column, :button], root.each.map(&:type)
   end
+
+  def test_add_child_sets_the_childs_parent
+    parent = Teek::UI::Node.new(type: :column)
+    child = Teek::UI::Node.new(type: :button)
+
+    parent.add_child(child)
+
+    assert_same parent, child.parent
+  end
+
+  def test_parent_is_nil_before_being_attached
+    node = Teek::UI::Node.new(type: :button)
+
+    assert_nil node.parent
+  end
+
+  def test_parent_setter_is_not_publicly_callable
+    node = Teek::UI::Node.new(type: :button)
+
+    assert_raises(NoMethodError) { node.parent = Teek::UI::Node.new(type: :column) }
+  end
+
+  def test_root_logical_path_is_a_bare_dot
+    root = Teek::UI::Node.new(type: :root)
+
+    assert_equal '.', root.logical_path
+  end
+
+  def test_logical_path_for_a_top_level_named_node
+    root = Teek::UI::Node.new(type: :root)
+    child = root.add_child(Teek::UI::Node.new(type: :button, name: :save))
+
+    assert_equal '.save', child.logical_path
+  end
+
+  def test_logical_path_nests_through_named_ancestors
+    root = Teek::UI::Node.new(type: :root)
+    column = root.add_child(Teek::UI::Node.new(type: :column, name: :toolbar))
+    button = column.add_child(Teek::UI::Node.new(type: :button, name: :save))
+
+    assert_equal '.toolbar.save', button.logical_path
+  end
+
+  def test_logical_path_uses_the_auto_generated_key_when_unnamed
+    root = Teek::UI::Node.new(type: :root)
+    child = root.add_child(Teek::UI::Node.new(type: :button, key: '#anon1'))
+
+    assert_equal '.#anon1', child.logical_path
+  end
+
+  def test_logical_path_of_an_unattached_node_treats_it_as_top_level
+    node = Teek::UI::Node.new(type: :button, name: :save)
+
+    assert_equal '.save', node.logical_path
+  end
 end
