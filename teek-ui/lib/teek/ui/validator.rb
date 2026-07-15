@@ -110,7 +110,7 @@ module Teek
       def check_dangling_event_targets(node)
         node.events.each do |binding|
           next unless binding.target
-          next if @document.find(binding.target)
+          next if @document.find(binding.target, scope: node.scope)
 
           @errors << "#{WidgetValidators.describe(node)}'s event binding targets :#{binding.target}, " \
                       "but no widget with that name exists"

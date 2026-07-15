@@ -91,6 +91,84 @@ class TestRealizer < Minitest::Test
     end
   end
 
+  def test_event_target_inside_a_component_resolves_to_that_components_own_node_not_a_siblings
+    assert_tk_app("a binding target inside a component should resolve to THAT component's like-named node, never a sibling component's") do
+      require 'teek/ui'
+
+      a_fired = false
+      b_fired = false
+      comp_a_downstream = nil
+      session = Teek::UI.app(title: 'Realizer Test') do |ui|
+        # each component nested under its own panel, matching how
+        # test_component_realtk.rb mounts like-named siblings - two
+        # components' children only get distinct real Tk paths when they
+        # sit under different real parents.
+        ui.panel(:panel_a) do |p|
+          p.component { |c| c.button(:trigger, text: 'Trigger A'); comp_a_downstream = c.label(:downstream, text: 'Target A') }
+        end
+        ui.panel(:panel_b) do |p|
+          p.component { |c| c.button(:trigger, text: 'Trigger B'); c.label(:downstream, text: 'Target B') }
+        end
+
+        # white-box: target: isn't public DSL yet (see the plain forward-
+        # reference test above) - a component's own nodes aren't reachable
+        # by name from outside its scope, so walk the tree structurally
+        # (each panel has one component's 2 children as its own children,
+        # in build order) to attach each component's own binding. A
+        # binding's event listener attaches to the TARGET node's path (see
+        # the plain forward-reference test above), so generating the event
+        # on component A's own :downstream widget below only fires
+        # component A's binding if resolution correctly stayed within
+        # component A's scope.
+        comp_a_trigger_node, comp_a_downstream_node = ui.document.find(:panel_a).children
+        comp_b_trigger_node, comp_b_downstream_node = ui.document.find(:panel_b).children
+        comp_a_trigger_node.events <<
+          Teek::UI::EventBinding.new(event: '<Button-1>', handler: -> { a_fired = true }, target: :downstream)
+        comp_b_trigger_node.events <<
+          Teek::UI::EventBinding.new(event: '<Button-1>', handler: -> { b_fired = true }, target: :downstream)
+        raise "unexpected build shape" unless comp_a_downstream_node && comp_b_downstream_node
+      end
+      session.run_async
+      session.app.update
+
+      session.app.tcl_eval("event generate #{comp_a_downstream.path} <Button-1>")
+      session.app.update
+
+      assert a_fired, "component A's own trigger should have fired component A's own binding"
+      refute b_fired, "component A's trigger firing should never fire component B's binding"
+
+      session.app.destroy
+    end
+  end
+
+  def test_event_target_forward_reference_still_resolves_inside_a_component
+    assert_tk_app("a forward reference to a not-yet-built sibling should still resolve when both are inside the same component") do
+      require 'teek/ui'
+
+      fired = false
+      session = Teek::UI.app(title: 'Realizer Test') do |ui|
+        ui.component do |c|
+          c.button(:trigger, text: 'Trigger')
+          c.label(:downstream, text: 'Target') # declared AFTER :trigger, same component
+
+          trigger_node, = c.document.root.children
+          trigger_node.events <<
+            Teek::UI::EventBinding.new(event: '<Button-1>', handler: -> { fired = true }, target: :downstream)
+        end
+      end
+      session.run_async
+      session.app.update
+
+      _trigger_node, downstream_node = session.document.root.children
+      session.app.tcl_eval("event generate #{downstream_node.realized.path} <Button-1>")
+      session.app.update
+
+      assert fired, "the intra-component forward-referenced target's binding did not fire"
+
+      session.app.destroy
+    end
+  end
+
   def test_realize_is_atomic_on_a_mid_realize_error
     assert_tk_app("an error partway through realize should leave the root window unmapped and the session not realized") do
       require 'teek/ui'

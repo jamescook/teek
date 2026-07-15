@@ -156,6 +156,24 @@ class TestValidator < Minitest::Test
     assert_match(/nope/, error.message)
   end
 
+  def test_event_target_naming_a_different_components_node_is_reported_as_dangling_not_silently_matched
+    # a :downstream exists in the document - just not in the trigger's OWN
+    # scope, so flat resolution would silently find the WRONG one; scoped
+    # resolution should report this exactly like a genuinely nonexistent
+    # target, not silently match across the component boundary.
+    session = build_session
+    session.component { |c| c.label(:downstream, text: 'Elsewhere') }
+    session.component { |c| c.button(:trigger, text: 'Go') }
+
+    _elsewhere_downstream, trigger_node = session.document.root.children
+    trigger_node.events <<
+      Teek::UI::EventBinding.new(event: '<Button-1>', handler: -> { }, target: :downstream)
+
+    error = assert_raises(Teek::UI::ValidationError) { Teek::UI::Validator.validate!(session.document) }
+    assert_match(/trigger/, error.message)
+    assert_match(/downstream/, error.message)
+  end
+
   def test_orphan_named_node_warns_by_default
     document = Teek::UI::Document.new
     document.create(type: :button, name: :lost) # never attached to any parent

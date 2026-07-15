@@ -537,7 +537,7 @@ module Teek
       def wire_event(node, binding)
         target_node =
           if binding.target
-            @document.find(binding.target) or
+            @document.find(binding.target, scope: node.scope) or
               raise ArgumentError, "event target :#{binding.target} not found in the document"
           else
             node
