@@ -349,7 +349,7 @@ end.run
 
 `.push(name, handle)`/`.pop` reveal/conceal exactly like `ui.screens` (it wraps one internally, including its lazy-realize support - `document:` is optional, needed only if you'll push a `lazy: true` dialog) - the difference is the lifecycle: `on_enter` fires once, the first time the stack goes from empty to non-empty; `on_exit` fires once, when the last dialog pops and the stack goes back to empty; `on_focus_change`, if given, fires with the new top's name on every push and every pop that still leaves a dialog underneath. `.current`/`.size`/`.active?` read the stack's state. Push a handle declared `modal: true` (`ui.dialog` already defaults to this) so `.show` actually grabs input - `ui.modal` itself doesn't grab anything on its own.
 
-A "fresh dialog every time it's opened" (rather than one built once and reused) just means building a new `lazy: true` component right before each push - through `ui.add` since this runs after the window's already up - and destroying it after each pop. Defer that destroy a tick with `ui.after(0) { }` since the close button is triggering the destruction of its own containing window - Tk still has its own internal click-handling bindings queued for that same click, and they'd otherwise run against a widget that's already gone:
+A "fresh dialog every time it's opened" (rather than one built once and reused) just means building a new `lazy: true` component right before each push - through `ui.add` since this runs after the window's already up - and destroying it after each pop:
 
 ```ruby
 def open_settings(ui)
@@ -357,7 +357,7 @@ def open_settings(ui)
   ui.add(:main) do |a|
     dialog = a.component do |c|
       c.window(:settings, lazy: true, modal: true) do |w|
-        w.button(:close, text: 'Close').on_click { ui.after(0) { ui.modal.pop&.destroy! } }
+        w.button(:close, text: 'Close').on_click { ui.modal.pop&.destroy! }
       end
     end
   end

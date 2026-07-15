@@ -17,7 +17,7 @@ module Teek
     class Node
       attr_reader :type, :name, :opts, :children, :events, :parent, :scope
       attr_accessor :key, :layout, :realized
-      attr_writer :lazy
+      attr_writer :lazy, :pending_destroy
 
       # @param type [Symbol] node kind, e.g. +:button+, +:column+, +:var+
       # @param name [Symbol, nil] explicit stable name, for addressing (+ui[:name]+)
@@ -38,6 +38,7 @@ module Teek
         @parent = nil
         @scope = scope
         @lazy = false
+        @pending_destroy = false
       end
 
       # @return [Boolean] whether this node is excluded from the ambient
@@ -49,6 +50,14 @@ module Teek
       #   {Handle#realize!}).
       def lazy?
         @lazy
+      end
+
+      # @return [Boolean] whether a deferred {Handle#destroy!} is
+      #   currently scheduled (via +after idle+) but hasn't run yet -
+      #   lets a second +destroy!+ call on the same still-pending handle
+      #   no-op instead of double-scheduling.
+      def pending_destroy?
+        @pending_destroy
       end
 
       # @param node [Node]

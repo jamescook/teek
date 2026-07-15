@@ -95,19 +95,46 @@ module Teek
       # conceals, exactly as before; this is a separate, explicit step -
       # +ui.screens.pop&.destroy!+/+ui.modal.pop&.destroy!+.
       #
-      # Calling this SYNCHRONOUSLY from inside the own click handler of a
-      # widget that's a descendant of the node being destroyed (e.g. a
-      # dialog's own "Close" button tearing down the dialog it lives in)
-      # is a real Tk hazard, not specific to this method - `ttk::button`
-      # (and others) queue their own internal bindings for the same
-      # click, and those run against a widget that's already gone. Defer
-      # with +ui.after(0) { handle.destroy! }+ from that specific case so
-      # the current event finishes first.
+      # Destroying a widget SYNCHRONOUSLY from inside the click handler
+      # of one of its own descendants (a dialog's own "Close" button
+      # tearing down the dialog it lives in) is a real Tk hazard:
+      # `ttk::button` (and others) queue their own internal bindings for
+      # that SAME click, which then run against a widget that's already
+      # gone. +defer+ absorbs this automatically - no need to know about
+      # it or reach for `ui.after` yourself.
+      # @param defer [Boolean, nil] +nil+ (the default) auto-detects:
+      #   defers to the next Tk idle point ({Teek.in_callback?} true -
+      #   the hazard above) so the current click finishes first, or
+      #   destroys synchronously otherwise (a script/test with no event
+      #   loop running has nothing to defer TO, and wants "gone when
+      #   this call returns" semantics). Pass explicitly to override
+      #   either way. Calling this again on the same handle while its
+      #   own deferred destroy hasn't run yet is a safe no-op.
+      #
+      #   The one residual to know about: when this DOES defer, it
+      #   returns before the widget is actually gone - the node still
+      #   reports realized and its old Tk path still exists until the
+      #   deferred teardown runs. Don't +destroy!+ then immediately
+      #   rebuild a fresh mount at that SAME name/path in the same
+      #   handler expecting the old one to already be gone; either pass
+      #   +defer: false+ to force it synchronous first, or build the
+      #   replacement under a genuinely distinct mount (the normal
+      #   "fresh `lazy: true` component per open" pattern already does
+      #   this, since {Document#claim_path_segment} never reuses a path
+      #   segment anyway).
       # @return [nil]
       # @raise [NotRealizedError] if this node was never realized
-      def destroy!
-        realized.app.destroy(realized.path)
-        @node.realized = nil
+      def destroy!(defer: nil)
+        return nil if @node.pending_destroy?
+
+        should_defer = defer.nil? ? Teek.in_callback? : defer
+        if should_defer
+          app = realized.app
+          @node.pending_destroy = true
+          app.after_idle { perform_destroy! }
+        else
+          perform_destroy!
+        end
         nil
       end
 
@@ -385,6 +412,16 @@ module Teek
 
       def realized
         @node.realized or raise NotRealizedError
+      end
+
+      # The actual teardown {#destroy!} defers or runs immediately -
+      # clears the pending flag first so a LATER, genuinely fresh
+      # destroy! (after a rebuild) is never mistaken for a still-pending
+      # one.
+      def perform_destroy!
+        @node.pending_destroy = false
+        realized.app.destroy(realized.path)
+        @node.realized = nil
       end
 
       # @return [Boolean] whether this node has a live Tk widget yet -
