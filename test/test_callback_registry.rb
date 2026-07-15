@@ -135,4 +135,44 @@ class TestCallbackRegistry < Minitest::Test
     @registry.forget_all_for_path('.e')
     assert_equal ['cb1'], @app.released
   end
+
+  # -- counts_by_tag ---------------------------------------------------------
+
+  def test_counts_by_tag_is_empty_when_nothing_is_tracked
+    assert_equal({}, @registry.counts_by_tag)
+  end
+
+  def test_counts_by_tag_counts_individual_ids_not_containers
+    @registry.reconcile([:bind, '.e']) { |before| before.merge('<Key-a>' => 'cb1', '<Key-b>' => 'cb2') }
+
+    assert_equal({ bind: 2 }, @registry.counts_by_tag)
+  end
+
+  def test_counts_by_tag_sums_across_every_container_sharing_a_tag
+    @registry.reconcile([:bind, '.a']) { |before| before.merge('<Key-a>' => 'cb1') }
+    @registry.reconcile([:bind, '.b']) { |before| before.merge('<Key-a>' => 'cb2') }
+
+    assert_equal({ bind: 2 }, @registry.counts_by_tag)
+  end
+
+  def test_counts_by_tag_groups_separately_per_tag
+    @registry.reconcile([:bind, '.e']) { |before| before.merge('<Key-a>' => 'cb1') }
+    @registry.reconcile([:menu, '.m']) { { 'cb2' => 'cb2', 'cb3' => 'cb3' } }
+
+    assert_equal({ bind: 1, menu: 2 }, @registry.counts_by_tag)
+  end
+
+  def test_counts_by_tag_reflects_release_via_reconcile
+    @registry.reconcile([:bind, '.e']) { |before| before.merge('<Key-a>' => 'cb1') }
+    @registry.reconcile([:bind, '.e']) { |before| before.reject { |k, _| k == '<Key-a>' } }
+
+    assert_equal({}, @registry.counts_by_tag)
+  end
+
+  def test_counts_by_tag_reflects_release_via_forget_all_for_path
+    @registry.reconcile([:bind, '.e']) { |before| before.merge('<Key-a>' => 'cb1') }
+    @registry.forget_all_for_path('.e')
+
+    assert_equal({}, @registry.counts_by_tag)
+  end
 end
