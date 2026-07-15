@@ -100,9 +100,21 @@ module Teek
       private
 
       def append_entry(type, name, opts)
-        node = @document.create(type: type, name: name, opts: opts)
+        node = @document.create(type: type, name: name, opts: normalize_shortcut(opts))
         @stack.last.add_child(node)
         node
+      end
+
+      # +shortcut:+ is the friendly primary for Tk's own +accelerator:+
+      # menu-entry option - purely the text displayed next to the label
+      # (e.g. +"Ctrl+S"+), not an actual key binding; see the README's
+      # own note on wiring the real keystroke separately.
+      def normalize_shortcut(opts)
+        return opts unless opts.key?(:shortcut)
+
+        opts = opts.dup
+        opts[:accelerator] = opts.delete(:shortcut)
+        opts
       end
 
       # Same computation as {WidgetDSL#current_path} (not the SAME public

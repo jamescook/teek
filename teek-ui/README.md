@@ -133,12 +133,12 @@ settings = ui.window(:settings)
 settings.on_close { session.app.destroy(settings.path) if confirm_discard_changes? }
 ```
 
-The same `ui.window` handle also gets `modal`/`grab_release`, for dialogs that should block interaction with the rest of the app while open. Unlike the queue-then-wire events above, these only make sense once the window is actually realized (there's nothing to grab before it exists), so they raise `NotRealizedError` before that rather than queuing:
+The same `ui.window` handle also gets `modal`/`release_focus`, for dialogs that should block interaction with the rest of the app while open. Unlike the queue-then-wire events above, these only make sense once the window is actually realized (there's nothing to grab before it exists), so they raise `NotRealizedError` before that rather than queuing:
 
 ```ruby
 settings.modal            # grabs input and focuses the window - stays grabbed
 # ... later, from the window's own on_close/a Done button ...
-settings.grab_release
+settings.release_focus
 ```
 
 `modal` also takes an optional block that runs with the grab already set (typically the rest of the window's own show sequence), and releases the grab immediately if that block raises, or if the window is destroyed while still grabbed - see `Teek::Window#modal` in base teek, which this delegates to entirely.
@@ -182,7 +182,7 @@ Everything above is a complete app. The sections below are power you reach for w
 
 Building is Tk-free: the block passed to `Teek::UI.app` runs immediately, but nothing touches Tk yet - no `Teek::App`/interpreter exists until the session is **realized**. `#run` and `#run_async` both realize (create the app) before doing anything else; you can also call `#realize` directly. This is what makes a build constructible and inspectable (`session.document`) with no display, no Tk, no `package require Tk` - useful for testing UI structure in CI where teek's own Tk-backed suite can't run.
 
-Because of this, a handful of methods only work **after** realize: `session.app` (it *is* the realized app - can't exist any earlier by definition), `modal`/`grab_release` (grabbing input needs a live window), the standard dialogs, and `ui.clipboard` all raise `Teek::UI::NotRealizedError` if called before realize. This is the one lifecycle rule behind every one of those - stated once here, not re-explained section by section. In practice it rarely bites, since all of them are normally called from inside an `on_*` event handler - which only ever runs after realize, since nothing can click a widget that doesn't exist yet:
+Because of this, a handful of methods only work **after** realize: `session.app` (it *is* the realized app - can't exist any earlier by definition), `modal`/`release_focus` (grabbing input needs a live window), the standard dialogs, and `ui.clipboard` all raise `Teek::UI::NotRealizedError` if called before realize. This is the one lifecycle rule behind every one of those - stated once here, not re-explained section by section. In practice it rarely bites, since all of them are normally called from inside an `on_*` event handler - which only ever runs after realize, since nothing can click a widget that doesn't exist yet:
 
 ```ruby
 session = Teek::UI.app(title: 'Hello') do |ui|
@@ -273,16 +273,16 @@ session = Teek::UI.app(title: 'Hello') do |ui|
   ui.canvas(:board, width: 400, height: 300)
 end.run
 
-ball = session[:board].oval(10, 10, 40, 40, fill: 'red', tags: 'movable')
+ball = session[:board].ellipse(10, 10, 40, 40, fill: 'red', tags: 'movable')
 ball.move(20, 0)              # relative shift
-ball.coords = [10, 10, 60, 60]  # replace the coordinate list outright
+ball.points = [10, 10, 60, 60]  # replace the coordinate list outright
 ball[:fill] = 'blue'          # read/write a single option
 ball.configure(outline: 'black', width: 2) # or several at once
 ball.bring_to_front           # stacking order (send_to_back is the opposite)
 ball.delete
 ```
 
-Shape methods - `line`, `oval`, `polygon`, `rectangle`, `text`, `arc`, `bitmap` - take coordinates flat or nested (`line(0, 0, 10, 10)` and `line([0, 0], [10, 10])` are equivalent) plus real Tk item options (`fill:`, `outline:`, `width:`, `font:`, ...) passed straight through, same as every other widget option in the DSL.
+Shape methods - `line`, `ellipse`, `polygon`, `rectangle`, `text`, `arc`, `bitmap` - take coordinates flat or nested (`line(0, 0, 10, 10)` and `line([0, 0], [10, 10])` are equivalent) plus real Tk item options (`fill:`, `outline:`, `width:`, `font:`, ...) passed straight through, same as every other widget option in the DSL. Tk's own name for `ellipse` is `oval` - both work identically; see [Friendly vs. Tk Names](#friendly-vs-tk-names) near the end of this README for every alias like this one.
 
 `tags:` at creation time groups items - `ui[:board].tagged('movable')` addresses every item currently carrying that tag as one `CanvasItem`, so `.move`/`.configure`/`.delete` apply to the whole group at once. A single-item handle from a shape method and a tag-scoped group handle from `tagged` are the same type, working identically either way (this mirrors how Tk's own canvas commands already treat a tag and an id the same way) - `.exists?` tells you whether a tag currently matches anything.
 
@@ -290,7 +290,7 @@ Items also take the same `on_click`/`on_right_click`/`on_drag` vocabulary as wid
 
 ```ruby
 ball.on_click { ball[:fill] = 'green' }
-ball.on_drag { |x, y| ball.coords = [x - 15, y - 15, x + 15, y + 15] }
+ball.on_drag { |x, y| ball.points = [x - 15, y - 15, x + 15, y + 15] }
 ```
 
 For the common case of "let the user drag this around", `draggable` does that `on_drag` delta math for you:
@@ -419,7 +419,7 @@ Teek::UI.app(title: 'Hello') do |ui|
 end.run
 ```
 
-`.show` positions the window just to the right of whichever window it's nested under (root, or an enclosing `ui.window`), deiconifies, raises it to the front, and - only if declared `modal: true` - grabs input and focus too (see `modal`/`grab_release` under [Events](#events)). `.hide` releases any grab and withdraws it. `resizable:` takes a single Boolean for both axes, or a `[width, height]` pair.
+`.show` positions the window just to the right of whichever window it's nested under (root, or an enclosing `ui.window`), deiconifies, raises it to the front, and - only if declared `modal: true` - grabs input and focus too (see `modal`/`release_focus` under [Events](#events)). `.hide` releases any grab and withdraws it. `resizable:` takes a single Boolean for both axes, or a `[width, height]` pair.
 
 `ui.dialog(...)` is `ui.window` with defaults flipped for the common "small modal window" case - `modal: true`, `resizable: false` - both still overridable:
 
@@ -556,7 +556,7 @@ Teek::UI.app(title: 'Editor') do |ui|
 
   ui.menu_bar do |mb|
     mb.menu(label: 'File') do |file|
-      file.item(label: 'Open...', accelerator: 'Cmd+O') { open_file }
+      file.item(label: 'Open...', shortcut: 'Cmd+O') { open_file }
       file.separator
       file.menu(label: 'Recent') do |recent|
         recent.item(label: 'notes.txt') { open_recent('notes.txt') }
@@ -581,6 +581,8 @@ ui[:quick_load].enable
 ```
 
 No magic index and no label-text matching - addressing stays correct even if an earlier entry is added or removed later.
+
+`shortcut:` (Tk's own name: `accelerator:`, still works) is display-only - it shows "Cmd+O" next to the label but doesn't actually bind the key. Wire the real keystroke separately, typically with `on_key` on whatever widget should be listening.
 
 A **context menu** is a standalone popup, built the same way but not attached to anything automatically - wire it to a widget with `on_right_click`:
 
@@ -675,5 +677,25 @@ Each returns `nil` if the user cancels (`ui.message` returns the pressed button 
 ui.clipboard.set('copied text')
 ui.clipboard.get # => "copied text", or nil if empty
 ```
+
+## Friendly vs. Tk Names
+
+The litmus test for every name in this DSL: if decoding it needs Tk knowledge, the name is wrong. Where that meant renaming an underlying Tk concept, the Tk name still works too, as a plain alias - so a Tk man page, a Ruby-Tk migration, or plain muscle memory all still resolve correctly. The friendly name is primary (what the README/examples use); either name works identically everywhere.
+
+| Friendly (primary) | Tk name (alias) | Where |
+|---|---|---|
+| `ellipse` | `oval` | canvas shape method |
+| `points` / `points=` | `coords` / `coords=` | `CanvasItem` |
+| `bring_to_front` | `tk_raise`* | `CanvasItem` |
+| `send_to_back` | `lower` | `CanvasItem` |
+| `bounds` | `bbox` | `CanvasItem` |
+| `release_focus` | `grab_release` | `Handle` (window) |
+| `shortcut:` | `accelerator:` | menu `item`/`checkbox`/`radio` |
+
+\* Not plain `raise` - that would silently shadow `Kernel#raise` on every `CanvasItem` (a bare `raise` call meant to raise a real exception would instead call this method). `tk_raise` keeps the Tk association without the collision.
+
+A few Tk names are kept as-is, deliberately not renamed - either genuinely universal (`configure`, `move`, `scale`, `value`), or Tk-specific enough that a forced rename would obscure more than it clarifies (`relief:`, `highlightthickness:`, `bitmap` as a canvas item type - a real Tk bitmap image format, not a shape). `tagged(tag)` (canvas tag-group addressing) also stays as-is - a legitimate, already-clear concept on its own terms.
+
+See also `text_content`'s own alias table (in [Text Content](#text-content) above) for the text-widget-specific set - `format`/`apply_format`/`clear_format`/`delete_format`/`format_ranges`/`on_format_click`/`on_format` (Tk: `tag_configure`/`tag_add`/`tag_remove`/`tag_delete`/`tag_ranges`/`on_tag_click`/`on_tag`), `add_marker`/`remove_marker`/`markers` (Tk: `mark_set`/`mark_unset`/`mark_names`), `scroll_to` (Tk: `see`), `insert_image` (Tk: `image_create`).
 
 `text_box`/`text_area` don't need this at all for their own copy/cut/paste - the standard platform keys (Ctrl/Cmd-C/X/V) already work with zero wiring, since that's Tk's own built-in behavior on every text-editing widget.

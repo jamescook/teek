@@ -47,19 +47,21 @@ module Teek
       end
 
       # @return [Array<Float>] the current coordinate list
-      def coords
+      def points
         result = @app.command(@canvas_path, :coords, @tag_or_id)
         @app.split_list(result).map(&:to_f)
       end
+      alias_method :coords, :points
 
       # Replace the coordinate list outright (as opposed to {#move}'s
       # relative shift).
       # @param new_coords [Array<Numeric>] flat or nested (e.g.
       #   +[[x1, y1], [x2, y2]]+) - flattened either way
       # @return [void]
-      def coords=(new_coords)
+      def points=(new_coords)
         @app.command(@canvas_path, :coords, @tag_or_id, *new_coords.flatten)
       end
+      alias_method :coords=, :points=
 
       # Mutate several item options at once.
       # @param opts [Hash] item options, e.g. +fill: 'red'+
@@ -103,6 +105,12 @@ module Teek
         @app.command(@canvas_path, :raise, @tag_or_id, *args)
         self
       end
+      # Tk's own name for {#bring_to_front} - not plain +raise+, which
+      # would silently shadow +Kernel#raise+ on every CanvasItem (a bare
+      # +raise+ call from inside this class, now or later, would call
+      # THIS method instead of actually raising - a real, silent
+      # footgun, not just a style concern).
+      alias_method :tk_raise, :bring_to_front
 
       # Send to the back of the stacking order (drawn first, under
       # everything), or - given +below+ - just behind that one item/tag
@@ -114,6 +122,7 @@ module Teek
         @app.command(@canvas_path, :lower, @tag_or_id, *args)
         self
       end
+      alias_method :lower, :send_to_back
 
       # Scale coordinates relative to a fixed point.
       # @param ox [Numeric] x origin scaling is relative to
@@ -132,6 +141,7 @@ module Teek
         result = @app.command(@canvas_path, :bbox, @tag_or_id)
         result.empty? ? nil : @app.split_list(result).map(&:to_f)
       end
+      alias_method :bbox, :bounds
 
       # @return [Boolean] whether any item currently matches {#tag_or_id} -
       #   always true for a single-item handle from a creation method

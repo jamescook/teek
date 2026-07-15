@@ -281,18 +281,21 @@ module Teek
         window.modal(global: global, &block)
       end
 
-      # Release a grab previously set with {#modal}. Only valid on a
-      # `ui.window` handle. See {Teek::Window#grab_release}.
+      # Release a grab previously set with {#modal} - "grab" is X11/Tk
+      # jargon for capturing all input to one window, which is what a
+      # modal dialog is doing while it's up. Only valid on a `ui.window`
+      # handle. See {Teek::Window#grab_release}.
       # @return [void]
       # @raise [ArgumentError] if this handle isn't a window
       # @raise [NotRealizedError] before realize
-      def grab_release
+      def release_focus
         unless type == :window
-          raise ArgumentError, "grab_release only makes sense on a window (got a :#{type})"
+          raise ArgumentError, "release_focus only makes sense on a window (got a :#{type})"
         end
 
         window.grab_release
       end
+      alias_method :grab_release, :release_focus
 
       # Reveal the window: positions it just to the right of the parent
       # it's nested under (root, or another window if this one's nested
@@ -341,16 +344,17 @@ module Teek
         create_canvas_item(:line, coords, opts)
       end
 
-      # An oval inscribed in the bounding box +[x1, y1, x2, y2]+. Only
+      # An ellipse inscribed in the bounding box +[x1, y1, x2, y2]+. Only
       # valid on a `ui.canvas` handle.
       # @param coords [Array<Numeric>]
       # @param opts [Hash] item options, e.g. +fill:+/+outline:+/+tags:+
       # @return [CanvasItem]
       # @raise [ArgumentError] if this handle isn't a canvas
       # @raise [NotRealizedError] before realize
-      def oval(*coords, **opts)
+      def ellipse(*coords, **opts)
         create_canvas_item(:oval, coords, opts)
       end
+      alias_method :oval, :ellipse
 
       # A closed shape through the given points - +[x1, y1, x2, y2, ...]+,
       # flat or nested, three or more points. Only valid on a `ui.canvas` handle.
