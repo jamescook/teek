@@ -19,7 +19,8 @@ Nothing has shipped yet - this section is a snapshot of the current API, not a r
 - Handles: one handle type across both phases - `.path`/`.configure`/`.enable`/`.disable`/`.destroy!` (auto-defers to the next idle point when called from inside a callback, so a widget can safely tear down its own containing window from its own click handler - `defer:` overrides either way).
 - Events: `on_click`/`on_right_click`/`on_drag`/`on_key`, queue before realize, wire immediately after.
 - Close handling: `on_close` on windows, overridable default-destroy.
-- Escape hatch: `session.app`/`#every`/`#after` post-realize, `ui.raw { |app| }` pre-realize.
+- Escape hatch: `session.app` post-realize, `ui.raw { |app| }` pre-realize.
+- Timers: `#every`/`#after` - queue-then-wire like events, declarable inside the build block or after realize.
 - Reactive variables: `ui.var`, `bind:`, `#value`/`#value=`, `#on_change`.
 - Event bus: `ui.on`/`ui.emit`/`ui.off` - in-process pub/sub for decoupled widgets, app-scoped (not a global singleton), works before realize.
 - Menus: `menu_bar`/`menu`/`context_menu`, shared `item`/`separator`/`checkbox`/`radio` vocabulary; named `item`/`checkbox`/`radio` entries are addressable via `ui[:name]`, immune to entry renumbering.

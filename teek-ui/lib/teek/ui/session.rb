@@ -22,6 +22,10 @@ module Teek
     class Session
       include WidgetDSL
 
+      # A `#every`/`#after` call queued before realize - see {#flush_timers!}.
+      # @api private
+      Timer = Data.define(:kind, :ms, :on_error, :block)
+
       # @return [Document] the build-phase tree - constructible and
       #   traversable with no interpreter, before or after realize.
       attr_reader :document
@@ -41,6 +45,7 @@ module Teek
         @app = nil
         @in_add = false
         @bus = EventBus.new
+        @timers = []
       end
 
       # @return [Teek::App] the underlying app - the DSL's escape hatch.
@@ -75,6 +80,7 @@ module Teek
           # initial value immediately instead of starting blank.
           @vars.each { |v| v.realize(app) }
           Realizer.new(app, @document, default_scroll: @scroll).realize
+          flush_timers!(app)
         rescue
           app.destroy
           raise
@@ -127,18 +133,35 @@ module Teek
         @bus.off(event, block)
       end
 
+      # Same queue-then-wire shape as an `on_*` event binding: called
+      # inside the build block, it queues and registers once the tree
+      # realizes; called after, it registers immediately - same method,
+      # correct behavior either way, so a tick loop can be declared right
+      # alongside the UI it drives instead of being forced out to a
+      # separate post-`run_async` step.
       # @see Teek::App#every
-      # @raise [NotRealizedError] if called before #realize
+      # @return [Object, nil] the live timer object (`.cancel`-able) once
+      #   realized; `nil` if queued - there's no live timer to hand back
+      #   yet, since nothing has registered with Tcl at that point
       def every(ms, on_error: :raise, &block)
-        raise_unless_realized!
-        @app.every(ms, on_error: on_error, &block)
+        if @app
+          @app.every(ms, on_error: on_error, &block)
+        else
+          @timers << Timer.new(kind: :every, ms: ms, on_error: on_error, block: block)
+          nil
+        end
       end
 
+      # @see #every
       # @see Teek::App#after
-      # @raise [NotRealizedError] if called before #realize
+      # @return [Object, nil] see {#every}
       def after(ms, on_error: :raise, &block)
-        raise_unless_realized!
-        @app.after(ms, on_error: on_error, &block)
+        if @app
+          @app.after(ms, on_error: on_error, &block)
+        else
+          @timers << Timer.new(kind: :after, ms: ms, on_error: on_error, block: block)
+          nil
+        end
       end
 
       # Show the native "choose file to open" dialog.
@@ -239,6 +262,22 @@ module Teek
       end
 
       private
+
+      # Registers every timer queued via `#every`/`#after` before realize
+      # against the now-live +app+, in declaration order - mirrors how
+      # {Realizer#link} wires queued event bindings once the whole tree
+      # is up. Called from inside #realize's own begin block (not after
+      # +@app+ is set), so a bad timer registration is caught by the
+      # SAME atomicity guarantee as the rest of realize.
+      def flush_timers!(app)
+        @timers.each do |timer|
+          case timer.kind
+          when :every then app.every(timer.ms, on_error: timer.on_error, &timer.block)
+          when :after then app.after(timer.ms, on_error: timer.on_error, &timer.block)
+          end
+        end
+        @timers.clear
+      end
 
       def raise_unless_realized!
         raise NotRealizedError unless @app

@@ -22,7 +22,7 @@ end.run
 
 Building is Tk-free: the block passed to `Teek::UI.app` runs immediately, but nothing touches Tk yet - no `Teek::App`/interpreter exists until the session is **realized**. `#run` and `#run_async` both realize (create the app) before doing anything else; you can also call `#realize` directly. This is what makes a build constructible and inspectable (`session.document`) with no display, no Tk, no `package require Tk` - useful for testing UI structure in CI where teek's own Tk-backed suite can't run.
 
-Because of this, `session.app` (and `#every`/`#after`) only work **after** realize - calling them from inside the build block itself raises `Teek::UI::NotRealizedError`, since the block runs before `.run`/`.run_async` is ever called:
+Because of this, a handful of methods only work **after** realize: `session.app` (it *is* the realized app - can't exist any earlier by definition), `modal`/`grab_release` (grabbing input needs a live window), the standard dialogs, and `ui.clipboard` all raise `Teek::UI::NotRealizedError` if called before realize. This is the one lifecycle rule behind every one of those - stated once here, not re-explained section by section. In practice it rarely bites, since all of them are normally called from inside an `on_*` event handler - which only ever runs after realize, since nothing can click a widget that doesn't exist yet:
 
 ```ruby
 session = Teek::UI.app(title: 'Hello') do |ui|
@@ -33,6 +33,8 @@ end
 session.run_async
 session.app.command(:label, '.greeting', text: 'Hi there') # fine now
 ```
+
+Events and timers are the exception - genuinely deferrable, so they don't raise at all: `on_*` handlers and `#every`/`#after` can be declared right inside the build block, queue, and wire/register themselves automatically once the tree realizes (see Events and Timers below) - same method, correct behavior whether called before or after.
 
 Realize also validates the whole tree first - a build with a real problem (a dangling event target, two widgets in the same grid cell) raises one `Teek::UI::ValidationError` listing everything found, before any Tk call happens. A widget that's declared but never actually placed anywhere warns by default; pass `strict: true` to `#run`/`#run_async`/`#realize` to raise on that too.
 
@@ -524,18 +526,21 @@ session.app.update # process events after each change
 
 ## Timers
 
-`#every`/`#after` also require realize first:
+`#every`/`#after` follow the same queue-then-wire shape as events: declare a tick loop right inside the build block, next to the UI it drives, and it registers automatically once the tree realizes - no need to relocate it to a separate post-`run_async` step. Called after realize, they register immediately instead, with identical runtime behavior either way:
 
 ```ruby
-session = Teek::UI.app(title: 'Hello').run_async
-session.every(1000) { puts 'tick' }
-session.after(500) { puts 'once' }
-session.app.mainloop
+session = Teek::UI.app(title: 'Hello') do |ui|
+  ui.every(1000) { puts 'tick' }   # queues now, starts ticking once realized
+  ui.after(500) { puts 'once' }
+end
+session.run
 ```
+
+Called before realize, both return `nil` - there's no live, `.cancel`-able timer object to hand back until the app actually exists. Called after, they return the same live timer `Teek::App#every`/`#after` already does.
 
 ## Dialogs
 
-The standard native dialogs are reachable directly on `ui` - also realize-only, same as the timers above:
+The standard native dialogs are reachable directly on `ui` - realize-only, unlike the timers above (see "Building vs. Realizing"):
 
 ```ruby
 path = ui.open_file(filetypes: [['Images', ['.png', '.jpg']]])

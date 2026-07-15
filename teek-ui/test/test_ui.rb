@@ -52,14 +52,61 @@ class TestUI < Minitest::Test
     end
   end
 
-  def test_session_every_and_after_raise_before_realize
-    assert_tk_app("session.every/.after should raise a clear error before realize, not queue") do
+  def test_session_every_and_after_queue_before_realize_and_fire_once_realized
+    assert_tk_app("session.every/.after declared inside the build block should queue (no NotRealizedError) and actually fire once realized") do
       require 'teek/ui'
 
-      session = Teek::UI.app(title: 'UI Scaffold Test')
+      ticks = 0
+      fired = false
+      session = Teek::UI.app(title: 'Timers Test') do |ui|
+        ui.every(10) { ticks += 1 }
+        ui.after(10) { fired = true }
+      end
+      session.run_async
 
-      assert_raises(Teek::UI::NotRealizedError) { session.every(10) { } }
-      assert_raises(Teek::UI::NotRealizedError) { session.after(10) { } }
+      deadline = Time.now + 2
+      session.app.update until (ticks >= 2 && fired) || Time.now > deadline
+
+      assert_operator ticks, :>=, 2, "a build-block ui.every should have ticked after realize, same as a post-realize one"
+      assert fired, "a build-block ui.after should have fired after realize, same as a post-realize one"
+
+      session.app.destroy
+    end
+  end
+
+  def test_a_build_block_timer_and_a_post_realize_timer_behave_identically
+    assert_tk_app("a timer declared inside the build block and one declared after realize should produce the same runtime behavior") do
+      require 'teek/ui'
+
+      queued_ticks = 0
+      session = Teek::UI.app(title: 'Timers Test') { |ui| ui.every(10) { queued_ticks += 1 } }
+      session.run_async
+
+      post_realize_ticks = 0
+      session.every(10) { post_realize_ticks += 1 }
+
+      deadline = Time.now + 2
+      session.app.update until (queued_ticks >= 2 && post_realize_ticks >= 2) || Time.now > deadline
+
+      assert_operator queued_ticks, :>=, 2
+      assert_operator post_realize_ticks, :>=, 2
+
+      session.app.destroy
+    end
+  end
+
+  def test_session_every_returns_nil_when_queued_before_realize
+    assert_tk_app("session.every should return nil when queued (no live timer object exists yet to hand back)") do
+      require 'teek/ui'
+
+      result = nil
+      session = Teek::UI.app(title: 'Timers Test') { |ui| result = ui.every(10) { } }
+      session.run_async
+      session.app.update
+
+      assert_nil result
+
+      session.app.destroy
     end
   end
 
