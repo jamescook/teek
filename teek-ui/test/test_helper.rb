@@ -17,3 +17,4 @@ if ENV['COVERAGE']
 end
 
 require "minitest/autorun"
+require_relative "support/fake_app"

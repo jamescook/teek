@@ -8,6 +8,7 @@ require_relative 'mouse_events'
 require_relative 'canvas_item'
 require_relative 'widget_addressing'
 require_relative 'widget_types'
+require_relative 'realizer'
 
 module Teek
   module UI
@@ -80,6 +81,34 @@ module Teek
       def disable
         configure(state: :disabled)
         self
+      end
+
+      # Tears down this node's live widget (and everything under it),
+      # releasing its callbacks via teek's existing +<Destroy>+ cleanup,
+      # and resets it so a later push of a fresh mount rebuilds it from
+      # scratch. The rebuild gets a fresh Tk path, not necessarily this
+      # same one - path segments are claimed once and never recycled (see
+      # {Document#claim_path_segment}), so this stays safe even if another
+      # instance sharing this same local name is still alive elsewhere
+      # under the same parent. Typically called after popping a screen you
+      # don't want to keep warm (see {Screens}) - popping alone only
+      # conceals, exactly as before; this is a separate, explicit step -
+      # +ui.screens.pop&.destroy!+/+ui.modal.pop&.destroy!+.
+      #
+      # Calling this SYNCHRONOUSLY from inside the own click handler of a
+      # widget that's a descendant of the node being destroyed (e.g. a
+      # dialog's own "Close" button tearing down the dialog it lives in)
+      # is a real Tk hazard, not specific to this method - `ttk::button`
+      # (and others) queue their own internal bindings for the same
+      # click, and those run against a widget that's already gone. Defer
+      # with +ui.after(0) { handle.destroy! }+ from that specific case so
+      # the current event finishes first.
+      # @return [nil]
+      # @raise [NotRealizedError] if this node was never realized
+      def destroy!
+        realized.app.destroy(realized.path)
+        @node.realized = nil
+        nil
       end
 
       # Fires on a left click.
@@ -356,6 +385,41 @@ module Teek
 
       def realized
         @node.realized or raise NotRealizedError
+      end
+
+      # @return [Boolean] whether this node has a live Tk widget yet -
+      #   true for any ordinary handle once the tree's been realized;
+      #   only ever false past that point for a +lazy: true+ container
+      #   (see {WidgetDSL#append_container}) not yet {#realize!}d, or
+      #   one that's been {#destroy!}ed since. Internal - {Screens#push}/
+      #   {ModalStack#push} are what actually decide when to realize a
+      #   lazy screen; an app author never needs to check this directly.
+      def realized?
+        !@node.realized.nil?
+      end
+
+      # Realizes this node (and everything declared inside it) into a
+      # live Tk widget, if it isn't already - the on-demand counterpart
+      # to +lazy: true+. A no-op if already realized. This node's own
+      # {Node#parent} must already be realized (true for anything
+      # reachable from an already-running app, which is the only
+      # situation a lazy node is realized from). Internal - called via
+      # +send+ by {Screens#push}/{ModalStack#push} (the only intended
+      # callers); a +lazy: true+ screen "just works" through them, with
+      # nothing for an app author to trigger by hand.
+      # @param document [Document] the same {Document} this node belongs
+      #   to - needed to resolve any +target:+ event bindings by name
+      # @return [self]
+      # @raise [NotRealizedError] if this node's own parent isn't realized yet
+      def realize!(document)
+        return self if realized?
+
+        parent_node = @node.parent
+        parent_realized = parent_node&.realized or
+          raise NotRealizedError, "can't realize this node - its own parent isn't realized yet"
+
+        Realizer.new(parent_realized.app, document).realize_subtree(@node, parent_node)
+        self
       end
 
       def window

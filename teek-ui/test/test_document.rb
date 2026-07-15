@@ -143,4 +143,39 @@ class TestDocument < Minitest::Test
 
     assert_equal [document.root, a, b, c], visited
   end
+
+  def test_claim_path_segment_returns_the_bare_segment_the_first_time
+    document = Teek::UI::Document.new
+
+    assert_equal 'save', document.claim_path_segment('.list', 'save')
+  end
+
+  def test_claim_path_segment_disambiguates_a_repeat_under_the_same_parent
+    document = Teek::UI::Document.new
+
+    document.claim_path_segment('.list', 'save')
+
+    assert_equal 'save#2', document.claim_path_segment('.list', 'save')
+    assert_equal 'save#3', document.claim_path_segment('.list', 'save')
+  end
+
+  def test_claim_path_segment_tracks_independently_per_parent_path
+    document = Teek::UI::Document.new
+
+    document.claim_path_segment('.sidebar', 'save')
+
+    assert_equal 'save', document.claim_path_segment('.main', 'save'),
+      "the same segment under a DIFFERENT parent should never need disambiguating"
+  end
+
+  def test_claim_path_segment_persists_across_separate_calls_not_just_one_realizer_instance
+    document = Teek::UI::Document.new
+
+    document.claim_path_segment('.list', 'save')
+    # simulates two SEPARATE Realizer instances (e.g. the initial realize,
+    # then a later lazily-realized screen sharing the same internal
+    # component name) both claiming under the same real parent - the
+    # whole reason this lives on Document rather than Realizer itself.
+    assert_equal 'save#2', document.claim_path_segment('.list', 'save')
+  end
 end

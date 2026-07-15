@@ -320,6 +320,18 @@ A `ui.window` screen is revealed/concealed through its own `.show`/`.hide` (deic
 
 A container is packed the normal way as soon as it's realized, regardless of `ui.screens` - so two sibling panels declared as candidate screens are *both* visible until `ui.screens` has touched them. Push every candidate once during setup (each push conceals whichever came before, so only the last one stays visible), or use `ui.window` for screens that shouldn't show up until pushed - it starts withdrawn already, with no setup-time push needed.
 
+A `lazy: true` container skips that problem a different way: it isn't realized at all - no live Tk widget exists yet - until something actually needs it. `ui.screens.push`/`.replace_current` realize it on demand, right before revealing it, so a large multi-screen app doesn't have to build every screen's widgets up front just to keep the first one from flashing:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  picker = nil
+  ui.panel(:host) { |p| picker = p.panel(:picker, lazy: true) { |pk| pk.button(:play, text: 'Play') } }
+  ui.screens.push(:picker, picker) # :picker is realized right here, not at declaration time
+end.run
+```
+
+Popping a screen only conceals it - the widget stays around, warm, for a fast re-show. `ui.screens.pop`/`ui.modal.pop` return the screen/window they just popped, and `handle.destroy!` tears a popped screen down for good (releasing its callbacks) when you don't want to keep it warm - `ui.screens.pop&.destroy!` is the common "close it for good" one-liner; a later push of a fresh `lazy: true` mount rebuilds it from scratch.
+
 ## Modal Stacking
 
 `ui.modal` is a push/pop stack for modal dialog windows, so one dialog can push another (Settings → Replay Player) with the previous one automatically re-shown once the new one is dismissed. Unlike `ui.screens`, it isn't created automatically - assign it yourself, since its `on_enter:`/`on_exit:` callbacks are mandatory and app-specific (e.g. pausing/resuming whatever's running underneath):
@@ -335,7 +347,25 @@ Teek::UI.app(title: 'Hello') do |ui|
 end.run
 ```
 
-`.push(name, handle)`/`.pop` reveal/conceal exactly like `ui.screens` (it wraps one internally) - the difference is the lifecycle: `on_enter` fires once, the first time the stack goes from empty to non-empty; `on_exit` fires once, when the last dialog pops and the stack goes back to empty; `on_focus_change`, if given, fires with the new top's name on every push and every pop that still leaves a dialog underneath. `.current`/`.size`/`.active?` read the stack's state. Push a handle declared `modal: true` (`ui.dialog` already defaults to this) so `.show` actually grabs input - `ui.modal` itself doesn't grab anything on its own.
+`.push(name, handle)`/`.pop` reveal/conceal exactly like `ui.screens` (it wraps one internally, including its lazy-realize support - `document:` is optional, needed only if you'll push a `lazy: true` dialog) - the difference is the lifecycle: `on_enter` fires once, the first time the stack goes from empty to non-empty; `on_exit` fires once, when the last dialog pops and the stack goes back to empty; `on_focus_change`, if given, fires with the new top's name on every push and every pop that still leaves a dialog underneath. `.current`/`.size`/`.active?` read the stack's state. Push a handle declared `modal: true` (`ui.dialog` already defaults to this) so `.show` actually grabs input - `ui.modal` itself doesn't grab anything on its own.
+
+A "fresh dialog every time it's opened" (rather than one built once and reused) just means building a new `lazy: true` component right before each push - through `ui.add` since this runs after the window's already up - and destroying it after each pop. Defer that destroy a tick with `ui.after(0) { }` since the close button is triggering the destruction of its own containing window - Tk still has its own internal click-handling bindings queued for that same click, and they'd otherwise run against a widget that's already gone:
+
+```ruby
+def open_settings(ui)
+  dialog = nil
+  ui.add(:main) do |a|
+    dialog = a.component do |c|
+      c.window(:settings, lazy: true, modal: true) do |w|
+        w.button(:close, text: 'Close').on_click { ui.after(0) { ui.modal.pop&.destroy! } }
+      end
+    end
+  end
+  ui.modal.push(:settings, dialog[:settings])
+end
+
+ui.dialog(:main) { |d| d.button(:open, text: 'Settings...').on_click { open_settings(ui) } }
+```
 
 ## Events
 

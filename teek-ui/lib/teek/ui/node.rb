@@ -17,6 +17,7 @@ module Teek
     class Node
       attr_reader :type, :name, :opts, :children, :events, :parent, :scope
       attr_accessor :key, :layout, :realized
+      attr_writer :lazy
 
       # @param type [Symbol] node kind, e.g. +:button+, +:column+, +:var+
       # @param name [Symbol, nil] explicit stable name, for addressing (+ui[:name]+)
@@ -36,6 +37,18 @@ module Teek
         @realized = nil
         @parent = nil
         @scope = scope
+        @lazy = false
+      end
+
+      # @return [Boolean] whether this node is excluded from the ambient
+      #   +create+/+link+ tree walk ({Realizer#realize}, {Realizer#realize_subtree})
+      #   - true only for a container built with +lazy: true+ (see
+      #   {WidgetDSL#append_container}). A lazy node stays a normal,
+      #   attached member of the retained tree; it just never gets a real
+      #   Tk widget until something explicitly realizes it (see
+      #   {Handle#realize!}).
+      def lazy?
+        @lazy
       end
 
       # @param node [Node]

@@ -8,9 +8,11 @@ module Teek
     # another (e.g. Settings -> Replay Player) with the previous modal
     # automatically re-shown once the new one is dismissed.
     #
-    # The reveal/conceal-on-transition bookkeeping is exactly what
-    # {Screens} already does, so this wraps one internally rather than
-    # re-deriving it - what's actually different here is the
+    # The reveal/conceal-on-transition bookkeeping - including on-demand
+    # {Handle#realize!} of a not-yet-realized `lazy: true` modal, given
+    # `document:` (a "child window" opened fresh each time, say) - is
+    # exactly what {Screens} already does, so this wraps one internally
+    # rather than re-deriving it. What's actually different here is the
     # on_enter/on_exit/on_focus_change lifecycle, useful for pause/resume-
     # style hooks (e.g. pausing an emulator while any modal is open). Each
     # window handle pushed here should typically be declared `modal: true`
@@ -33,8 +35,11 @@ module Teek
       # @param on_focus_change [Proc, nil] called with (name) whenever the top modal changes -
       #   every push, and every pop that leaves a modal underneath (not the final pop, which
       #   fires on_exit instead)
-      def initialize(on_enter:, on_exit:, on_focus_change: nil)
-        @screens = Screens.new
+      # @param document [Document, nil] forwarded to the internal {Screens}
+      #   - see {Screens#initialize} - needed only to lazily {Handle#realize!}
+      #   a not-yet-realized modal on push
+      def initialize(on_enter:, on_exit:, on_focus_change: nil, document: nil)
+        @screens = Screens.new(document: document)
         @on_enter = on_enter
         @on_exit = on_exit
         @on_focus_change = on_focus_change
@@ -76,18 +81,18 @@ module Teek
       # underneath, it's re-shown (by {Screens#pop}) and `on_focus_change`
       # fires for it; otherwise the stack is now empty and `on_exit` fires
       # instead.
-      # @return [void]
+      # @return [Object, nil] the just-popped window, or +nil+ if the stack was empty
       def pop
         return nil unless @screens.active?
 
-        @screens.pop
+        popped = @screens.pop
 
         if @screens.active?
           @on_focus_change&.call(@screens.current)
         else
           @on_exit.call
         end
-        nil
+        popped
       end
     end
   end

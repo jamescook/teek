@@ -22,6 +22,7 @@ module Teek
         @root = Node.new(type: :root)
         @index = {}
         @next_auto_key = 0
+        @used_segments = {}
       end
 
       # Construct a node and register it under its name (if any), scoped
@@ -76,6 +77,27 @@ module Teek
         return enum_for(:each_named_node) unless block
 
         @index.each(&block)
+      end
+
+      # @api private - called by {Realizer#allocate_path}, which gets a
+      # fresh instance for every separate realize pass (the initial
+      # realize, each {Session#add}, each lazily-{Handle#realize!}d
+      # screen) - tracking claims here instead keeps them honest across
+      # every one of those passes for this Document's whole lifetime.
+      # Two mounts of the same component requesting the same key under
+      # the same real parent (e.g. a reusable row/screen, realized more
+      # than once - see {WidgetDSL#component}) get distinct, disambiguated
+      # segments; the common, non-colliding case keeps its plain segment
+      # unchanged.
+      # @param parent_path [String]
+      # @param segment [String] the requested (not yet disambiguated) segment
+      # @return [String] +segment+, or +segment+ suffixed to make it unique
+      #   under +parent_path+ if this is a repeat
+      def claim_path_segment(parent_path, segment)
+        seen = (@used_segments[parent_path] ||= Hash.new(0))
+        count = seen[segment]
+        seen[segment] += 1
+        count.zero? ? segment : "#{segment}##{count + 1}"
       end
 
       private

@@ -7,16 +7,6 @@ require 'teek/ui/screens'
 # logic (pack/pack-forget for a panel, show/hide for a window) is exercised
 # against real Tk widgets in test_screens_realtk.rb instead.
 class TestScreens < Minitest::Test
-  FakeApp = Struct.new(:calls) do
-    def initialize(calls = [])
-      super
-    end
-
-    def command(*args, **kwargs)
-      calls << [args, kwargs]
-    end
-  end
-
   FakePanelScreen = Struct.new(:app, :path) do
     def type
       :panel
@@ -38,6 +28,25 @@ class TestScreens < Minitest::Test
 
     def hide
       hides << true
+    end
+  end
+
+  FakeLazyScreen = Struct.new(:app, :path, :realized_flag, :realize_calls) do
+    def initialize(app, path, realized_flag = false)
+      super(app, path, realized_flag, [])
+    end
+
+    def type
+      :panel
+    end
+
+    def realized?
+      realized_flag
+    end
+
+    def realize!(document)
+      realize_calls << document
+      self.realized_flag = true
     end
   end
 
@@ -199,5 +208,53 @@ class TestScreens < Minitest::Test
     screens.push(:settings, settings)
     assert_equal :settings, screens.current
     assert_equal 2, screens.size
+  end
+
+  def test_push_realizes_a_not_yet_realized_screen_before_revealing
+    screens = Teek::UI::Screens.new(document: :the_document)
+    app = FakeApp.new
+    picker = FakeLazyScreen.new(app, '.picker', false)
+
+    screens.push(:picker, picker)
+
+    assert_equal [:the_document], picker.realize_calls
+    assert_equal [[[:pack, '.picker'], { fill: :both, expand: 1 }]], app.calls
+  end
+
+  def test_push_does_not_realize_an_already_realized_screen
+    screens = Teek::UI::Screens.new(document: :the_document)
+    app = FakeApp.new
+    picker = FakeLazyScreen.new(app, '.picker', true)
+
+    screens.push(:picker, picker)
+
+    assert_equal [], picker.realize_calls
+  end
+
+  def test_push_skips_the_lazy_check_for_a_screen_that_has_no_opinion_on_it
+    # matches every FakePanelScreen/FakeWindowScreen test above - a screen
+    # with no realized?/realize! at all (the plain "already-built Handle"
+    # usage) behaves exactly as it always has, no document: needed either.
+    screens = Teek::UI::Screens.new
+    app = FakeApp.new
+    picker = FakePanelScreen.new(app, '.picker')
+
+    screens.push(:picker, picker)
+
+    assert screens.active?
+  end
+
+  def test_pop_returns_the_popped_screen
+    screens = Teek::UI::Screens.new
+    picker = FakePanelScreen.new(FakeApp.new, '.picker')
+    screens.push(:picker, picker)
+
+    assert_same picker, screens.pop
+  end
+
+  def test_pop_on_an_empty_stack_returns_nil
+    screens = Teek::UI::Screens.new
+
+    assert_nil screens.pop
   end
 end

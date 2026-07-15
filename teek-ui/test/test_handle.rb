@@ -6,49 +6,6 @@ require 'teek/ui/handle'
 require 'teek/ui/widget_types'
 
 class TestHandle < Minitest::Test
-  FakeWindow = Struct.new(:path, :modal_calls, :grab_releases) do
-    def initialize(path, modal_calls = [], grab_releases = [])
-      super
-    end
-
-    def modal(global: false, &block)
-      modal_calls << { global: global }
-      block.call if block
-    end
-
-    def grab_release
-      grab_releases << true
-    end
-  end
-
-  FakeApp = Struct.new(:calls, :binds, :on_closes, :popups, :windows) do
-    def initialize(calls = [], binds = [], on_closes = [], popups = [], windows = [])
-      super
-    end
-
-    def command(*args, **kwargs)
-      calls << [args, kwargs]
-    end
-
-    def bind(path, event, *subs, &block)
-      binds << { path: path, event: event, subs: subs, block: block }
-    end
-
-    def on_close(window:, &block)
-      on_closes << { window: window, block: block }
-    end
-
-    def popup_menu(menu, x:, y:, entry: nil)
-      popups << { menu: menu, x: x, y: y, entry: entry }
-    end
-
-    def window(path)
-      win = FakeWindow.new(path)
-      windows << win
-      win
-    end
-  end
-
   def test_path_raises_before_realize
     node = Teek::UI::Node.new(type: :button, name: :save)
     handle = Teek::UI::Handle.new(node)

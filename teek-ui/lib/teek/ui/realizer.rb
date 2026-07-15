@@ -53,7 +53,6 @@ module Teek
         @app = app
         @document = document
         @default_scroll = default_scroll
-        @used_segments = {}
       end
 
       # @return [void]
@@ -133,7 +132,7 @@ module Teek
         if registered&.custom_children?
           registered.custom_children(self, node, path)
         else
-          node.children.each { |child| create(child, path) }
+          node.children.each { |child| create(child, path) unless child.lazy? }
         end
       end
 
@@ -422,7 +421,7 @@ module Teek
         node.events.each { |binding| wire_event(node, binding) }
         run_raw_op(node) if node.type == :raw_op
         wire_close_handler(node) if node.opts[:on_close]
-        node.children.each { |child| link(child) }
+        node.children.each { |child| link(child) unless child.lazy? }
       end
 
       def run_raw_op(node)
@@ -448,7 +447,14 @@ module Teek
       end
 
       def arrange_children(node)
-        overlaid, rest = node.children.partition { |child| child.layout && child.layout[:overlay] }
+        # A lazy child not yet realized (see {Node#lazy?}) has no
+        # +.realized+ to pack/place - excluded here regardless of type,
+        # not just via #unarranged?. Once it IS realized (see
+        # {Handle#realize!}), a later #arrange_children call on this same
+        # node (e.g. from #realize_subtree, adding another sibling) picks
+        # it up normally - this only ever excludes a STILL-unrealized one.
+        candidates = node.children.reject { |child| child.lazy? && !child.realized }
+        overlaid, rest = candidates.partition { |child| child.layout && child.layout[:overlay] }
         arrangeable = rest.reject { |child| unarranged?(child.type) }
         registered = WidgetTypes.for_type(node.type)
 
@@ -549,27 +555,16 @@ module Teek
 
       def allocate_path(node, parent_path)
         # node.key is unique for the whole Document, persisted at node
-        # creation (Document#create) - not a per-Realizer-instance counter,
-        # which would collide across separate realize_subtree calls (each
-        # gets its own Realizer instance, e.g. one per Session#add call).
-        segment = unique_segment(parent_path, node.name ? node.name.to_s : node.key)
+        # creation (Document#create). Disambiguation against a same-
+        # parent repeat (a reusable component mounted more than once,
+        # including a lazily-{Handle#realize!}d one realized well after
+        # the initial pass) lives on {Document#claim_path_segment}, not
+        # here - a per-Realizer-instance counter would lose memory of
+        # earlier claims across separate realize_subtree calls (each
+        # gets its own Realizer instance, e.g. one per Session#add call
+        # or lazy screen realize).
+        segment = @document.claim_path_segment(parent_path, node.name ? node.name.to_s : node.key)
         parent_path == '.' ? ".#{segment}" : "#{parent_path}.#{segment}"
-      end
-
-      # A reusable component mounted more than once under the SAME real
-      # parent requests the same key/segment every time (each mount's own
-      # {Scope} already keeps them apart in the {Document} index - see
-      # {WidgetDSL#component} - this is purely about the Tk path they'd
-      # otherwise collide on). Suffixed only on an actual repeat, so the
-      # overwhelmingly common case (no repeat under this parent) keeps its
-      # plain, name-derived path exactly as before - this is per-Realizer-
-      # instance state, so it only catches repeats realized together in one
-      # #realize/#realize_subtree pass, same scope as the note above.
-      def unique_segment(parent_path, segment)
-        seen = (@used_segments[parent_path] ||= Hash.new(0))
-        count = seen[segment]
-        seen[segment] += 1
-        count.zero? ? segment : "#{segment}##{count + 1}"
       end
     end
   end

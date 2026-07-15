@@ -230,7 +230,10 @@ module Teek
         end
 
         realizer = Realizer.new(@app, @document, default_scroll: @scroll)
-        parent_node.children[before..].each { |child| realizer.realize_subtree(child, parent_node) }
+        # A lazy: true child built in this block (see WidgetDSL#append_container)
+        # stays unrealized here too, exactly like one built during the
+        # initial realize - it's realized later, on demand (see Handle#realize!).
+        parent_node.children[before..].each { |child| realizer.realize_subtree(child, parent_node) unless child.lazy? }
 
         nil
       end

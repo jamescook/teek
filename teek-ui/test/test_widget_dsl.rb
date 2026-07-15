@@ -248,6 +248,25 @@ class TestWidgetDsl < Minitest::Test
     assert_equal({ grow: true }, inner_node.layout)
   end
 
+  def test_lazy_true_marks_the_container_node_lazy_and_is_stripped_from_opts
+    session = build_session
+
+    session.panel(:picker, lazy: true, text: 'ignored opt just for this test')
+
+    node = session.document.root.children.first
+    assert node.lazy?
+    refute node.opts.key?(:lazy)
+  end
+
+  def test_lazy_defaults_to_false_when_not_given
+    session = build_session
+
+    session.panel(:picker)
+
+    node = session.document.root.children.first
+    refute node.lazy?
+  end
+
   def test_spacer_is_a_leaf_node_with_grow_baked_in
     session = build_session
 

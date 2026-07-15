@@ -306,7 +306,7 @@ module Teek
       # build, created on first access.
       # @return [Screens]
       def screens
-        @screens ||= Screens.new
+        @screens ||= Screens.new(document: @document)
       end
 
       # A push/pop stack for modal window handles - see {ModalStack}. `nil`
@@ -340,7 +340,7 @@ module Teek
       def append_leaf(type, name, opts)
         raise_if_closed!
         validate_scroll!(type, opts)
-        opts, layout = extract_layout(resolve_bind(type, opts))
+        opts, layout = extract_dsl_opts(resolve_bind(type, opts))
         node = @document.create(type: type, name: name, opts: opts, scope: current_scope)
         node.layout = layout if layout
         @stack.last.add_child(node)
@@ -384,14 +384,20 @@ module Teek
         WidgetTypes.each.select(&:natively_scrollable?).map(&:type).sort
       end
 
-      # `grow:` is this child's intent within its parent, not a Tk option -
-      # pull it off opts (so it never reaches a widget-creation call) and
-      # onto the node's own layout slot, where the realizer's flow packing
-      # looks for it.
-      def extract_layout(opts)
-        return [opts, nil] unless opts.key?(:grow)
-
-        [opts.reject { |k, _| k == :grow }, { grow: opts[:grow] }]
+      # `grow:`/`lazy:` are DSL-only intents, not real Tk options - pull
+      # them off opts (so neither ever reaches a widget-creation call) and
+      # onto the node's own dedicated slots instead: `grow:` becomes part
+      # of {Node#layout} (the realizer's flow packing looks for it there),
+      # `lazy:` becomes {Node#lazy?} (the realizer's tree walk skips
+      # creating this subtree until something explicitly realizes it
+      # later - see {Handle#realize!}). A leaf's own `lazy:` return value
+      # is simply unused by its caller - only a container has anywhere to
+      # put it.
+      # @return [Array(Hash, Hash, Boolean)] cleaned opts, layout (or nil), lazy
+      def extract_dsl_opts(opts)
+        layout = opts.key?(:grow) ? { grow: opts[:grow] } : nil
+        lazy = opts.fetch(:lazy, false)
+        [opts.reject { |k, _| k == :grow || k == :lazy }, layout, lazy]
       end
 
       def current_grid!(method_name)
@@ -433,9 +439,10 @@ module Teek
       def append_container(type, name, opts)
         raise_if_closed!
         validate_scroll!(type, opts)
-        opts, layout = extract_layout(opts)
+        opts, layout, lazy = extract_dsl_opts(opts)
         node = @document.create(type: type, name: name, opts: opts, scope: current_scope)
         node.layout = layout if layout
+        node.lazy = lazy
         @stack.last.add_child(node)
 
         if block_given?

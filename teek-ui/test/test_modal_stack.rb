@@ -27,6 +27,33 @@ class TestModalStack < Minitest::Test
     end
   end
 
+  FakeLazyWindow = Struct.new(:shows, :hides, :realized_flag, :realize_calls) do
+    def initialize(shows = [], hides = [], realized_flag = false)
+      super(shows, hides, realized_flag, [])
+    end
+
+    def type
+      :window
+    end
+
+    def show
+      shows << true
+    end
+
+    def hide
+      hides << true
+    end
+
+    def realized?
+      realized_flag
+    end
+
+    def realize!(document)
+      realize_calls << document
+      self.realized_flag = true
+    end
+  end
+
   def test_starts_empty
     stack = Teek::UI::ModalStack.new(on_enter: ->(_) { }, on_exit: -> { })
 
@@ -142,6 +169,29 @@ class TestModalStack < Minitest::Test
 
     assert_equal [true], settings.shows
     assert_equal [true], settings.hides
+  end
+
+  def test_document_is_forwarded_to_the_internal_screens_for_lazy_realize
+    settings = FakeLazyWindow.new
+    stack = Teek::UI::ModalStack.new(on_enter: ->(_) { }, on_exit: -> { }, document: :the_document)
+
+    stack.push(:settings, settings)
+
+    assert_equal [:the_document], settings.realize_calls
+  end
+
+  def test_pop_returns_the_popped_window
+    settings = FakeWindow.new
+    stack = Teek::UI::ModalStack.new(on_enter: ->(_) { }, on_exit: -> { })
+    stack.push(:settings, settings)
+
+    assert_same settings, stack.pop
+  end
+
+  def test_pop_on_an_empty_stack_returns_nil
+    stack = Teek::UI::ModalStack.new(on_enter: ->(_) { }, on_exit: -> { })
+
+    assert_nil stack.pop
   end
 
   def test_a_push_push_pop_pop_sequence_fires_on_enter_once_on_focus_change_thrice_on_exit_once
