@@ -52,6 +52,8 @@ module Teek
         @in_add = false
         @bus = EventBus.new
         @timers = []
+        @toast_path = nil
+        @toast_timer_id = nil
       end
 
       # @return [Teek::App] the underlying app - the DSL's escape hatch.
@@ -271,6 +273,30 @@ module Teek
         @app.clipboard
       end
 
+      # Milliseconds a {#toast} stays visible when no +duration:+ is given.
+      DEFAULT_TOAST_DURATION_MS = 1500
+
+      # Briefly flash a message near the bottom of the window - "Saved"
+      # after a save action, "Settings" when a modal gains focus, that
+      # kind of transient feedback, not a persistent status. Reuses one
+      # widget across every call rather than building a new one each
+      # time: calling this again while a toast is already showing
+      # replaces it (new text, restarted timer) instead of stacking a
+      # second one, and the earlier toast's own pending auto-dismiss is
+      # cancelled so it can never fire late and hide the replacement.
+      # @param message [String]
+      # @param duration [Integer] milliseconds before it auto-dismisses
+      # @return [void]
+      # @raise [NotRealizedError] if called before #realize
+      def toast(message, duration: DEFAULT_TOAST_DURATION_MS)
+        raise_unless_realized!
+        ensure_toast_widget
+        @app.command(@toast_path, :configure, text: message)
+        @app.command(:place, @toast_path, in: '.', relx: 0.5, rely: 1.0, anchor: 's', y: -12)
+        @app.after_cancel(@toast_timer_id) if @toast_timer_id
+        @toast_timer_id = @app.after(duration) { @app.command(:place, :forget, @toast_path) }
+      end
+
       # Build and immediately realize a subtree into the already-running
       # app, as a child of an already-realized widget named +parent_name+ -
       # for dynamic UIs (adding cards/rows/menu entries at runtime), not
@@ -325,6 +351,20 @@ module Teek
       end
 
       private
+
+      # Creates the one toast label this session will ever need, the
+      # first time {#toast} is called - a no-op on every later call.
+      # Claims its path segment through {Document#claim_path_segment}
+      # like any ordinary widget would, so the vanishingly unlikely case
+      # of a build already using +:toast+ as a top-level widget name
+      # gets disambiguated instead of silently colliding with it.
+      def ensure_toast_widget
+        return if @toast_path
+
+        segment = @document.claim_path_segment('.', 'toast')
+        @toast_path = ".#{segment}"
+        @app.command('ttk::label', @toast_path, background: '#323232', foreground: 'white', padding: [14, 8])
+      end
 
       # Registers every timer queued via `#every`/`#after` before realize
       # against the now-live +app+, in declaration order - mirrors how
