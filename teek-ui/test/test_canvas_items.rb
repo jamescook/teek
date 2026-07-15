@@ -2,6 +2,7 @@
 
 require 'minitest/autorun'
 require_relative '../../test/tk_test_helper'
+require 'teek/ui/canvas_item'
 
 # ui.canvas gains a real item-drawing vocabulary (Handle#line/oval/polygon/
 # rectangle/text/arc/bitmap, each returning a CanvasItem) instead of being a
@@ -11,6 +12,12 @@ require_relative '../../test/tk_test_helper'
 # test_tagged_addresses_every_item_sharing_a_tag_as_one_group below.
 class TestCanvasItems < Minitest::Test
   include TeekTestHelper
+
+  def test_virtual_path_marks_past_the_real_tk_path
+    item = Teek::UI::CanvasItem.new(:fake_app, '.board', 'I3')
+
+    assert_equal '.board!I3', item.virtual_path
+  end
 
   def test_line_creates_a_real_item_addressable_by_the_returned_handle
     assert_tk_app("ui.canvas#line should create a real line item") do

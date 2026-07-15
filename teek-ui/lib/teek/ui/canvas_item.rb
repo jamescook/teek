@@ -25,6 +25,18 @@ module Teek
         @tag_or_id = tag_or_id.to_s
       end
 
+      # @return [String] the canvas's own path, marked past the point a
+      #   real Tk path stops applying - an item/tag has no independent Tk
+      #   path of its own, only the canvas does. +!+ is illegal in a Tk
+      #   path segment, so handing this to a raw Tk command fails loudly
+      #   (an "invalid command name" Tcl error) instead of silently
+      #   misbehaving - the same marked-address shape
+      #   {MenuEntryAddressing#virtual_path} uses for a menu entry, the
+      #   other kind of thing with no Tk path of its own.
+      def virtual_path
+        "#{@canvas_path}!#{@tag_or_id}"
+      end
+
       # Move relative to the current position.
       # @param dx [Numeric]
       # @param dy [Numeric]
