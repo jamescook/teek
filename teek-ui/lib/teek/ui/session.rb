@@ -33,6 +33,11 @@ module Teek
       # @return [Array<Var>] reactive variables declared in this build
       attr_reader :vars
 
+      # @return [Array<Image>] images declared in this build - retained
+      #   here for the session's whole lifetime, so a widget's `image:`
+      #   never outlives the {Teek::Photo} it points at (see {Image}).
+      attr_reader :images
+
       # @api private
       def initialize(title: nil, scroll: nil, app_opts: {})
         @title = title
@@ -42,6 +47,7 @@ module Teek
         @stack = [@document.root]
         @scope_stack = [Scope::TOP_LEVEL]
         @vars = []
+        @images = []
         @app = nil
         @in_add = false
         @bus = EventBus.new
@@ -76,9 +82,11 @@ module Teek
 
         app = Teek::App.new(title: @title, **@app_opts)
         begin
-          # vars realize first, so a widget bound to one displays its
-          # initial value immediately instead of starting blank.
+          # vars/images realize first, so a widget bound/pointed to one
+          # displays correctly (a value, a loaded image) from the moment
+          # it's created instead of starting blank/broken.
           @vars.each { |v| v.realize(app) }
+          @images.each { |img| img.realize(app) }
           Realizer.new(app, @document, default_scroll: @scroll).realize
           flush_timers!(app)
         rescue
@@ -243,6 +251,8 @@ module Teek
         raise NotRealizedError, "##{parent_name} is not realized yet" unless parent_node.realized
 
         before = parent_node.children.length
+        vars_before = @vars.length
+        images_before = @images.length
         @stack.push(parent_node)
         @in_add = true
         begin
@@ -251,6 +261,14 @@ module Teek
           @in_add = false
           @stack.pop
         end
+
+        # A var/image declared inside this block needs to be real before
+        # the new widget subtree realizes, exactly like the initial
+        # #realize orders them - a widget referencing one via
+        # bind:/image: assumes it's already backed by the time IT gets
+        # created (see Var#realize/Image#realize).
+        @vars[vars_before..].each { |v| v.realize(@app) }
+        @images[images_before..].each { |img| img.realize(@app) }
 
         realizer = Realizer.new(@app, @document, default_scroll: @scroll)
         # A lazy: true child built in this block (see WidgetDSL#append_container)

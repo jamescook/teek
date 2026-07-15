@@ -4,6 +4,7 @@ require_relative 'errors'
 require_relative 'handle'
 require_relative 'component_handle'
 require_relative 'var'
+require_relative 'image'
 require_relative 'menu_builder'
 require_relative 'screens'
 require_relative 'modal_stack'
@@ -27,12 +28,12 @@ module Teek
     # Included classes must provide +@document+ (a {Document}), +@stack+
     # (an Array of {Node}, current-parent stack seeded with
     # +@document.root+), +@scope_stack+ (an Array of {Scope}, current-scope
-    # stack seeded with +[Scope::TOP_LEVEL]+ - see {#component}), and
-    # +@vars+ (an Array of {Var}) - {Session} sets all four up in
-    # +initialize+. They must also provide +#build_open?+ (a predicate
-    # the tree-mutating methods below check via {#raise_if_closed!} -
-    # true before the initial realize and again for the duration of an
-    # +#add+ block, false otherwise).
+    # stack seeded with +[Scope::TOP_LEVEL]+ - see {#component}), +@vars+
+    # (an Array of {Var}), and +@images+ (an Array of {Image}) - {Session}
+    # sets all five up in +initialize+. They must also provide
+    # +#build_open?+ (a predicate the tree-mutating methods below check
+    # via {#raise_if_closed!} - true before the initial realize and again
+    # for the duration of an +#add+ block, false otherwise).
     module WidgetDSL
       # Every widget/container type - leaf or container, plain or special -
       # gets its own `ui.<type>` method(s) here, generated from its own
@@ -261,6 +262,24 @@ module Teek
         v = Var.new("::teek_ui_var_#{@var_count}", initial)
         @vars << v
         v
+      end
+
+      # Declare an image, loaded from a file. Its Tcl image name is
+      # allocated now (no interpreter needed - it's just a string); the
+      # backing {Teek::Photo} - and the actual file load - only becomes
+      # real at realize. Pass it as a widget's `image:` option (or a
+      # later `handle.configure(image: ...)`) to display it.
+      # @param path [String] path to an image file (any format Tk's own
+      #   `image create photo -file` accepts - PNG, GIF, ...)
+      # @param opts [Hash] forwarded to {Teek::Photo.new} - e.g.
+      #   +width:+/+height:+/+format:+/+palette:+/+gamma:+
+      # @return [Image]
+      def image(path, **opts)
+        raise_if_closed!
+        @image_count = (@image_count || 0) + 1
+        img = Image.new("teek_ui_image_#{@image_count}", path, opts)
+        @images << img
+        img
       end
 
       # Opens a fresh {Scope} around the block, so names declared inside

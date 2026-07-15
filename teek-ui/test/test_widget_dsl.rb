@@ -176,6 +176,34 @@ class TestWidgetDsl < Minitest::Test
     assert_equal speed.name, node.opts[:textvariable]
   end
 
+  def test_image_is_tracked_on_the_session
+    session = build_session
+
+    icon = session.image('/tmp/whatever.png')
+
+    assert_kind_of Teek::UI::Image, icon
+    assert_includes session.images, icon
+  end
+
+  def test_image_names_are_unique_within_a_session
+    session = build_session
+
+    a = session.image('/tmp/a.png')
+    b = session.image('/tmp/b.png')
+
+    refute_equal a.name, b.name
+  end
+
+  def test_a_widgets_image_option_holds_the_declared_image_directly
+    session = build_session
+    icon = session.image('/tmp/whatever.png')
+
+    session.label(:pic, image: icon)
+
+    node = session.document.root.children.first
+    assert_same icon, node.opts[:image]
+  end
+
   def test_bind_on_an_unsupported_widget_type_raises
     session = build_session
     speed = session.var(5)

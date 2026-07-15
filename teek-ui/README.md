@@ -310,6 +310,19 @@ end
 
 `at:` is a corner/edge/center anchor (`:top_left`, `:top`, `:top_right`, `:left`, `:center`, `:right`, `:bottom_left`, `:bottom`, `:bottom_right`) - plain English standing in for Tk's own `place -relx/-rely/-anchor`, so it stays correctly positioned across a canvas resize with nothing to redo by hand.
 
+## Images
+
+`ui.image(path)` loads an image file for a `label`/`button`'s `image:` option - same build-vs-realize shape as `ui.var`: declare it anywhere in the build block, no interpreter needed yet, and it's actually loaded by the time the tree realizes:
+
+```ruby
+session = Teek::UI.app(title: 'Hello') do |ui|
+  icon = ui.image('assets/logo.png')
+  ui.label(:logo, image: icon)
+end.run
+```
+
+Swap the displayed image later with an ordinary `configure`: `session[:logo].configure(image: another_icon)`. Under the hood this is teek core's own `Teek::Photo` (GC-owned - the underlying Tk image is freed automatically once nothing references it, no manual `image delete` bookkeeping) - reach `icon.photo` for the live `Teek::Photo` if you need pixel-level access (`put_block`, `get_pixel`, ...).
+
 ## Scrolling
 
 A bare `list`/`text_area`/`table`/`tree` auto-attaches a working scrollbar wherever it's declared - no wrapper, no `-yscrollcommand`/`-xscrollcommand`/scrollbar widget wiring in app code:

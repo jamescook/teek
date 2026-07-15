@@ -89,6 +89,63 @@ class TestIncrementalRealize < Minitest::Test
     end
   end
 
+  def test_a_var_declared_inside_add_is_realized_and_works
+    assert_tk_app("ui.var declared inside an add block should get its backing Tcl variable, not stay forever unrealized") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Incremental Realize Test') { |ui| ui.column(:list) }
+      session.run_async
+      session.app.update
+
+      count = nil
+      session.add(:list) do |a|
+        count = a.var(5)
+        a.label(:count_label, bind: count)
+      end
+      session.app.update
+
+      assert_equal 5, count.value
+      assert_equal '5', session.app.command(session[:count_label].path, :cget, '-text')
+
+      count.value = 9
+      session.app.update
+      assert_equal '9', session.app.command(session[:count_label].path, :cget, '-text')
+
+      session.app.destroy
+    end
+  end
+
+  def test_an_image_declared_inside_add_is_realized_and_displays
+    assert_tk_app("ui.image declared inside an add block should actually load, not raise 'image does not exist' - the ChildWindow fresh-mount-per-open pattern depends on this") do
+      require 'teek/ui'
+      require 'tmpdir'
+
+      Dir.mktmpdir do |dir|
+        path = File.join(dir, 'test.png')
+        seed = Teek::Photo.new(app, width: 4, height: 4)
+        seed.put_block(([0, 0, 0, 255].pack('CCCC')) * 16, 4, 4)
+        app.tcl_eval("#{seed.name} write {#{path}} -format png")
+        seed.delete
+
+        session = Teek::UI.app(title: 'Incremental Realize Test') { |ui| ui.column(:list) }
+        session.run_async
+        session.app.update
+
+        icon = nil
+        session.add(:list) do |a|
+          icon = a.image(path)
+          a.label(:pic, image: icon)
+        end
+        session.app.update
+
+        assert_equal icon.name, session.app.command(session[:pic].path, :cget, '-image')
+        assert_equal 'photo', session.app.tcl_eval("image type #{icon.name}")
+
+        session.app.destroy
+      end
+    end
+  end
+
   def test_add_on_an_unrealized_session_raises
     assert_tk_app("ui.add before the session is realized should raise a clear error") do
       require 'teek/ui'

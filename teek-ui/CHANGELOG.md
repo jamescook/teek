@@ -31,5 +31,6 @@ Nothing has shipped yet - this section is a snapshot of the current API, not a r
 - Modal stacking: `ui.modal` - push/pop stack for stacked dialogs, with enter/exit/focus-change callbacks. Same `lazy: true`/`.pop&.destroy!` support as `ui.screens` (`document:` on `ModalStack.new`).
 - Dynamic UIs: `session.add` builds and realizes a subtree into an already-running app.
 - Canvas items: `line`/`oval`/`polygon`/`rectangle`/`text`/`arc`/`bitmap` on a canvas handle, each returning a `CanvasItem` - `.move`/`.coords`/`.coords=`/`.configure`/`[]`/`[]=`/`.delete`/`.bring_to_front`/`.send_to_back`/`.scale`/`.bounds`; `tags:` at creation plus `.tagged(tag)` address a shared group the same way as a single item; `on_click`/`on_right_click`/`on_drag` scoped to that item/tag; `draggable` for drag-to-move with no coordinate math.
+- Images: `ui.image(path)` - queue-then-load like `ui.var`; pass the result as `image:` on a `label`/`button`, swap it later via `configure(image: ...)`. GC-owned via teek core's `Teek::Photo` (`.photo` reaches the live one).
 - Dialogs: `ui.open_file`/`ui.save_file`/`ui.message`/`ui.choose_color`/`ui.choose_dir`, realize-only - thin over teek core's own dialog wrappers.
 - Clipboard: `ui.clipboard.set`/`.get`/`.clear`, realize-only; `text_box`/`text_area` copy/cut/paste already work via Tk's own built-in key bindings, nothing to wire up.
