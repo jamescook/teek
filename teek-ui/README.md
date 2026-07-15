@@ -2,9 +2,11 @@
 
 **The friendly way to build Tk apps in Ruby.** A DSL over [Teek](https://github.com/jamescook/teek) — sugar over Tk's plumbing, not a wall around it.
 
-**This is the recommended entry point for building a teek app.** teek-ui depends on teek — installing teek-ui brings teek in automatically — and everything here compiles down to plain teek calls (`App#command`, `#bind`, and friends). Reach for bare teek directly only if you're embedding Tk in an existing app or building your own abstraction on top; most app authors want the DSL here instead.
+**This is the recommended entry point for building a teek app.** teek-ui depends on teek — installing teek-ui brings teek in automatically — and everything compiles down to plain teek calls, so you can always drop to bare teek when you need to.
 
-> **Alpha**: teek-ui is early. Widgets declare into a real tree, `.run` realizes them into live Tk widgets, `column`/`row`/`grid` lay them out without touching Tk's own geometry vocabulary, `on_click`/`on_key`/etc. wire real events, `ui.var` gives widgets a shared reactive value, and `ui.menu_bar`/`ui.context_menu` cover menus - overlay layout isn't built yet.
+> **Alpha**: teek-ui is early, but real: widgets, flexbox-style layout, events, reactive vars, menus, canvas, windows/dialogs, rich text, and images all work. Overlay layout isn't built yet.
+
+Method and option names are the newcomer-friendly ones; every Tk name still works as an alias (see [Friendly vs. Tk Names](#friendly-vs-tk-names)). Deep detail beyond this guide lives in the API docs.
 
 ## Quick Start
 
@@ -16,11 +18,11 @@ Teek::UI.app(title: 'Hello') do |ui|
 end.run
 ```
 
-`Teek::UI.app` returns the same `Teek::UI::Session` object it yields, so `.run` chains directly off the call.
+`Teek::UI.app` returns the `Teek::UI::Session` it yields, so `.run` chains right off it.
 
 ## Your First App
 
-Here's a complete, runnable app that uses only the core: a title, some widgets, flexbox-style layout, an event, and a shared reactive value. Nothing else is needed to build something real.
+A complete, runnable app using only the core — widgets, layout, an event, and a shared reactive value:
 
 ```ruby
 require 'teek/ui'
@@ -41,13 +43,11 @@ Teek::UI.app(title: 'Greeter') do |ui|
 end.run
 ```
 
-You *describe* the UI inside the block; `.run` then *builds* it into real Tk widgets and starts the app - like writing HTML, then loading the page. (The full lifecycle is in [Building vs. Realizing](#building-vs-realizing) under "Going further".)
-
-That's a whole app. The four sections that follow - Widgets, Layout, Events, Reactive Variables - are the rest of that same core. Everything past **Going further** is optional power you reach for only when a screen actually needs it.
+You *describe* the UI in the block; `.run` *builds* it into real Tk widgets and starts the app — like writing HTML, then loading the page. The four sections that follow are the rest of that core; everything past **Going further** is optional.
 
 ## Widgets
 
-`ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:
+`ui.<widget>` declares a widget in the build tree. A `name` makes it addressable via `ui[:name]` (returns a `Handle`) without holding a reference:
 
 ```ruby
 session = Teek::UI.app(title: 'Hello') do |ui|
@@ -55,152 +55,101 @@ session = Teek::UI.app(title: 'Hello') do |ui|
     p.text_box(:query)
     p.button(:go, text: 'Go')
   end
-end
-session.run # realizes the tree - .controls, .controls.query, .controls.go now exist and are visible
+end.run
+
+session[:query].configure(width: 40)  # after realize
+session[:query].disable                # shorthand for configure(state: :disabled)
 ```
 
-Paths are hierarchical and derived from widget names, not auto-incremented junk like `.ttkbtn7` - `ui[:go].path` above is `.controls.go`. An unnamed widget still gets a valid (if less meaningful) auto-generated path segment.
+Paths derive from names (`ui[:go].path` is `.controls.go`), not `.ttkbtn7` junk.
 
-`ui[:query]` (from anywhere in the build, not just inside the block that declared it) returns a `Handle` - `.path`/`.configure` raise `Teek::UI::NotRealizedError` until realized, then act on the live widget:
-
-```ruby
-session[:query].configure(width: 40) # after session.run/.run_async/.realize
-session[:query].disable              # shorthand for configure(state: :disabled)
-```
-
-Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
-Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`, and the layout containers below.
+Leaf widgets: `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
+Containers (take a block): `panel` (alias `box`), `group`, `canvas`, `window`, plus the layout containers below.
 
 ## Layout
 
-`column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:
+`column`/`row` hide all three Tk geometry managers behind flexbox vocabulary — `pack`/`grid`/`sticky`/`-weight` never appear in app code:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.column(:controls, gap: 8, align: :stretch, pad: 5) do |c|
-    c.button(:start, text: 'Start')
-    c.button(:pause, text: 'Pause')
-    c.spacer                                  # flexible gap - pushes what follows to the bottom
-    c.button(:about, text: 'About')
-  end
-end.run
+ui.column(:controls, gap: 8, align: :stretch, pad: 5) do |c|
+  c.button(:start, text: 'Start')
+  c.button(:pause, text: 'Pause')
+  c.spacer                            # flexible gap - pushes what follows down
+  c.button(:about, text: 'About')
+end
 ```
 
-- `column`/`row` - top-to-bottom / left-to-right.
-- `gap:` - space between children (not before the first or after the last).
-- `align:` - cross-axis placement: `:start` / `:center` / `:end` / `:stretch` (fills the cross axis) - plain words, never compass directions.
-- `pad:` - margin around the whole stack.
-- `grow: true` on any child (leaf or container) - it consumes leftover space along the main axis.
-- `spacer` - a flexible gap (`grow: true` baked in) - the named replacement for the classic invisible "spring row" trick.
+- `gap:` — space between children. `pad:` — margin around the stack.
+- `align:` — cross-axis: `:start` / `:center` / `:end` / `:stretch`.
+- `grow: true` on any child — it consumes leftover space on the main axis (`spacer` is a child with `grow` baked in).
 
-`ui.grid` is for the minority of screens flow doesn't fit - a labeled-field form, a table of inputs:
+`ui.grid` is for what flow doesn't fit — forms, input tables:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.grid(:form, gap: 4) do |g|
-    g.cell(row: 0, col: 0) { g.label(text: 'Name:') }
-    g.cell(row: 0, col: 1) { g.text_box(:name_field) }
-    g.cell(row: 1, col: 0) { g.label(text: 'Email:') }
-    g.cell(row: 1, col: 1) { g.text_box(:email_field) }
-    g.stretch(columns: [1]) # the input column absorbs extra width
-  end
-end.run
+ui.grid(:form, gap: 4) do |g|
+  g.cell(row: 0, col: 0) { g.label(text: 'Name:') }
+  g.cell(row: 0, col: 1) { g.text_box(:name_field) }
+  g.stretch(columns: [1])   # the input column absorbs extra width
+end
 ```
 
-- `g.cell(row:, col:, span: 1) { }` - positions the single widget its block declares. `span:` covers multiple columns.
-- `g.stretch(columns:, rows:)` - which columns/rows absorb leftover space, in English instead of `columnconfigure -weight`.
-
-`cell`/`stretch` only work directly inside a `ui.grid` block - both raise otherwise.
+`g.cell(row:, col:, span: 1)` positions the widget its block declares; `g.stretch(columns:, rows:)` picks which absorb slack. Both only work inside `ui.grid`.
 
 ## Events
 
-A handle's `on_*` methods wire real Tk events - intent-named, so nobody needs to know Tk's own event syntax:
+`on_*` methods wire real Tk events under intent-named methods — no Tk event syntax:
 
 ```ruby
 session[:go].on_click { puts 'clicked' }
 session[:go].on_right_click { show_context_menu }
-session[:area].on_drag { |x, y| puts "#{x},#{y}" }        # Integer, canvas-converted when bound to a canvas
-session[:query].on_key(:enter) { search }                  # friendly keysym
-session[:query].on_key('Ctrl-s') { save }                   # "Ctrl"/"Alt"/"Shift"/"Cmd", spelled the obvious way
+session[:query].on_key(:enter) { search }       # friendly keysym
+session[:query].on_key('Ctrl-s') { save }        # Ctrl/Alt/Shift/Cmd, spelled out
+session[:area].on_drag { |x, y| puts "#{x},#{y}" }
 ```
 
-Called before realize (the normal case, right after declaring a widget), these queue on the widget and wire once the whole tree realizes. Called after, they wire immediately - same method, correct behavior either way.
-
-A `ui.window` handle also gets `on_close`, for the titlebar close box (and its platform equivalents, Cmd-W/Alt-F4):
-
-```ruby
-settings = ui.window(:settings)
-settings.on_close { session.app.destroy(settings.path) if confirm_discard_changes? }
-```
-
-The same `ui.window` handle also gets `modal`/`release_focus`, for dialogs that should block interaction with the rest of the app while open. Unlike the queue-then-wire events above, these only make sense once the window is actually realized (there's nothing to grab before it exists), so they raise `NotRealizedError` before that rather than queuing:
-
-```ruby
-settings.modal            # grabs input and focuses the window - stays grabbed
-# ... later, from the window's own on_close/a Done button ...
-settings.release_focus
-```
-
-`modal` also takes an optional block that runs with the grab already set (typically the rest of the window's own show sequence), and releases the grab immediately if that block raises, or if the window is destroyed while still grabbed - see `Teek::Window#modal` in base teek, which this delegates to entirely.
-
-Teek's own default (destroy the window) only applies if nothing has claimed `on_close` - once a block is set, it decides whether the window actually closes.
+Declared before realize they queue and wire automatically; after realize they wire immediately — same method either way. A `ui.window` handle also gets `on_close` (titlebar/Cmd-W/Alt-F4) and `modal`/`release_focus` (input grab for dialogs). See the API docs for the modal grab lifecycle.
 
 ## Reactive Variables
 
-`ui.var(initial)` wraps a Tcl variable - bind it to more than one widget and they stay in sync for free, via Tk's own `-textvariable`/`-variable` machinery, no manual event wiring needed:
+`ui.var(initial)` wraps a Tcl variable — bind it to more than one widget and they stay in sync for free, no event wiring:
 
 ```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  speed = ui.var(5)
-  ui.slider(:speed_slider, from: 1, to: 10, bind: speed)
-  ui.label(:speed_label, bind: speed)     # updates automatically as the slider moves
-  speed.on_change { |v| puts "speed is now #{v}" }
-end
-session.run
+speed = ui.var(5)
+ui.slider(:speed_slider, from: 1, to: 10, bind: speed)
+ui.label(:speed_label, bind: speed)     # updates as the slider moves
+speed.on_change { |v| puts "speed is now #{v}" }
 ```
 
-`var.value`/`var.value =` read and write it directly (typed to match the initial value - Integer/Float/Boolean, else String); `var.on_change { |v| }` fires with the coerced value on every change, regardless of whether Ruby or a bound widget caused it. `bind:` is mapped per widget type (`text_box`/`label`/`dropdown`/`number_box` use `-textvariable`; `checkbox`/`slider`/`progress` use `-variable`) - widgets without a sensible single bindable value (`text_area`, `list`, `table`/`tree`, `radio`, containers) raise if you try.
+`var.value` / `var.value =` read and write directly (typed to the initial value); `on_change` fires on every change from either side. `bind:` works on the single-value widgets (`text_box`/`label`/`dropdown`/`number_box`/`checkbox`/`slider`/`progress`); multi-value widgets raise.
 
 ## Talking Between Widgets
 
-When one widget needs to affect another, teek-ui gives you four tools - roughly most-direct to most-decoupled. Start at the top and only move down when you actually need the extra decoupling:
+Four tools, most-direct to most-decoupled — start at the top, move down only when you need the decoupling:
 
 | Reach for | When |
 | --- | --- |
-| **A handle** — `ui[:name].configure(...)` | A one-off, direct update: this button updates that label. Simplest and most explicit. |
-| **A reactive var** — `ui.var` + `bind:` | Two or more widgets should stay in sync with one value automatically (a slider and its readout), with no wiring. See [Reactive Variables](#reactive-variables). |
-| **A component facade** — `ui.component` + `screen[:name]` | A parent needs to reach a reusable subtree's widgets without leaking a global name. See [Components](#components). |
-| **The event bus** — `ui.on` / `ui.emit` | Several unrelated widgets react to something and the sender shouldn't know they exist (decoupled fan-out). See [Event Bus](#event-bus). |
+| **A handle** — `ui[:name].configure(...)` | A one-off, direct update: this button updates that label. |
+| **A reactive var** — `ui.var` + `bind:` | Widgets stay in sync with one value automatically. See [Reactive Variables](#reactive-variables). |
+| **A component facade** — `ui.component` + `screen[:name]` | A parent reaches a reusable subtree's widgets without a global name. See [Components](#components). |
+| **The event bus** — `ui.on` / `ui.emit` | Unrelated widgets react and the sender shouldn't know they exist. See [Event Bus](#event-bus). |
 
 ---
 
 ## Going further
 
-Everything above is a complete app. The sections below are power you reach for when a screen actually needs it - you don't have to read them in order, or at all, until something calls for it. This is also where the retained-mode model (build, then realize) is explained in full, since the advanced features lean on it.
+Everything above is a complete app. The rest is power you reach for when a screen needs it — read it as needed, not in order.
 
 ## Building vs. Realizing
 
-Building is Tk-free: the block passed to `Teek::UI.app` runs immediately, but nothing touches Tk yet - no `Teek::App`/interpreter exists until the session is **realized**. `#run` and `#run_async` both realize (create the app) before doing anything else; you can also call `#realize` directly. This is what makes a build constructible and inspectable (`session.document`) with no display, no Tk, no `package require Tk` - useful for testing UI structure in CI where teek's own Tk-backed suite can't run.
+Building is Tk-free: the block runs immediately, but no `Teek::App`/interpreter exists until the session is **realized** by `#run`/`#run_async`/`#realize`. That's what makes a build inspectable (`session.document`) with no display — useful for headless testing.
 
-Because of this, a handful of methods only work **after** realize: `session.app` (it *is* the realized app - can't exist any earlier by definition), `modal`/`release_focus` (grabbing input needs a live window), the standard dialogs, and `ui.clipboard` all raise `Teek::UI::NotRealizedError` if called before realize. This is the one lifecycle rule behind every one of those - stated once here, not re-explained section by section. In practice it rarely bites, since all of them are normally called from inside an `on_*` event handler - which only ever runs after realize, since nothing can click a widget that doesn't exist yet:
+A few things only work **after** realize and raise `Teek::UI::NotRealizedError` before it: `session.app`, `modal`/`release_focus`, the standard dialogs, and `ui.clipboard`. In practice this rarely bites, since they're normally called from an `on_*` handler (which only runs post-realize). Events and timers are the exception — they queue before realize and wire themselves, so they read fine inside the build block.
 
-```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  ui.document # fine - pure Ruby tree, no interpreter yet
-  # ui.app would raise here - not realized yet
-end
-
-session.run_async
-session.app.command(:label, '.greeting', text: 'Hi there') # fine now
-```
-
-Events and timers are the exception - genuinely deferrable, so they don't raise at all: `on_*` handlers and `#every`/`#after` can be declared right inside the build block, queue, and wire/register themselves automatically once the tree realizes (see Events and Timers) - same method, correct behavior whether called before or after.
-
-Realize also validates the whole tree first - a build with a real problem (a dangling event target, two widgets in the same grid cell) raises one `Teek::UI::ValidationError` listing everything found, before any Tk call happens. A widget that's declared but never actually placed anywhere warns by default; pass `strict: true` to `#run`/`#run_async`/`#realize` to raise on that too.
+Realize validates the tree first: a real problem (dangling event target, two widgets in one grid cell) raises one `Teek::UI::ValidationError` listing everything. An unplaced widget warns; `strict: true` promotes that to a raise.
 
 ## Authoring the Build Block
 
-The block passed to `Teek::UI.app` is plain Ruby, run via a single `.call` - not parsed, not a mini-language of its own. Loops, conditionals, and helper methods are all welcome; they just decide which `ui.<widget>` calls actually run, and in what order:
+The block is plain Ruby run via `.call` — loops, conditionals, and helper methods all work; they just decide which `ui.<widget>` calls run:
 
 ```ruby
 Teek::UI.app(title: 'Hello') do |ui|
@@ -211,472 +160,276 @@ Teek::UI.app(title: 'Hello') do |ui|
 end.run
 ```
 
-A couple of things follow from that:
-
-- Keep the block itself pure and fast - it decides *what* gets built, so it shouldn't also be doing network/file I/O. Anything slow belongs behind an event handler (`on_click { ... }`), not inline in the build.
-- Build on one thread. The stack `ui.<container> { }` pushes/pops to track "what's the current parent" isn't synchronized - calling DSL methods on the same session from multiple threads at once will corrupt it.
-
-The build only ever gets walked into Tk once, at realize. Calling a build method (`ui.button`, `ui.panel`, `ui.raw`, `ui.var`, ...) on a session that's already realized raises `Teek::UI::ClosedBuilderError` rather than silently appending a node that will never show up - use `session.add(parent_name) { }` instead for anything you need to build after the app is already running.
+Keep it pure and single-threaded (slow work belongs behind an event handler). Building on an already-realized session raises `ClosedBuilderError` — use `session.add(parent_name) { }` to grow the UI after it's running (see [Dynamic UIs](#dynamic-uis)).
 
 ## Components
 
-A retained-mode tree is a plain Ruby value, so splitting a large build across files reduces to splitting a value across files - no separate templating layer needed. Two ways to do it, and most apps only ever need the first:
-
-**A plain method that takes `ui` and appends into whatever's currently open** - zero new API, just Ruby:
+A retained tree is a plain Ruby value, so splitting a big build across files is just splitting a value. Two ways, and most apps only need the first:
 
 ```ruby
+# 1. A plain method that takes `ui` and appends into whatever's open:
 def toolbar(ui, on_save:)
   ui.row(gap: 8) { |r| r.button(text: 'Save').on_click { on_save.call } }
 end
 
-Teek::UI.app(title: 'Editor') do |ui|
-  ui.panel(:top) { |p| toolbar(p, on_save: -> { save_document }) }
-end.run
-```
-
-**`ui.component { }` for when you also want scope isolation** - reuse across files, or just not having to worry whether some OTHER file already used the name `:save`. Everything named inside the block lives in its own scope: it never collides with the same name used elsewhere, and `ui[:name]` inside the block only ever sees that component's own names, not anyone else's:
-
-```ruby
+# 2. `ui.component { }` when you also want name-scope isolation:
 def sidebar(ui)
-  ui.component do |c|
-    c.button(:save, text: 'Save')  # this :save can't collide with anyone else's :save
-  end
-end
-```
-
-`ui.component` isn't an extra layer of nesting - it splices its content directly into whatever's already open, exactly like the widgets would attach on their own. It's scope isolation only, not a container. Capture what you need from inside the block (`save = c.button(:save, ...)`) the same way threaded-builder style already does - a component's local names aren't reachable from outside it via `ui[:name]`.
-
-`ui.component` returns a facade for exactly that "from outside it" case - the disciplined way a parent reaches a child's named widgets without falling back to the global `ui[:name]` index (which never sees into a component's scope, by design):
-
-```ruby
-def sidebar(ui)
-  ui.component { |c| c.button(:save, text: 'Save') }
+  ui.component { |c| c.button(:save, text: 'Save') }  # this :save can't collide
 end
 
 Teek::UI.app(title: 'Editor') do |ui|
-  screen = nil
-  ui.panel(:top) { |p| screen = sidebar(p) }
-  screen[:save].on_click { save_document }
+  ui.panel(:top) { |p| toolbar(p, on_save: -> { save }) }
+  screen = ui.panel(:side) { |p| sidebar(p) }
+  screen[:save].on_click { save }   # facade: reach the component's own names
 end.run
 ```
 
-`screen[:save]` (or the equivalent `screen.handle(:save)`) resolves within the component's own scope and returns a `Handle`, or `nil` if the component never declared that name - same convention as `ui[:name]`. Move the component to another file or mount it under a different parent and nothing external breaks, since callers never reach in by global name.
-
-A component is mountable more than once - a list of identical rows, say - each `ui.component` call gets its own scope, so instances never collide there. Mounting the same component several times directly under one shared parent is also handled automatically: each instance gets its own facade addressing only its own widgets, with no Tk path collision even when every instance uses the same local names.
+`ui.component` splices content in place (scope isolation, not a container) and returns a facade — `screen[:name]` reaches its named widgets from outside; the global `ui[:name]` can't see in. It's mountable more than once, each instance getting its own scope and facade. See the API docs for the scoping rules.
 
 ## Canvas Items
 
-A `canvas` handle draws shapes directly - closer to SVG's persistent, addressable elements than HTML5 `<canvas>`'s paint-and-forget pixels: every shape method returns a live `CanvasItem` you can move, restyle, or delete later, not just ink on a bitmap.
+A `canvas` handle draws persistent, addressable shapes — closer to SVG than an HTML5 paint-and-forget `<canvas>`. Every shape method returns a live `CanvasItem`:
 
 ```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  ui.canvas(:board, width: 400, height: 300)
-end.run
-
-ball = session[:board].ellipse(10, 10, 40, 40, fill: 'red', tags: 'movable')
-ball.move(20, 0)              # relative shift
-ball.points = [10, 10, 60, 60]  # replace the coordinate list outright
-ball[:fill] = 'blue'          # read/write a single option
-ball.configure(outline: 'black', width: 2) # or several at once
-ball.bring_to_front           # stacking order (send_to_back is the opposite)
-ball.delete
-```
-
-Shape methods - `line`, `ellipse`, `polygon`, `rectangle`, `text`, `arc`, `bitmap` - take coordinates flat or nested (`line(0, 0, 10, 10)` and `line([0, 0], [10, 10])` are equivalent) plus real Tk item options (`fill:`, `outline:`, `width:`, `font:`, ...) passed straight through, same as every other widget option in the DSL. Tk's own name for `ellipse` is `oval` - both work identically; see [Friendly vs. Tk Names](#friendly-vs-tk-names) near the end of this README for every alias like this one.
-
-`tags:` at creation time groups items - `ui[:board].tagged('movable')` addresses every item currently carrying that tag as one `CanvasItem`, so `.move`/`.configure`/`.delete` apply to the whole group at once. A single-item handle from a shape method and a tag-scoped group handle from `tagged` are the same type, working identically either way (this mirrors how Tk's own canvas commands already treat a tag and an id the same way) - `.exists?` tells you whether a tag currently matches anything.
-
-Items also take the same `on_click`/`on_right_click`/`on_drag` vocabulary as widgets, scoped to that specific item/tag rather than the whole canvas:
-
-```ruby
+board = session[:board]   # ui.canvas(:board, width: 400, height: 300)
+ball = board.ellipse(10, 10, 40, 40, fill: 'red', tags: 'movable')
+ball.move(20, 0)
+ball.points = [10, 10, 60, 60]        # replace coordinates
+ball[:fill] = 'blue'                  # read/write one option
+ball.bring_to_front                   # (send_to_back is the opposite)
 ball.on_click { ball[:fill] = 'green' }
-ball.on_drag { |x, y| ball.points = [x - 15, y - 15, x + 15, y + 15] }
+ball.draggable                        # drag-to-move, no coordinate math
 ```
 
-For the common case of "let the user drag this around", `draggable` does that `on_drag` delta math for you:
+Shapes: `line`, `ellipse` (Tk: `oval`), `polygon`, `rectangle`, `text`, `arc`, `bitmap` — coordinates flat or nested, plus Tk item options passed straight through. `board.tagged('movable')` addresses every item with that tag as one `CanvasItem`. Items take the same `on_click`/`on_right_click`/`on_drag` as widgets.
 
-```ruby
-ball.draggable
-```
-
-A canvas can also float ordinary widgets on top of its own content - a status readout, a button bar - via `overlay`, a "use sparingly" escape valve for the one legitimate absolute-position case:
+`overlay` floats ordinary widgets over the canvas at a plain-English anchor (`:top_left`, `:center`, `:bottom_right`, ...), a "use sparingly" absolute-position escape valve:
 
 ```ruby
 ui.canvas(:board, width: 400, height: 300) do |cv|
   cv.overlay(at: :top_left) { ui.label(:status, text: 'Ready') }
-  cv.overlay(at: :bottom_right) { ui.row { ui.button(:pause, text: 'Pause') } }
 end
 ```
-
-`at:` is a corner/edge/center anchor (`:top_left`, `:top`, `:top_right`, `:left`, `:center`, `:right`, `:bottom_left`, `:bottom`, `:bottom_right`) - plain English standing in for Tk's own `place -relx/-rely/-anchor`, so it stays correctly positioned across a canvas resize with nothing to redo by hand.
 
 ## Text Content
 
-A `text_area` handle's `text_content` gives you the widget's full rich-text API - insert/delete text, named formats, markers, search, embedded images:
+A `text_area` handle's `text_content` is its full rich-text API — text, named formats, markers, search, embedded images:
 
 ```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  ui.text_area(:log)
-end.run
-
-log = session[:log].text_content
+log = session[:log].text_content        # ui.text_area(:log)
 log.insert(:end, 'started up')
-log.value   # => "started up"
+log.value                               # => "started up"
+
+log.format(:error, foreground: 'red', font: ['Courier', 10, :bold])  # define
+log.apply_format(:error, '3.0', '3.end')                             # apply to a range
+log.on_format_click(:error) { ... }                                  # leak-safe binding
+log.add_marker(:checkpoint, at: :cursor)
+log.scroll_to(:end)
+log.insert_image(:end, image: logo)
 ```
 
-**Indices** (every `index`/`from`/`to`/`at` parameter) are Tk's own text index syntax, passed straight through as plain strings - `"1.0"` (line 1, char 0), `"end"`, `"sel.first"`, `"insert +1 line"`, a marker name, `"@12,34"` (pixel position) - see the Tk `text` manual page for the full grammar. Two `Symbol` shortcuts cover the common cases: `:end` and `:cursor` (the text insertion point, Tk's own `insert` mark under a name that doesn't collide with the `#insert` method).
+- **Indices** are Tk's own text-index strings passed through (`"1.0"`, `"end"`, `"insert +1 line"`, `"@12,34"`, a marker name); `:end` and `:cursor` are symbol shortcuts.
+- **Content**: `insert`, `get`, `delete`, `replace`, `value`/`value=`, `clear`.
+- **Formats** (Tk "tags", renamed — a reusable named style, like a CSS class): `format`, `apply_format`, `clear_format`, `delete_format`, `format_ranges`, `on_format_click`.
+- **Markers** (floating bookmark positions): `add_marker`, `remove_marker`, `markers`.
+- **Other**: `search`, `scroll_to`, `cursor`/`cursor=`, `read_only`/`read_only=`.
 
-Content: `insert(index, text, *formats)`, `get(from, to)`, `delete(from, to = nil)`, `replace(from, to, text)`, `value`/`value=` (the whole buffer at once), `clear`.
-
-A **format** is Tk's own "tag" concept, renamed - not an HTML tag, a named, reusable set of display properties you apply to ranges, like a CSS class:
-
-```ruby
-log.format(:error, foreground: 'red', font: ['Courier', 10, :bold])
-log.apply_format(:error, '3.0', '3.end')
-log.clear_format(:error, '3.0', '3.end')   # remove from a range, definition stays
-log.delete_format(:error)                  # remove the definition entirely
-log.format_ranges(:error)                  # => ["3.0", "3.end", ...] flat index pairs
-```
-
-`on_format_click(name) { }` (and `on_format(name, event) { }` for any other Tk event pattern) fires when text carrying that format is clicked - wired through the same leak-safe path every other DSL event binding uses, so a format that stops being applied anywhere releases its callback automatically, no manual cleanup.
-
-A **marker** is a named, floating position that moves with edits around it - a bookmark, not a range: `add_marker(name, at:)`, `remove_marker(name)`, `markers` (every marker currently defined). `mark_gravity` (which way a marker drifts when text is inserted exactly at it) is a deeper, rarely-needed Tk concept and stays under its Tk name only.
-
-`search(pattern, from:, to:, backwards:, regexp:, nocase:)` returns the matching index, or `nil`. `scroll_to(index)` scrolls the view to make it visible; `cursor`/`cursor=` read and move the text insertion point; `read_only`/`read_only=` reads/drives the widget's own `-state`.
-
-One thing worth knowing about, so it doesn't surprise you: Tk itself silently no-ops `insert`/`delete`/etc. against a `state: :disabled` (read-only) widget, by design - `-state` is what makes a widget genuinely read-only against direct typing. Every content-mutating method here (`insert`/`delete`/`replace`/`value=`/`clear`/`insert_image`) transparently lifts that restriction for its own duration and restores it after, so an appending, read-only log pane just works with no caller-side state juggling:
-
-```ruby
-log = session[:log].text_content  # built with ui.text_area(:log, state: :disabled)
-log.insert(:end, "new line\n")    # works despite state: :disabled
-log.read_only                     # => true - still read-only afterward
-```
-
-`insert_image(index, image:)` embeds a `ui.image`/`Teek::Photo` inline in the text flow.
-
-Every friendly name above has a plain Tk-named alias, for 1:1 doc mapping or Tk-fluent muscle memory - `tag_configure`/`tag_add`/`tag_remove`/`tag_delete`/`tag_ranges`/`on_tag_click`/`on_tag` for the format methods, `mark_set`/`mark_unset`/`mark_names` for the marker methods, `see` for `scroll_to`, `image_create` for `insert_image`. Either name works identically.
-
-Not wrapped, escape-hatch only via `session.app.command`/`ui.raw` (rare enough in practice that a dedicated wrapper isn't worth it yet): embedding a live widget in the text flow (`window create`), the undo/redo stack (`edit undo`/`edit redo`/`edit modified`), `dump`, and peer widgets.
+Mutating methods transparently work on a `state: :disabled` (read-only) widget — an appending read-only log pane just works with no state juggling. Every friendly name has a Tk alias (`tag_add`, `mark_set`, `see`, ...). Not wrapped (escape-hatch only): embedded live widgets, the undo/redo stack, `dump`, peer widgets.
 
 ## Images
 
-`ui.image(path)` loads an image file for a `label`/`button`'s `image:` option - same build-vs-realize shape as `ui.var`: declare it anywhere in the build block, no interpreter needed yet, and it's actually loaded by the time the tree realizes:
+`ui.image(path)` loads an image for a `label`/`button`'s `image:` — same build-then-realize shape as `ui.var`:
 
 ```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  icon = ui.image('assets/logo.png')
-  ui.label(:logo, image: icon)
-end.run
+icon = ui.image('assets/logo.png')
+ui.label(:logo, image: icon)
+# later: session[:logo].configure(image: another_icon)
 ```
 
-Swap the displayed image later with an ordinary `configure`: `session[:logo].configure(image: another_icon)`. Under the hood this is teek core's own `Teek::Photo` (GC-owned - the underlying Tk image is freed automatically once nothing references it, no manual `image delete` bookkeeping) - reach `icon.photo` for the live `Teek::Photo` if you need pixel-level access (`put_block`, `get_pixel`, ...).
+Backed by teek's `Teek::Photo` (GC-owned — the Tk image frees itself, no manual bookkeeping); reach `icon.photo` for pixel-level access.
 
 ## Scrolling
 
-A bare `list`/`text_area`/`table`/`tree` auto-attaches a working scrollbar wherever it's declared - no wrapper, no `-yscrollcommand`/`-xscrollcommand`/scrollbar widget wiring in app code:
+A bare `list`/`text_area`/`table`/`tree` auto-attaches a scrollbar that appears only on overflow — no `-yscrollcommand` wiring:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.list(:log)                    # already scrolls
-  ui.list(:log, scroll: false)     # opt out - a plain, unwrapped listbox, like every other widget
-end.run
+ui.list(:log)                 # already scrolls
+ui.list(:log, scroll: false)  # opt out
 ```
 
-The scrollbar only shows up once content actually overflows - real "overflow: auto", not a bar that's always there whether it's needed or not. `canvas` defaults the other way (`scroll: false`) since it's as often fixed drawing as scrollable content; pass `scroll: true` to opt it in. `x:`/`y:` pick which axis gets a scrollbar (`y: true, x: false` by default).
-
-Three levels decide the default, most specific wins: a widget's own `scroll:`, then `Teek::UI.app(scroll:)` for the whole build, then the global `Teek::UI.auto_scroll`/`Teek::UI.auto_scroll_canvas`:
-
-```ruby
-Teek::UI.auto_scroll = false                              # turn auto-scrolling off everywhere, app-wide default
-Teek::UI.app(title: 'Hello', scroll: false) do |ui|        # ...or just for this one build
-  ui.list(:log)                    # follows the app-level default (off)
-  ui.list(:log2, scroll: true)     # a widget's own scroll: always wins
-end.run
-```
-
-`ui.scrollable(x: false, y: true) { }` is for the other case: a scrollbar around *arbitrary* content, since a plain container has no Tk scrolling protocol of its own to hook a scrollbar into:
-
-```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.scrollable { |s| s.column { |c| 50.times { |i| c.label(text: "Row #{i}") } } }
-end.run
-```
-
-It wraps its content in an embedded frame that a scrollbar drives, filling the visible width automatically unless `x:` scrolling is on. Same `x:`/`y:` options, same auto-hide behavior.
-
-Mouse-wheel scrolling works for both - over the scrollbar, the content, or any widget nested inside it - `<MouseWheel>` (Windows/macOS) and `<Button-4>`/`<Button-5>` (X11) all drive the same scroll, and `Shift`+wheel scrolls horizontally when `x:` is on.
+`canvas` defaults to `scroll: false`. `x:`/`y:` pick the axis. Defaults resolve most-specific-first: widget `scroll:` → `Teek::UI.app(scroll:)` → global `Teek::UI.auto_scroll`. For a scrollbar around *arbitrary* content, wrap it in `ui.scrollable { }`. Mouse-wheel (incl. `Shift`+wheel for horizontal) works on all of it. See the API docs for the full precedence rules.
 
 ## Windows
 
-`ui.window(title:, geometry:, resizable:, modal:) { }` is a managed toplevel - unlike the plain container types, it wires up the wm-level bookkeeping a secondary window actually needs (title, initial geometry, resizable, transient-to-its-parent, macOS's shared-menubar quirk) and starts **withdrawn** - it isn't shown until you call `.show`:
+`ui.window(title:, geometry:, resizable:, modal:) { }` is a managed toplevel — it handles the wm bookkeeping (title, geometry, transient-to-parent, macOS menubar quirk) and starts **withdrawn** until `.show`:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  settings = ui.window(:settings, title: 'Settings', geometry: '400x300', resizable: false) do |w|
-    w.button(:close, text: 'Close').on_click { settings.hide }
-  end
-  ui.button(:open_settings, text: 'Settings...').on_click { settings.show }
-end.run
+settings = ui.window(:settings, title: 'Settings', geometry: '400x300') do |w|
+  w.button(:close, text: 'Close').on_click { settings.hide }
+end
+ui.button(:open, text: 'Settings...').on_click { settings.show }
 ```
 
-`.show` positions the window just to the right of whichever window it's nested under (root, or an enclosing `ui.window`), deiconifies, raises it to the front, and - only if declared `modal: true` - grabs input and focus too (see `modal`/`release_focus` under [Events](#events)). `.hide` releases any grab and withdraws it. `resizable:` takes a single Boolean for both axes, or a `[width, height]` pair.
-
-`ui.dialog(...)` is `ui.window` with defaults flipped for the common "small modal window" case - `modal: true`, `resizable: false` - both still overridable:
-
-```ruby
-ui.dialog(:confirm) { |d| d.label(text: 'Discard changes?') }
-session[:confirm].show   # grabs and focuses automatically - it's a dialog
-```
-
-Every other container (`panel`/`group`/`canvas`) still just packs its children top-to-bottom with no options - reach for `column`/`row`/`grid` when you actually want control over spacing/alignment/positions. Overlay layout isn't built yet.
+`.show` positions near its parent, raises, and (if `modal: true`) grabs input; `.hide` withdraws. `ui.dialog(...)` is `ui.window` with `modal: true, resizable: false` defaults. Plain containers (`panel`/`group`/`canvas`) just stack their children — use `column`/`row`/`grid` for real control.
 
 ## Navigation
 
-Three constructs swap what's on screen; pick by how separate the new content is from the old:
+Three ways to swap what's on screen — pick by how separate the new content is:
 
 | Reach for | When |
 | --- | --- |
-| **`ui.window` / `ui.dialog`** | A genuinely separate top-level window - settings, a picker - with its own titlebar, optionally modal. See [Windows](#windows). |
-| **`ui.screens`** | Full-content swaps *within one window* - a push/pop stack where showing one screen hides the last (menu → game → menu). |
-| **`ui.modal`** | Stacked *modal* dialogs where dismissing one re-shows the one beneath, with mandatory enter/exit hooks (e.g. pause/resume what's underneath). |
+| **`ui.window` / `ui.dialog`** | A separate top-level window with its own titlebar. See [Windows](#windows). |
+| **`ui.screens`** | Full-content swaps *within one window* — a push/pop stack. |
+| **`ui.modal`** | Stacked modal dialogs where dismissing one re-shows the one beneath. |
 
 ## Screens
 
-`ui.screens` is a push/pop stack for swapping which content is on display - pushing conceals whatever screen was on top (if any) before revealing the new one; popping reverses that. It works directly against ordinary handles, so there's no bespoke per-screen class to write:
+`ui.screens` is a push/pop stack for swapping displayed content — pushing conceals the current screen, popping reverses it. Works against ordinary handles:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.panel(:picker) { |p| p.button(:play, text: 'Play').on_click { ui.screens.push(:emulator, ui[:emulator]) } }
-  ui.panel(:emulator) { |p| p.button(:back, text: 'Back').on_click { ui.screens.pop } }
-end.run
+ui.panel(:picker)   { |p| p.button(:play, text: 'Play').on_click { ui.screens.push(:emu, ui[:emu]) } }
+ui.panel(:emu)      { |p| p.button(:back, text: 'Back').on_click { ui.screens.pop } }
 ```
 
-A `ui.window` screen is revealed/concealed through its own `.show`/`.hide` (deiconify/raise/modal, or grab-release/withdraw); any other handle (`panel`/`box`/`group`/...) is packed to fill its parent, or pack-forgotten - the plain `pack`/`pack forget` primitive. `ui.screens.replace_current(handle)` swaps the current screen in-place without changing stack depth (same name, new content); `.current`/`.current_screen`/`.size`/`.active?` read the stack's state without mutating it.
-
-A container is packed the normal way as soon as it's realized, regardless of `ui.screens` - so two sibling panels declared as candidate screens are *both* visible until `ui.screens` has touched them. Push every candidate once during setup (each push conceals whichever came before, so only the last one stays visible), or use `ui.window` for screens that shouldn't show up until pushed - it starts withdrawn already, with no setup-time push needed.
-
-A `lazy: true` container skips that problem a different way: it isn't realized at all - no live Tk widget exists yet - until something actually needs it. `ui.screens.push`/`.replace_current` realize it on demand, right before revealing it, so a large multi-screen app doesn't have to build every screen's widgets up front just to keep the first one from flashing:
-
-```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  picker = nil
-  ui.panel(:host) { |p| picker = p.panel(:picker, lazy: true) { |pk| pk.button(:play, text: 'Play') } }
-  ui.screens.push(:picker, picker) # :picker is realized right here, not at declaration time
-end.run
-```
-
-Popping a screen only conceals it - the widget stays around, warm, for a fast re-show. `ui.screens.pop`/`ui.modal.pop` return the screen/window they just popped, and `handle.destroy!` tears a popped screen down for good (releasing its callbacks) when you don't want to keep it warm - `ui.screens.pop&.destroy!` is the common "close it for good" one-liner; a later push of a fresh `lazy: true` mount rebuilds it from scratch.
+`replace_current(handle)` swaps in place; `.current`/`.size`/`.active?` read state. A `lazy: true` container isn't realized until first pushed (avoids building every screen up front); `ui.screens.pop&.destroy!` closes one for good. See the API docs for the candidate-visibility gotcha and warm-conceal behavior.
 
 ## Modal Stacking
 
-`ui.modal` is a push/pop stack for modal dialog windows, so one dialog can push another (Settings → Replay Player) with the previous one automatically re-shown once the new one is dismissed. Unlike `ui.screens`, it isn't created automatically - assign it yourself, since its `on_enter:`/`on_exit:` callbacks are mandatory and app-specific (e.g. pausing/resuming whatever's running underneath):
+`ui.modal` stacks modal dialogs so one can push another and the previous re-shows on dismiss. Assign it yourself — its `on_enter:`/`on_exit:` hooks are mandatory (e.g. pause/resume what's underneath):
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.modal = Teek::UI::ModalStack.new(
-    on_enter: ->(name) { pause_emulation },
-    on_exit: -> { unpause_emulation },
-  )
-  ui.dialog(:settings) { |d| d.button(:replay, text: 'Replay...').on_click { ui.modal.push(:replay, ui[:replay]) } }
-  ui.dialog(:replay) { |d| d.button(:close, text: 'Close').on_click { ui.modal.pop } }
-end.run
+ui.modal = Teek::UI::ModalStack.new(
+  on_enter: ->(name) { pause },
+  on_exit:  -> { resume },
+)
+ui.dialog(:settings) { |d| d.button(:replay).on_click { ui.modal.push(:replay, ui[:replay]) } }
 ```
 
-`.push(name, handle)`/`.pop` reveal/conceal exactly like `ui.screens` (it wraps one internally, including its lazy-realize support - `document:` is optional, needed only if you'll push a `lazy: true` dialog) - the difference is the lifecycle: `on_enter` fires once, the first time the stack goes from empty to non-empty; `on_exit` fires once, when the last dialog pops and the stack goes back to empty; `on_focus_change`, if given, fires with the new top's name on every push and every pop that still leaves a dialog underneath. `.current`/`.size`/`.active?` read the stack's state. Push a handle declared `modal: true` (`ui.dialog` already defaults to this) so `.show` actually grabs input - `ui.modal` itself doesn't grab anything on its own.
-
-A "fresh dialog every time it's opened" (rather than one built once and reused) just means building a new `lazy: true` component right before each push - through `ui.add` since this runs after the window's already up - and destroying it after each pop:
-
-```ruby
-def open_settings(ui)
-  dialog = nil
-  ui.add(:main) do |a|
-    dialog = a.component do |c|
-      c.window(:settings, lazy: true, modal: true) do |w|
-        w.button(:close, text: 'Close').on_click { ui.modal.pop&.destroy! }
-      end
-    end
-  end
-  ui.modal.push(:settings, dialog[:settings])
-end
-
-ui.dialog(:main) { |d| d.button(:open, text: 'Settings...').on_click { open_settings(ui) } }
-```
+`.push(name, handle)`/`.pop` reveal/conceal like `ui.screens`; push a `modal: true` handle (`ui.dialog` defaults to it) so `.show` grabs input. See the API docs for the `on_enter`/`on_exit`/`on_focus_change` firing rules and the fresh-dialog-per-open pattern.
 
 ## Tabs
 
-`ui.tabs { }` is a `ttk::notebook`; `t.tab(label, name = nil) { }` declares one page, only valid directly inside it:
+`ui.tabs { }` is a `ttk::notebook`; `t.tab(label, name = nil) { }` declares a page:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.tabs(:settings) do |t|
-    t.tab('General') { |g| g.checkbox(text: 'Dark mode') }
-    t.tab('Advanced', :advanced_tab) { |a| a.label(text: 'Here be dragons') }
-  end
-  ui[:settings].on_tab_changed { |tab| puts "switched to #{tab}" }  # :advanced_tab, or 0/1 if unnamed
-end.run
+ui.tabs(:settings) do |t|
+  t.tab('General')  { |g| g.checkbox(text: 'Dark mode') }
+  t.tab('Advanced', :advanced_tab) { |a| a.label(text: 'Here be dragons') }
+end
+ui[:settings].on_tab_changed { |tab| puts "switched to #{tab}" }  # name, or index if unnamed
 ```
 
-A tab's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. `on_tab_changed` surfaces Tk's `<<NotebookTabChanged>>`, delivering the newly selected tab's own name if it has one, otherwise its zero-based index. New tabs can be added at runtime via `session.add`.
+Tab content is an ordinary subtree; new tabs can be added at runtime via `session.add`.
 
 ## Split Panes
 
-`ui.split(name = nil, orientation: :horizontal) { }` is a `ttk::panedwindow`; `s.pane(name = nil, weight: nil) { }` declares one region, only valid directly inside it:
+`ui.split(orientation: :horizontal) { }` is a `ttk::panedwindow`; `s.pane(weight: nil) { }` declares a draggable region:
 
 ```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.split(:main, orientation: :horizontal) do |s|
-    s.pane(weight: 1) { |a| a.list(:files) }
-    s.pane(weight: 3) { |b| b.text_area(:editor) }
-  end
-end.run
+ui.split(:main, orientation: :horizontal) do |s|
+  s.pane(weight: 1) { |a| a.list(:files) }
+  s.pane(weight: 3) { |b| b.text_area(:editor) }
+end
 ```
 
-`:horizontal` lays panes out side by side with a vertical sash; `:vertical` stacks them with a horizontal sash - dragging the sash between two panes resizes them, same as any native split view. `weight:` sets how much of the leftover space a pane absorbs when the split is resized, relative to its sibling panes' weights (the same word `ttk::panedwindow` itself uses) - a pane left unset gets Tk's own default (fixed size until dragged). A pane's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. New panes can be added at runtime via `session.add`.
+`weight:` sets how much slack a pane absorbs relative to its siblings.
 
 ## Event Bus
 
-For widgets that need to react to something without holding a direct reference to whoever caused it - `ui.on`/`ui.emit` is in-process publish/subscribe, not a Tk event. Reach for it when a direct handle (`ui[:name]`) or a shared `ui.var` would couple things that should stay decoupled - e.g. three unrelated panels all reacting to "an item was added," with the thing that added it never knowing any of them exist:
+`ui.on`/`ui.emit` is in-process publish/subscribe — for widgets that react without holding a reference to whoever caused it:
 
 ```ruby
 ui.on(:item_added) { |product| cart_badge.configure(text: "#{count += 1} items") }
-ui.on(:item_added) { |product| activity_log.append("Added #{product[:name]}") }
-
-add_button.on_click { ui.emit(:item_added, product) } # emits once, no idea who's listening
+add_button.on_click { ui.emit(:item_added, product) }   # no idea who's listening
 ```
 
-`ui.off(:item_added, block)` unsubscribes (`block` is what `on` returned). Works before realize too - it's pure Ruby, no Tk involved - and each `Teek::UI.app` instance owns its own bus, so two running in the same process never see each other's events. See `sample/event_bus_demo.rb` for a full working example, including what the same UI would look like *without* it.
+`ui.off(:item_added, block)` unsubscribes. Each `Teek::UI.app` owns its own bus. See `sample/event_bus_demo.rb`.
 
 ## Menus
 
-`ui.menu_bar { }` declares a window's menu bar - the row of dropdowns (File/Edit/...) along its top edge - attaching automatically to whichever window it's declared in (the top level of the build, or directly inside `ui.window`). `.menu(label:) { }` is one recursive method for every dropdown, nested cascade, or submenu - there's no separate Tk `cascade`/`tearoff` vocabulary to learn:
+`ui.menu_bar { }` declares a window's menu bar, attaching to whatever window it's in. `.menu(label:)` is one recursive method for every dropdown/cascade/submenu:
 
 ```ruby
-Teek::UI.app(title: 'Editor') do |ui|
-  wrap = ui.var(false)
-
-  ui.menu_bar do |mb|
-    mb.menu(label: 'File') do |file|
-      file.item(label: 'Open...', shortcut: 'Cmd+O') { open_file }
-      file.separator
-      file.menu(label: 'Recent') do |recent|
-        recent.item(label: 'notes.txt') { open_recent('notes.txt') }
-      end
-      file.item(label: 'Quit') { exit }
-    end
-    mb.menu(label: 'Edit') do |edit|
-      edit.checkbox(label: 'Word Wrap', bind: wrap)
-    end
+ui.menu_bar do |mb|
+  mb.menu(label: 'File') do |file|
+    file.item(label: 'Open...', shortcut: 'Cmd+O') { open_file }
+    file.separator
+    file.menu(label: 'Recent') { |r| r.item(label: 'notes.txt') { open_recent } }
   end
-end.run
+end
 ```
 
-Inside a `menu_bar`/`menu`/`context_menu` block, `item`/`separator`/`checkbox`/`radio` build entries - a deliberately separate, small vocabulary from the top-level widget DSL (`checkbox`/`radio` here mean menu entries, not the `ttk::checkbutton`/`ttk::radiobutton` *widgets* of the same name one level up). `checkbox`/`radio` reuse the same `bind:` reactive-variable convention widgets do; `radio` entries sharing one `bind:` var each set it to their own `value:` when chosen.
-
-Give `item`/`checkbox`/`radio` a name to address them later, the same `ui[:name]` lookup as any other widget - greyed out/re-enabled with `.enable`/`.disable`, relabeled or otherwise reconfigured with `.configure`:
-
-```ruby
-file.item(:quick_load, label: 'Quick Load') { load_last_save }
-# ...later, once there's actually a save to load:
-ui[:quick_load].enable
-```
-
-No magic index and no label-text matching - addressing stays correct even if an earlier entry is added or removed later.
-
-`shortcut:` (Tk's own name: `accelerator:`, still works) is display-only - it shows "Cmd+O" next to the label but doesn't actually bind the key. Wire the real keystroke separately, typically with `on_key` on whatever widget should be listening.
-
-A **context menu** is a standalone popup, built the same way but not attached to anything automatically - wire it to a widget with `on_right_click`:
-
-```ruby
-Teek::UI.app(title: 'Editor') do |ui|
-  ctx = ui.context_menu(:card_menu) { |m| m.item(label: 'Delete') { delete_card } }
-  ui.canvas(:board).on_right_click(ctx)
-end.run
-```
-
-`on_right_click` still takes a plain block too, same as before - a menu handle and a block are alternatives, not both at once.
+Inside a menu, `item`/`separator`/`checkbox`/`radio` build entries (menu entries, not the widgets of the same name). Name one to address it later (`.enable`/`.disable`/`.configure`). `shortcut:` (Tk: `accelerator:`) is display-only — wire the real key with `on_key`. A `ui.context_menu(:name) { }` is a standalone popup — attach it with `on_right_click`.
 
 ## Escape Hatch
 
-Nothing here is a sandbox - the DSL is sugar, not a wall, and there are two ways to drop to plain teek depending on when you need it.
-
-**After realize**, every session exposes the live `Teek::App` directly:
-
-```ruby
-session = Teek::UI.app(title: 'Hello').run_async
-session.app.command(:label, '.greeting', text: 'Hi there')
-session.app.tcl_eval('pack .greeting')
-```
-
-**During build**, `session.app` doesn't exist yet (see "Building vs. Realizing" above) - a widget doesn't have a Tk path yet either, so there's nothing for `app.command(handle.path, ...)` to act on mid-build. `ui.raw { |app| ... }` is the build-time escape hatch instead: it records the block and defers it to realize, where it runs with the real, live app. It's a closure, so it can still reference sibling widgets by name even if they're declared later in the build - by the time any `ui.raw` block runs, the whole tree has already been realized once over, the same forward-reference guarantee event `target:` gets:
+The DSL is sugar, not a wall. **After realize**, `session.app` is the live `Teek::App`. **During build**, use `ui.raw { |app| ... }` — it records the block and runs it at realize with the live app (and can forward-reference widgets by name):
 
 ```ruby
 Teek::UI.app(title: 'Hello') do |ui|
-  ui.raw { |app| app.command(ui[:later].path, :configure, text: 'Changed by raw') } # runs at realize
-  ui.button(:later, text: 'Original') # declared after, still resolves - forward reference
+  ui.raw { |app| app.command(ui[:later].path, :configure, text: 'Changed') }
+  ui.button(:later, text: 'Original')   # declared after, still resolves
 end.run
 ```
 
-So: `ui.raw` for build-time raw work, `session.app` (or a realized `Handle`) for anything after.
-
-One caveat either way: don't issue a raw `pack`/`grid` call against a master the DSL already manages (a `column`/`row`/`grid`/etc.'s own Tk frame) - Tk allows exactly one geometry manager per master, and mixing them raises a clear `Teek::TclError` immediately rather than silently hanging, but the DSL has no way to catch the mistake for you up front since it can't see inside an escape-hatch block.
+Don't issue a raw `pack`/`grid` against a master the DSL already manages — Tk allows one geometry manager per master and raises a clear `Teek::TclError` if you mix them.
 
 ## Dynamic UIs
 
-"Nothing happens until realize" describes the *initial* declaration only - `session.add(parent_name) { }` builds a subtree with the exact same widget DSL and realizes just that subtree immediately, as a child of an already-realized widget, for UIs that grow after the window is already up (adding rows to a list, rebuilding a menu on right-click):
+`session.add(parent_name) { }` builds a subtree with the same widget DSL and realizes it immediately under an already-realized widget — for UIs that grow after the window is up:
 
 ```ruby
 session = Teek::UI.app(title: 'Hello') { |ui| ui.column(:list) }.run_async
-
 session.add(:list) { |a| a.button(:item1, text: 'Item 1').on_click { puts 'clicked!' } }
 ```
 
-The new widgets route through the same `Teek::App#command`/leak-cleanup path the initial realize uses - destroying one reclaims its callbacks the normal way. `parent_name` must already be realized; calling `add` before the session itself is realized, or naming a widget that doesn't exist, raises.
+New widgets route through the same leak-cleanup path; `parent_name` must already be realized.
 
 ## Timers
 
-`#every`/`#after` follow the same queue-then-wire shape as events: declare a tick loop right inside the build block, next to the UI it drives, and it registers automatically once the tree realizes - no need to relocate it to a separate post-`run_async` step. Called after realize, they register immediately instead, with identical runtime behavior either way:
+`#every`/`#after` queue-then-wire like events — declare a tick loop in the build block, next to the UI it drives:
 
 ```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  ui.every(1000) { puts 'tick' }   # queues now, starts ticking once realized
-  ui.after(500) { puts 'once' }
-end
-session.run
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.every(1000) { puts 'tick' }
+  ui.after(500)  { puts 'once' }
+end.run
 ```
 
-Called before realize, both return `nil` - there's no live, `.cancel`-able timer object to hand back until the app actually exists. Called after, they return the same live timer `Teek::App#every`/`#after` already does.
+Before realize they return `nil`; after realize they return the live, `.cancel`-able timer.
 
 ## Interactive / REPL Use
 
-`#run` blocks on the Tk event loop, which isn't REPL-friendly. `#run_async` realizes, shows the window, and returns immediately instead - but it doesn't (yet) service the event loop automatically between prompts, so call `ui.app.update` yourself to process pending events while exploring:
+`#run` blocks the event loop. `#run_async` shows the window and returns; call `ui.app.update` yourself to process events between prompts:
 
 ```ruby
 session = Teek::UI.app(title: 'Hello').run_async
-session.app.update # process events after each change
+session.app.update
 ```
 
 ## Dialogs
 
-The standard native dialogs are reachable directly on `ui` - realize-only, unlike the timers above (see "Building vs. Realizing"):
+Standard native dialogs, directly on `ui` (realize-only):
 
 ```ruby
-path = ui.open_file(filetypes: [['Images', ['.png', '.jpg']]])
-ui.save_file(initialfile: 'export.png')
-answer = ui.message(message: 'Delete this?', type: :yesno)
-color = ui.choose_color(initial: '#3366ff')
-dir = ui.choose_dir(title: 'Pick a project folder')
+path   = ui.open_file(filetypes: [['Images', ['.png', '.jpg']]])
+answer = ui.message(message: 'Delete this?', type: :yesno)   # => :yes / :no
+color  = ui.choose_color(initial: '#3366ff')
+dir    = ui.choose_dir(title: 'Pick a folder')
 ```
 
-Each returns `nil` if the user cancels (`ui.message` returns the pressed button as a Symbol - `:ok`/`:yes`/`:no`/... - instead, since there's no single "cancelled" case across every button layout). See `Teek::App#choose_open_file`/`#choose_save_file`/`#message_box`/`#choose_color`/`#choose_dir` for every option.
+Each returns `nil` on cancel (`ui.message` returns the pressed button symbol). Also `ui.save_file`.
 
 ## Clipboard
 
-`ui.clipboard` reads/writes the clipboard directly - also realize-only:
+`ui.clipboard` reads/writes directly (realize-only):
 
 ```ruby
 ui.clipboard.set('copied text')
-ui.clipboard.get # => "copied text", or nil if empty
+ui.clipboard.get   # => "copied text", or nil if empty
 ```
+
+`text_box`/`text_area` already handle Ctrl/Cmd-C/X/V natively.
 
 ## Friendly vs. Tk Names
 
@@ -692,10 +445,8 @@ The litmus test for every name in this DSL: if decoding it needs Tk knowledge, t
 | `release_focus` | `grab_release` | `Handle` (window) |
 | `shortcut:` | `accelerator:` | menu `item`/`checkbox`/`radio` |
 
-\* Not plain `raise` - that would silently shadow `Kernel#raise` on every `CanvasItem` (a bare `raise` call meant to raise a real exception would instead call this method). `tk_raise` keeps the Tk association without the collision.
+\* Not plain `raise` - that would silently shadow `Kernel#raise` on every `CanvasItem`. `tk_raise` keeps the Tk association without the collision.
 
-A few Tk names are kept as-is, deliberately not renamed - either genuinely universal (`configure`, `move`, `scale`, `value`), or Tk-specific enough that a forced rename would obscure more than it clarifies (`relief:`, `highlightthickness:`, `bitmap` as a canvas item type - a real Tk bitmap image format, not a shape). `tagged(tag)` (canvas tag-group addressing) also stays as-is - a legitimate, already-clear concept on its own terms.
+A few Tk names are kept as-is, deliberately not renamed - either genuinely universal (`configure`, `move`, `scale`, `value`), or Tk-specific enough that a forced rename would obscure more than it clarifies (`relief:`, `highlightthickness:`, `bitmap`, `tagged`).
 
-See also `text_content`'s own alias table (in [Text Content](#text-content) above) for the text-widget-specific set - `format`/`apply_format`/`clear_format`/`delete_format`/`format_ranges`/`on_format_click`/`on_format` (Tk: `tag_configure`/`tag_add`/`tag_remove`/`tag_delete`/`tag_ranges`/`on_tag_click`/`on_tag`), `add_marker`/`remove_marker`/`markers` (Tk: `mark_set`/`mark_unset`/`mark_names`), `scroll_to` (Tk: `see`), `insert_image` (Tk: `image_create`).
-
-`text_box`/`text_area` don't need this at all for their own copy/cut/paste - the standard platform keys (Ctrl/Cmd-C/X/V) already work with zero wiring, since that's Tk's own built-in behavior on every text-editing widget.
+The text widget has its own alias set (in [Text Content](#text-content) above): `format`/`apply_format`/`clear_format`/`delete_format`/`format_ranges`/`on_format_click` (Tk: `tag_*`), `add_marker`/`remove_marker`/`markers` (Tk: `mark_*`), `scroll_to` (Tk: `see`), `insert_image` (Tk: `image_create`).
