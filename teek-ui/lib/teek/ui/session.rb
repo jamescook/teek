@@ -62,6 +62,29 @@ module Teek
         @app
       end
 
+      # A live snapshot of currently-registered callbacks, grouped by
+      # what registered them - "is my app leaking callbacks, and where."
+      # A tag absent from the result means nothing of that kind is
+      # currently registered (not a zero entry). Safe to call any time
+      # after realize; see `run`/`run_async`'s `debug:` for printing this
+      # automatically instead of calling it yourself.
+      # @return [Hash{Symbol => Integer}] +:event_bindings+, +:menu_entries+,
+      #   +:canvas_item_binds+, +:tag_binds+, +:widget_option_callbacks+
+      #   (+-command+/+-textvariable+/etc.), +:window_close_handlers+
+      # @raise [NotRealizedError] if called before #realize
+      def debug_info
+        raise_unless_realized!
+        counts = @app.callback_registry.counts_by_tag
+        {
+          event_bindings: counts[:bind],
+          menu_entries: counts[:menu],
+          canvas_item_binds: counts[:canvas_bind],
+          tag_binds: counts[:tag_bind],
+          widget_option_callbacks: counts[:widget_option],
+          window_close_handlers: counts[:wm_protocol],
+        }.reject { |_, count| count.zero? }
+      end
+
       # Validate the build tree, then create the underlying {Teek::App} and
       # realize the tree into it, if that hasn't happened yet. Idempotent -
       # calling it again after the first time just returns the same app.
@@ -99,11 +122,17 @@ module Teek
       # Realize, show the window, and enter the Tk event loop. Blocks until
       # the app exits.
       # @param strict [Boolean] see {Validator.validate!}
+      # @param debug [Boolean] print {#debug_info}'s summary to stderr,
+      #   once right before entering the event loop and once after it
+      #   returns - eyeball whether the app leaked any callbacks over
+      #   its run without writing any diagnostic code yourself.
       # @return [void]
-      def run(strict: false)
+      def run(strict: false, debug: false)
         realize(strict: strict)
         @app.show
+        print_debug_info if debug
         @app.mainloop
+        print_debug_info if debug
       end
 
       # Realize and show the window without entering the event loop, for
@@ -116,10 +145,13 @@ module Teek
       #   helper that services the loop for you on its own is future work,
       #   not built yet.
       # @param strict [Boolean] see {Validator.validate!}
+      # @param debug [Boolean] print {#debug_info}'s summary to stderr
+      #   right after realize
       # @return [self]
-      def run_async(strict: false)
+      def run_async(strict: false, debug: false)
         realize(strict: strict)
         @app.show
+        print_debug_info if debug
         self
       end
 
@@ -299,6 +331,12 @@ module Teek
 
       def raise_unless_realized!
         raise NotRealizedError unless @app
+      end
+
+      # @see #run, #run_async's own +debug:+ - always stderr, never
+      # stdout (this is diagnostics, not program output).
+      def print_debug_info
+        warn "[teek-ui debug] live callbacks: #{debug_info}"
       end
 
       # @return [Boolean] whether {WidgetDSL}'s build methods (ui.button,
