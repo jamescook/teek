@@ -15,12 +15,12 @@ Nothing has shipped yet - this section is a snapshot of the current API, not a r
 - Realize/validation: atomic realize; tree-wide validation surfaces every problem at once, including a grid child missing `g.cell(...)`; build methods raise `ClosedBuilderError` once realized, redirecting to `session.add`.
 - Scrolling: native widgets (`list`/`text_area`/`table`/`tree`) auto-attach a scrollbar (`scroll:` opt-out, 3-level default); `canvas` opts in instead; `ui.scrollable` wraps arbitrary content; both auto-hide and support mouse wheel.
 - Layout: `column`/`row` flow containers (`gap:`/`align:`/`pad:`/`grow:`), `ui.grid` for the rest, `cv.overlay(at: anchor)` to float a widget over a `ui.canvas`.
-- Handles: one handle type across both phases - `.path`/`.configure`.
+- Handles: one handle type across both phases - `.path`/`.configure`/`.enable`/`.disable`.
 - Events: `on_click`/`on_right_click`/`on_drag`/`on_key`, queue before realize, wire immediately after.
 - Close handling: `on_close` on windows, overridable default-destroy.
 - Escape hatch: `session.app`/`#every`/`#after` post-realize, `ui.raw { |app| }` pre-realize.
 - Reactive variables: `ui.var`, `bind:`, `#value`/`#value=`, `#on_change`.
-- Menus: `menu_bar`/`menu`/`context_menu`, shared `item`/`separator`/`checkbox`/`radio` vocabulary.
+- Menus: `menu_bar`/`menu`/`context_menu`, shared `item`/`separator`/`checkbox`/`radio` vocabulary; named `item`/`checkbox`/`radio` entries are addressable via `ui[:name]`, immune to entry renumbering.
 - Windows: `ui.window`/`ui.dialog` - managed toplevels with `show`/`hide`/`modal`.
 - Tabs: `ui.tabs`/`t.tab(label, name)` - `ttk::notebook`, `on_tab_changed` event.
 - Split panes: `ui.split(name, orientation:)`/`s.pane(name, weight:)` - `ttk::panedwindow` with a draggable sash.

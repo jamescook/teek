@@ -100,6 +100,25 @@ class TestMenuDsl < Minitest::Test
     assert fired, "the item's block should be stashed as opts[:command]"
   end
 
+  def test_item_is_addressable_when_named
+    session = build_session
+
+    session.menu_bar { |mb| mb.menu(label: 'File') { |f| f.item(:quick_load, label: 'Quick Load') { } } }
+
+    handle = session[:quick_load]
+    assert_kind_of Teek::UI::Handle, handle
+    assert_equal :menu_item, handle.type
+  end
+
+  def test_item_returns_a_handle_even_when_unnamed
+    session = build_session
+    handle = nil
+
+    session.menu_bar { |mb| mb.menu(label: 'File') { |f| handle = f.item(label: 'Open') { } } }
+
+    assert_kind_of Teek::UI::Handle, handle
+  end
+
   def test_item_without_a_block_has_no_command_opt
     session = build_session
 
@@ -138,6 +157,28 @@ class TestMenuDsl < Minitest::Test
     assert_equal :menu_checkbox, node.type
     assert_equal 'Word Wrap', node.opts[:label]
     assert_same wrap, node.opts[:bind]
+  end
+
+  def test_checkbox_is_addressable_when_named
+    session = build_session
+    wrap = session.var(true)
+
+    session.menu_bar { |mb| mb.menu(label: 'Edit') { |e| e.checkbox(:word_wrap, label: 'Word Wrap', bind: wrap) } }
+
+    handle = session[:word_wrap]
+    assert_kind_of Teek::UI::Handle, handle
+    assert_equal :menu_checkbox, handle.type
+  end
+
+  def test_radio_is_addressable_when_named
+    session = build_session
+    size = session.var('small')
+
+    session.menu_bar { |mb| mb.menu(label: 'Edit') { |e| e.radio(:small_size, label: 'Small', bind: size, value: 'small') } }
+
+    handle = session[:small_size]
+    assert_kind_of Teek::UI::Handle, handle
+    assert_equal :menu_radio, handle.type
   end
 
   def test_radio_appends_a_radiobutton_entry_bound_to_a_var_with_a_value

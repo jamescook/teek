@@ -76,6 +76,7 @@ Paths are hierarchical and derived from widget names, not auto-incremented junk 
 
 ```ruby
 session[:query].configure(width: 40) # after session.run/.run_async/.realize
+session[:query].disable              # shorthand for configure(state: :disabled)
 ```
 
 Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
@@ -364,6 +365,16 @@ end.run
 ```
 
 Inside a `menu_bar`/`menu`/`context_menu` block, `item`/`separator`/`checkbox`/`radio` build entries - a deliberately separate, small vocabulary from the top-level widget DSL (`checkbox`/`radio` here mean menu entries, not the `ttk::checkbutton`/`ttk::radiobutton` *widgets* of the same name one level up). `checkbox`/`radio` reuse the same `bind:` reactive-variable convention widgets do; `radio` entries sharing one `bind:` var each set it to their own `value:` when chosen.
+
+Give `item`/`checkbox`/`radio` a name to address them later, the same `ui[:name]` lookup as any other widget - greyed out/re-enabled with `.enable`/`.disable`, relabeled or otherwise reconfigured with `.configure`:
+
+```ruby
+file.item(:quick_load, label: 'Quick Load') { load_last_save }
+# ...later, once there's actually a save to load:
+ui[:quick_load].enable
+```
+
+No magic index and no label-text matching - addressing stays correct even if an earlier entry is added or removed later.
 
 A **context menu** is a standalone popup, built the same way but not attached to anything automatically - wire it to a widget with `on_right_click`:
 

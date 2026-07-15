@@ -84,6 +84,89 @@ class TestMenuRealize < Minitest::Test
     end
   end
 
+  def test_named_item_is_addressable_via_ui_name_and_supports_enable_disable_configure
+    assert_tk_app("a named item should be addressable via ui[:name] and support .enable/.disable/.configure") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Menu Realize Test') do |ui|
+        ui.menu_bar do |mb|
+          mb.menu(:file, label: 'File') do |f|
+            f.item(label: 'New') { }
+            f.item(:quick_load, label: 'Quick Load') { }
+          end
+        end
+      end
+      session.run_async
+      session.app.update
+
+      file_path = session[:file].path
+      item = session[:quick_load]
+
+      assert_equal 'normal', session.app.command(file_path, :entrycget, 1, '-state')
+
+      item.disable
+      assert_equal 'disabled', session.app.command(file_path, :entrycget, 1, '-state')
+
+      item.enable
+      assert_equal 'normal', session.app.command(file_path, :entrycget, 1, '-state')
+
+      item.configure(label: 'Load Recent Save')
+      assert_equal 'Load Recent Save', session.app.command(file_path, :entrycget, 1, '-label')
+
+      session.app.destroy
+    end
+  end
+
+  def test_named_item_stays_correctly_addressed_after_an_earlier_sibling_is_removed
+    assert_tk_app("addressing a named item should stay correct even after an earlier sibling entry is removed") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Menu Realize Test') do |ui|
+        ui.menu_bar do |mb|
+          mb.menu(:file, label: 'File') do |f|
+            f.item(label: 'New') { }
+            f.item(:quick_load, label: 'Quick Load') { }
+          end
+        end
+      end
+      session.run_async
+      session.app.update
+
+      file_path = session[:file].path
+      # Removing "New" shifts Quick Load's live index from 1 down to 0 -
+      # Tk itself renumbers around the delete; addressing by name should
+      # still land on the right entry with no stale cached index.
+      session.app.command(file_path, :delete, 0)
+
+      session[:quick_load].disable
+
+      assert_equal 'disabled', session.app.command(file_path, :entrycget, 0, '-state')
+
+      session.app.destroy
+    end
+  end
+
+  def test_named_item_virtual_path_is_marked_and_rejected_by_a_raw_tk_call
+    assert_tk_app("a named item's .path should be marked past the real Tk boundary, and rejected if used raw") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Menu Realize Test') do |ui|
+        ui.menu_bar { |mb| mb.menu(:file, label: 'File') { |f| f.item(:quick_load, label: 'Quick Load') { } } }
+      end
+      session.run_async
+      session.app.update
+
+      file_path = session[:file].path
+      virtual_path = session[:quick_load].path
+      assert_equal "#{file_path}!quick_load", virtual_path
+
+      error = assert_raises(Teek::TclError) { session.app.tcl_eval("#{virtual_path} entrycget 0 -label") }
+      assert_match(/invalid command name/i, error.message)
+
+      session.app.destroy
+    end
+  end
+
   def test_separator_realizes_as_a_real_separator_entry
     assert_tk_app("ui.separator should realize as a real Tk separator entry") do
       require 'teek/ui'

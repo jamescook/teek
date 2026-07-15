@@ -14,9 +14,12 @@ module Teek
     # Menu structure realizes through {Realizer#create_menu_tree} rather
     # than the generic per-node widget-creation path: nothing here is a Tk
     # widget of its own except `#menu` (a nested cascade, itself a `menu`
-    # command) - `#item`/`#separator`/`#checkbox`/`#radio` are just entries
-    # added to their parent's menu path, with no live path or Handle of
-    # their own.
+    # command) - `#item`/`#checkbox`/`#radio` are entries added to their
+    # parent's menu path, with no live Tk path of their own, addressed via
+    # their {WidgetType#addressing} strategy ({MenuEntryAddressing}) the
+    # same way {Handle} resolves any other type's - see
+    # {WidgetDSL#[]}. `#separator` stays unaddressable (nothing to
+    # enable/disable/relabel on a divider).
     class MenuBuilder
       # @api private
       def initialize(document, stack)
@@ -49,51 +52,52 @@ module Teek
       end
 
       # A command entry.
+      # @param name [Symbol, nil] for `ui[:name]` lookup - addressable
+      #   later as a Handle (`.enable`/`.disable`/`.configure`)
       # @param label [String]
       # @param opts [Hash] extra Tk menu-entry options (e.g. +accelerator:+)
       # @yield called when the entry is invoked
-      # @return [nil]
-      def item(label:, **opts, &block)
+      # @return [Handle]
+      def item(name = nil, label:, **opts, &block)
         opts = opts.merge(command: block) if block
-        append_entry(:menu_item, opts.merge(label: label))
-        nil
+        Handle.new(append_entry(:menu_item, name, opts.merge(label: label)))
       end
 
       # A separator entry.
       # @return [nil]
       def separator
-        append_entry(:menu_separator, {})
+        append_entry(:menu_separator, nil, {})
         nil
       end
 
       # A checkbutton entry, bound to a reactive {Var} - ticked when the
       # var is true, unticked when false, the same +bind:+ convention
       # {WidgetDSL}'s own `checkbox` widget uses.
+      # @param name [Symbol, nil] see {#item}
       # @param label [String]
       # @param bind [Var]
       # @param opts [Hash] extra Tk menu-entry options
-      # @return [nil]
-      def checkbox(label:, bind:, **opts)
-        append_entry(:menu_checkbox, opts.merge(label: label, bind: bind))
-        nil
+      # @return [Handle]
+      def checkbox(name = nil, label:, bind:, **opts)
+        Handle.new(append_entry(:menu_checkbox, name, opts.merge(label: label, bind: bind)))
       end
 
       # A radiobutton entry - `bind:` is shared across every radio entry in
       # the group, `value:` is what this one entry sets it to when chosen.
+      # @param name [Symbol, nil] see {#item}
       # @param label [String]
       # @param bind [Var]
       # @param value [Object]
       # @param opts [Hash] extra Tk menu-entry options
-      # @return [nil]
-      def radio(label:, bind:, value:, **opts)
-        append_entry(:menu_radio, opts.merge(label: label, bind: bind, value: value))
-        nil
+      # @return [Handle]
+      def radio(name = nil, label:, bind:, value:, **opts)
+        Handle.new(append_entry(:menu_radio, name, opts.merge(label: label, bind: bind, value: value)))
       end
 
       private
 
-      def append_entry(type, opts)
-        node = @document.create(type: type, opts: opts)
+      def append_entry(type, name, opts)
+        node = @document.create(type: type, name: name, opts: opts)
         @stack.last.add_child(node)
         node
       end
