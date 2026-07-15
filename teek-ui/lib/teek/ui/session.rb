@@ -324,13 +324,13 @@ module Teek
         before = parent_node.children.length
         vars_before = @vars.length
         images_before = @images.length
-        @stack.push(parent_node)
+        push_stack(parent_node)
         @in_add = true
         begin
           yield self if block_given?
         ensure
           @in_add = false
-          @stack.pop
+          pop_stack
         end
 
         # A var/image declared inside this block needs to be real before

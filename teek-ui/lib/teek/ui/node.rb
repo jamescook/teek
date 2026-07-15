@@ -71,7 +71,20 @@ module Teek
       def add_child(node)
         @children << node
         node.parent = self
+        document&.notify(:append, self, node)
         node
+      end
+
+      # A short, human label for this node - its type, plus the explicit
+      # name if it has one (e.g. +"column"+ or +"column(:ctrl)"+). Used by
+      # {TreeInspector} and the build stack's own +current_path+ breadcrumb
+      # ({WidgetDSL#current_path}) - deliberately bare (no leading marker,
+      # no "unnamed" filler text) since both of those read as a sequence
+      # of these, not a single prose sentence the way {Realizer}'s own
+      # private +describe+ does.
+      # @return [String]
+      def display_name
+        name ? "#{type}(:#{name})" : type.to_s
       end
 
       # Unlinks +node+ from this node's own children - the symmetric

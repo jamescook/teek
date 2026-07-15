@@ -264,4 +264,54 @@ class TestDocument < Minitest::Test
     # whole reason this lives on Document rather than Realizer itself.
     assert_equal 'save#2', document.claim_path_segment('.list', 'save')
   end
+
+  def test_add_child_notifies_append_subscribers
+    document = Teek::UI::Document.new
+    parent = document.create(type: :column, name: :ctrl)
+    child = document.create(type: :button)
+    seen = []
+    document.subscribe(:append) { |p, c| seen << [p, c] }
+
+    parent.add_child(child)
+
+    assert_equal [[parent, child]], seen
+  end
+
+  def test_add_child_is_silent_with_no_subscribers
+    document = Teek::UI::Document.new
+    parent = document.create(type: :column)
+    child = document.create(type: :button)
+
+    parent.add_child(child)
+  end
+
+  def test_notify_reaches_every_subscriber_of_that_event_in_order
+    document = Teek::UI::Document.new
+    seen = []
+    document.subscribe(:push) { |*args| seen << [:first, args] }
+    document.subscribe(:push) { |*args| seen << [:second, args] }
+
+    document.notify(:push, :some_node, 'column')
+
+    assert_equal [[:first, [:some_node, 'column']], [:second, [:some_node, 'column']]], seen
+  end
+
+  def test_notify_only_reaches_subscribers_of_that_specific_event
+    document = Teek::UI::Document.new
+    push_seen = []
+    document.subscribe(:push) { |*args| push_seen << args }
+
+    document.notify(:pop, :some_node, 'column')
+
+    assert_equal [], push_seen
+  end
+
+  def test_a_raw_node_new_with_no_document_never_calls_notify
+    parent = Teek::UI::Node.new(type: :column)
+    child = Teek::UI::Node.new(type: :button)
+
+    parent.add_child(child)
+
+    assert_equal [child], parent.children
+  end
 end

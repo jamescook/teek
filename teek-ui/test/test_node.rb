@@ -178,4 +178,16 @@ class TestNode < Minitest::Test
 
     assert_equal '.save', node.logical_path
   end
+
+  def test_display_name_is_the_bare_type_when_unnamed
+    node = Teek::UI::Node.new(type: :column)
+
+    assert_equal 'column', node.display_name
+  end
+
+  def test_display_name_includes_the_name_when_given
+    node = Teek::UI::Node.new(type: :column, name: :ctrl)
+
+    assert_equal 'column(:ctrl)', node.display_name
+  end
 end

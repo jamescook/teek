@@ -2,6 +2,7 @@
 
 require_relative 'node'
 require_relative 'scope'
+require_relative 'event_bus'
 
 module Teek
   module UI
@@ -23,6 +24,35 @@ module Teek
         @index = {}
         @next_auto_key = 0
         @used_segments = {}
+        @events = EventBus.new
+      end
+
+      # @api private
+      #
+      # A minimal, always-on, generic build-event hook - {Node#add_child}
+      # notifies +:append+; the build stack's own push/pop
+      # ({WidgetDSL#push_stack}/{WidgetDSL#pop_stack}) notify +:push+/
+      # +:pop+. Document has no idea what (if anything) is listening, or
+      # why - it's a plain {EventBus}, same mechanism {Session}'s own
+      # public +ui.on+/+ui.emit+ already uses, just private and scoped to
+      # build-time instrumentation instead of app events. With nothing
+      # subscribed (the overwhelmingly common case), {#notify} costs one
+      # hash lookup into an empty list - not something a normal build
+      # needs to think about. See {TreeInspector}, the one built-in
+      # subscriber.
+      # @param event [Symbol]
+      # @yield see {EventBus#on}
+      # @return [Proc] see {EventBus#on}
+      def subscribe(event, &block)
+        @events.on(event, &block)
+      end
+
+      # @api private - see {#subscribe}
+      # @param event [Symbol]
+      # @param args [Array] forwarded to every subscriber
+      # @return [void]
+      def notify(event, *args)
+        @events.emit(event, *args)
       end
 
       # Construct a node and register it under its name (if any), scoped

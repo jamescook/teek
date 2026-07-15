@@ -41,10 +41,13 @@ module Teek
 
         if block
           @stack.push(node)
+          @document.notify(:push, node, current_path)
           begin
             block.call(self)
           ensure
+            path = current_path
             @stack.pop
+            @document.notify(:pop, node, path)
           end
         end
 
@@ -100,6 +103,15 @@ module Teek
         node = @document.create(type: type, name: name, opts: opts)
         @stack.last.add_child(node)
         node
+      end
+
+      # Same computation as {WidgetDSL#current_path} (not the SAME public
+      # method - a separate, small builder with no access to it) - just
+      # enough to give a +:push+/+:pop+ notification its own ancestry
+      # breadcrumb, matching what {WidgetDSL#push_stack}/{#pop_stack}
+      # already do for every other container.
+      def current_path
+        @stack.reject { |node| node.type == :root }.map(&:display_name).join(' > ')
       end
     end
   end

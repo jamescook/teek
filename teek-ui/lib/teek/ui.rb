@@ -4,6 +4,7 @@ require "teek"
 require_relative "ui/version"
 require_relative "ui/event_binding"
 require_relative "ui/session"
+require_relative "ui/tree_inspector"
 
 module Teek
   # A DSL for building teek (Tk) apps - sugar over teek, not a wall around it.

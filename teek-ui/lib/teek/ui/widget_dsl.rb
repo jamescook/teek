@@ -74,6 +74,18 @@ module Teek
         node && Handle.new(node)
       end
 
+      # The current build-parent ancestry, as a readable breadcrumb (e.g.
+      # +"column > row"+) - derived from +@stack+, the one thing only the
+      # builder (not the {Document}) knows: which containers are
+      # currently open. Useful in a build-time error message (+"X added
+      # outside a Y; current parent: #{current_path}"+) or just to orient
+      # yourself while poking around mid-build.
+      # @return [String] +"(top level)"+ when nothing is currently open
+      def current_path
+        crumbs = @stack.reject { |node| node.type == :root }.map(&:display_name)
+        crumbs.empty? ? '(top level)' : crumbs.join(' > ')
+      end
+
       # Position the single widget declared in the block at (row, col) in
       # the enclosing `ui.grid`. Only valid directly inside a grid's block.
       # @param row [Integer]
@@ -345,14 +357,34 @@ module Teek
         raise ClosedBuilderError unless build_open?
       end
 
+      # @api private - the ONLY place +@stack+ (the build-parent stack)
+      # is pushed. Notifies {Document#notify}'s +:push+ event with the
+      # ancestry this node now heads - see {Document#subscribe}.
+      def push_stack(node)
+        @stack.push(node)
+        @document.notify(:push, node, current_path)
+      end
+
+      # @api private - the ONLY place +@stack+ is popped. Symmetric with
+      # {#push_stack}: the +:pop+ event's own path is captured BEFORE
+      # popping, so it still includes the node being popped, exactly like
+      # the +:push+ event for that same node did.
+      # @return [Node] the popped node
+      def pop_stack
+        path = current_path
+        node = @stack.pop
+        @document.notify(:pop, node, path)
+        node
+      end
+
       def build_menu_subtree(node, &block)
         return unless block
 
-        @stack.push(node)
+        push_stack(node)
         begin
           block.call(MenuBuilder.new(@document, @stack))
         ensure
-          @stack.pop
+          pop_stack
         end
       end
 
@@ -465,11 +497,11 @@ module Teek
         @stack.last.add_child(node)
 
         if block_given?
-          @stack.push(node)
+          push_stack(node)
           begin
             yield self
           ensure
-            @stack.pop
+            pop_stack
           end
         end
 

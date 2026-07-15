@@ -28,7 +28,7 @@ def log(ui, message)
   log_widget.configure(state: :disabled)
 end
 
-Teek::UI.app(title: 'Dialog Wrappers Demo (teek-ui)') do |ui|
+session = Teek::UI.app(title: 'Dialog Wrappers Demo (teek-ui)') do |ui|
   ui.column(gap: 8, pad: 8, align: :stretch) do |c|
     c.label(
       text: "Click each button below, then try options with spaces in them\n" \
@@ -73,4 +73,8 @@ Teek::UI.app(title: 'Dialog Wrappers Demo (teek-ui)') do |ui|
   end
 
   ui.raw { |app| app.set_window_geometry('480x360') }
-end.run
+end
+
+Teek::UI::TreeInspector.new(session.document).print_tree
+
+session.run

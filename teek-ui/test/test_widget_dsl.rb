@@ -582,4 +582,40 @@ class TestWidgetDsl < Minitest::Test
 
     assert_same stack, session.modal
   end
+
+  def test_current_path_at_the_top_level_is_top_level
+    session = build_session
+
+    assert_equal '(top level)', session.current_path
+  end
+
+  def test_current_path_reflects_open_containers
+    session = build_session
+
+    session.column do |c|
+      c.row { assert_equal 'column > row', session.current_path }
+    end
+  end
+
+  def test_current_path_includes_a_containers_name
+    session = build_session
+
+    session.column(:ctrl) { assert_equal 'column(:ctrl)', session.current_path }
+  end
+
+  def test_current_path_returns_to_top_level_after_the_block_closes
+    session = build_session
+
+    session.column { }
+
+    assert_equal '(top level)', session.current_path
+  end
+
+  def test_current_path_inside_a_menu_subtree
+    session = build_session
+
+    session.menu_bar do |mb|
+      mb.menu(label: 'File') { assert_equal 'menu_bar > menu', session.current_path }
+    end
+  end
 end
