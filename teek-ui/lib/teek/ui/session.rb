@@ -263,6 +263,18 @@ module Teek
         @app.choose_dir(initialdir: initialdir, mustexist: mustexist, title: title, parent: parent)
       end
 
+      # Show a busy cursor over +window+ for the duration of the block -
+      # {Teek::App#busy} already restores it even if the block raises,
+      # nothing extra to do here for that.
+      # @param window [String] Tk window path
+      # @yield the work to perform while busy
+      # @return the block's return value
+      # @raise [NotRealizedError] if called before #realize
+      def busy(window: '.', &block)
+        raise_unless_realized!
+        @app.busy(window: window, &block)
+      end
+
       # @return [Teek::Clipboard] +.set(text)+/+.get+/+.clear+ - text
       #   widgets don't need this at all for their own copy/cut/paste
       #   (Tk wires that to the platform's expected keys already); this is
