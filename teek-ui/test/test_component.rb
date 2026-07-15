@@ -107,4 +107,45 @@ class TestComponent < Minitest::Test
     # above IS the assertion - scoping is pure Ruby.
     assert session.document.root.children.any?
   end
+
+  def test_component_returns_a_facade_that_resolves_its_own_named_handle
+    session = build_session
+
+    facade = session.component { |c| c.button(:save, text: 'Save') }
+
+    handle = facade.handle(:save)
+    refute_nil handle
+    assert_equal :button, handle.type
+  end
+
+  def test_facade_bracket_is_an_alias_for_handle
+    session = build_session
+
+    facade = session.component { |c| c.button(:save, text: 'Save') }
+
+    assert_equal facade.handle(:save).type, facade[:save].type
+    refute_nil facade[:save]
+  end
+
+  def test_facade_returns_nil_for_a_name_the_component_never_declared
+    session = build_session
+
+    facade = session.component { |c| c.button(:save, text: 'Save') }
+
+    assert_nil facade[:not_declared]
+  end
+
+  def test_facade_still_resolves_its_own_names_when_mounted_under_different_parents
+    session = build_session
+
+    facade_a = nil
+    facade_b = nil
+    session.panel(:left) { |p| facade_a = p.component { |c| c.button(:save, text: 'Left Save') } }
+    session.panel(:right) { |p| facade_b = p.component { |c| c.button(:save, text: 'Right Save') } }
+
+    refute_nil facade_a[:save]
+    refute_nil facade_b[:save]
+    assert_equal :button, facade_a[:save].type
+    assert_equal :button, facade_b[:save].type
+  end
 end

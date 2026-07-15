@@ -2,6 +2,7 @@
 
 require_relative 'errors'
 require_relative 'handle'
+require_relative 'component_handle'
 require_relative 'var'
 require_relative 'menu_builder'
 require_relative 'screens'
@@ -276,20 +277,29 @@ module Teek
       # (`def toolbar(ui) = ui.row { ... }`) - needs none of this; reach
       # for +#component+ only when scope isolation itself is the point
       # (reuse across files, avoiding name collisions).
+      #
+      # The returned {ComponentHandle} is the disciplined way for the
+      # caller to reach into the component's own named widgets afterward
+      # (`screen.handle(:action)`/`screen[:action]`) - the global `ui[]`
+      # never sees into a component's scope (see {#[]}), so a component
+      # built in one file and mounted from another stays reachable only
+      # through the facade it hands back, not by guessing its internal
+      # names.
       # @param label [Symbol, String, nil] a human-readable label for
       #   error messages/debugging - has no bearing on uniqueness
       # @yieldparam c [self] build the component's content with the
       #   ordinary widget DSL, same as any other block
-      # @return [nil]
+      # @return [ComponentHandle]
       def component(label = nil, &block)
         raise_if_closed!
-        @scope_stack.push(Scope.new(label, parent: current_scope))
+        scope = Scope.new(label, parent: current_scope)
+        @scope_stack.push(scope)
         begin
           block.call(self) if block
         ensure
           @scope_stack.pop
         end
-        nil
+        ComponentHandle.new(@document, scope)
       end
 
       # A push/pop stack for content screens - see {Screens}. One stack per

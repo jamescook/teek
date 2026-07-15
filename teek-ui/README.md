@@ -84,6 +84,22 @@ end
 
 `ui.component` isn't an extra layer of nesting - it splices its content directly into whatever's already open, exactly like the widgets would attach on their own. It's scope isolation only, not a container. Capture what you need from inside the block (`save = c.button(:save, ...)`) the same way threaded-builder style already does - a component's local names aren't reachable from outside it via `ui[:name]`.
 
+`ui.component` returns a facade for exactly that "from outside it" case - the disciplined way a parent reaches a child's named widgets without falling back to the global `ui[:name]` index (which never sees into a component's scope, by design):
+
+```ruby
+def sidebar(ui)
+  ui.component { |c| c.button(:save, text: 'Save') }
+end
+
+Teek::UI.app(title: 'Editor') do |ui|
+  screen = nil
+  ui.panel(:top) { |p| screen = sidebar(p) }
+  screen[:save].on_click { save_document }
+end.run
+```
+
+`screen[:save]` (or the equivalent `screen.handle(:save)`) resolves within the component's own scope and returns a `Handle`, or `nil` if the component never declared that name - same convention as `ui[:name]`. Move the component to another file or mount it under a different parent and nothing external breaks, since callers never reach in by global name.
+
 ## Widgets
 
 `ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:

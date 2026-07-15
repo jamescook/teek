@@ -38,4 +38,33 @@ class TestComponentRealTk < Minitest::Test
       session.app.destroy
     end
   end
+
+  def test_a_components_facade_only_ever_resolves_that_components_own_node
+    assert_tk_app("a component's facade should resolve to its own :save, never a sibling component's like-named one") do
+      require 'teek/ui'
+
+      facade_a = nil
+      facade_b = nil
+      session = Teek::UI.app(title: 'Component Test') do |ui|
+        ui.panel(:sidebar) { |p| facade_a = p.component { |c| c.button(:save, text: 'Save A') } }
+        ui.panel(:main) { |p| facade_b = p.component { |c| c.button(:save, text: 'Save B') } }
+      end
+      session.run_async
+      session.app.update
+
+      handle_a = facade_a[:save]
+      handle_b = facade_b[:save]
+
+      refute_equal handle_a.path, handle_b.path
+      assert_equal 'Save A', session.app.command(handle_a.path, :cget, '-text')
+      assert_equal 'Save B', session.app.command(handle_b.path, :cget, '-text')
+
+      handle_a.configure(text: 'Changed A')
+      assert_equal 'Changed A', session.app.command(handle_a.path, :cget, '-text')
+      assert_equal 'Save B', session.app.command(handle_b.path, :cget, '-text'),
+        "mutating component A's facade handle should never affect component B's widget"
+
+      session.app.destroy
+    end
+  end
 end
