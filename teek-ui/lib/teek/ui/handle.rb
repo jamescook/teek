@@ -64,6 +64,18 @@ module Teek
         @addressing.configure(**opts)
       end
 
+      # What Tk currently thinks this widget's (or, for a type with none
+      # of its own, e.g. a menu entry - the entry's own) options are right
+      # now, straight from a bare +configure+ - for when a prior
+      # {#configure} call seems like it silently didn't take, or just
+      # exploring what's actually set on a live widget. Delegated to this
+      # node type's {WidgetType#addressing} strategy, same as {#configure}.
+      # @return [Hash{Symbol => String}] option name (no leading +-+) => current value
+      # @raise [NotRealizedError] before realize
+      def options
+        @addressing.option_dump
+      end
+
       # Shorthand for +configure(state: :normal)+ - Tk's own default
       # state, meaningful for anything with a +-state+ option (a menu
       # entry, a ttk widget, ...).
@@ -392,6 +404,21 @@ module Teek
         create_canvas_item(:bitmap, coords, opts)
       end
 
+      # Every event binding declared on this node so far, in declaration
+      # order - +on_click+/+on_key+/+on_drag+/+on_right_click+ and
+      # friends all funnel through here. Meaningful at any phase: before
+      # realize these are still queued (nothing wired to Tcl yet), after
+      # realize they're the bindings actually in effect - covers both a
+      # binding declared in the original build block and one added later
+      # (e.g. from inside {Session#add}), so this stays a true live
+      # picture, not just a record of what was queued pre-realize. Each
+      # entry's own +handler+ is the real Proc that runs, so
+      # +.source_location+ answers "what code does this" directly.
+      # @return [Array<EventBinding>]
+      def events
+        @node.events
+      end
+
       # A handle onto whatever items currently carry +tag+ - zero, one, or
       # many (see {CanvasItem}, which addresses a tag and an id
       # identically). Doesn't create anything; a shape-creation method
@@ -510,12 +537,8 @@ module Teek
 
       def bind_event(event, handler, subs: [])
         binding = EventBinding.new(event: event, handler: handler, subs: subs)
-
-        if @node.realized
-          wire(@node.realized, binding)
-        else
-          @node.events << binding
-        end
+        @node.events << binding
+        wire(@node.realized, binding) if @node.realized
       end
 
       def wire(realized_node, binding)

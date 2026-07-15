@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'errors'
+require_relative 'option_dump_parsing'
 
 module Teek
   module UI
@@ -27,6 +28,13 @@ module Teek
       # @raise [NotRealizedError] before realize
       def configure(**opts)
         realized.app.command(realized.path, :configure, **opts)
+      end
+
+      # @return [Hash{Symbol => String}] every current option/value Tk
+      #   reports for this widget right now
+      # @raise [NotRealizedError] before realize
+      def option_dump
+        OptionDumpParsing.parse(realized.app, realized.app.command(realized.path, :configure))
       end
 
       private

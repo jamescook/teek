@@ -85,6 +85,19 @@ module Teek
         }.reject { |_, count| count.zero? }
       end
 
+      # Reverse lookup: given a real Tk path (from an error message, a
+      # +winfo+ query, or poking around in a REPL), find which widget it
+      # belongs to - the counterpart to the name-based +ui[:name]+. See
+      # {Document#find_by_path} for exactly what counts as a match.
+      # @param path [String] e.g. +".toolbar.save"+
+      # @return [Handle, nil]
+      # @raise [NotRealizedError] if called before #realize
+      def find_by_path(path)
+        raise_unless_realized!
+        node = @document.find_by_path(path)
+        node && Handle.new(node)
+      end
+
       # Validate the build tree, then create the underlying {Teek::App} and
       # realize the tree into it, if that hasn't happened yet. Idempotent -
       # calling it again after the first time just returns the same app.

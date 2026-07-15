@@ -79,6 +79,22 @@ module Teek
         @index.each(&block)
       end
 
+      # Reverse lookup: given a real Tk path (from an error message, a
+      # +winfo+ query, or poking around in a REPL), find which node it
+      # belongs to - the counterpart to {#find}'s name-based lookup. Only
+      # ever matches a node's own {RealizedNode#path}, never its
+      # +arrange_path+ (the scrollbar-wrapper case - the wrapper frame
+      # itself has no owning node of its own to return) or a
+      # {WidgetType#addressing} strategy's synthesized virtual path (a
+      # menu entry has no real Tk path at all - see
+      # {MenuEntryAddressing#virtual_path}'s own +!+-marked format, never
+      # something Tk itself would hand back from +winfo+ or an error).
+      # @param path [String] a real Tk widget path, e.g. +".toolbar.save"+
+      # @return [Node, nil]
+      def find_by_path(path)
+        each_node.find { |node| node.realized&.path == path }
+      end
+
       # @api private - called by {Realizer#allocate_path}, which gets a
       # fresh instance for every separate realize pass (the initial
       # realize, each {Session#add}, each lazily-{Handle#realize!}d

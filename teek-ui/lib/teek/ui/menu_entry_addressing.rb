@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'errors'
+require_relative 'option_dump_parsing'
 
 module Teek
   module UI
@@ -34,6 +35,13 @@ module Teek
       # @raise [NotRealizedError] before the parent menu is realized
       def configure(**opts)
         menu.app.command(menu.path, :entryconfigure, current_index, **opts)
+      end
+
+      # @return [Hash{Symbol => String}] every current option/value Tk
+      #   reports for this entry right now
+      # @raise [NotRealizedError] before the parent menu is realized
+      def option_dump
+        OptionDumpParsing.parse(menu.app, menu.app.command(menu.path, :entryconfigure, current_index))
       end
 
       private

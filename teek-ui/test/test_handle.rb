@@ -116,10 +116,51 @@ class TestHandle < Minitest::Test
 
     handle.on_click { }
 
-    assert_equal [], node.events, "should wire immediately, not queue, once realized"
     assert_equal 1, app.binds.length
     assert_equal '.win.go', app.binds.first[:path]
     assert_equal '<Button-1>', app.binds.first[:event]
+  end
+
+  def test_on_click_wired_after_realize_still_shows_up_in_events
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.win.go')
+    handle = Teek::UI::Handle.new(node)
+
+    handle.on_click { }
+
+    assert_equal 1, node.events.length, "an event bound after realize should still be visible via #events - " \
+      "it wires immediately AND is recorded, not one or the other"
+    assert_equal '<Button-1>', node.events.first.event
+  end
+
+  def test_events_returns_every_binding_declared_so_far_before_realize
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    handle = Teek::UI::Handle.new(node)
+
+    handle.on_click { }
+    handle.on_key(:enter) { }
+
+    assert_equal ['<Button-1>', '<Return>'], handle.events.map(&:event)
+  end
+
+  def test_events_reflects_bindings_from_both_before_and_after_realize
+    app = FakeApp.new
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    handle = Teek::UI::Handle.new(node)
+    handle.on_click { }
+
+    node.realized = Teek::UI::RealizedNode.new(app: app, path: '.win.go')
+    handle.on_key(:enter) { }
+
+    assert_equal ['<Button-1>', '<Return>'], handle.events.map(&:event)
+  end
+
+  def test_events_is_empty_for_a_handle_with_nothing_bound
+    node = Teek::UI::Node.new(type: :button, name: :go)
+    handle = Teek::UI::Handle.new(node)
+
+    assert_equal [], handle.events
   end
 
   def test_on_key_friendly_symbol_queues_the_resolved_pattern

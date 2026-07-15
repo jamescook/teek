@@ -3,6 +3,7 @@
 require_relative 'test_helper'
 require 'teek/ui/document'
 require 'teek/ui/scope'
+require 'teek/ui/realized_node'
 
 class TestDocument < Minitest::Test
   def test_root_is_an_empty_root_node
@@ -215,6 +216,42 @@ class TestDocument < Minitest::Test
 
     assert_equal 'save', document.claim_path_segment('.main', 'save'),
       "the same segment under a DIFFERENT parent should never need disambiguating"
+  end
+
+  def test_find_by_path_returns_the_node_whose_realized_path_matches
+    document = Teek::UI::Document.new
+    node = document.create(type: :button, name: :save)
+    document.root.add_child(node)
+    node.realized = Teek::UI::RealizedNode.new(app: nil, path: '.win.save')
+
+    assert_same node, document.find_by_path('.win.save')
+  end
+
+  def test_find_by_path_returns_nil_for_an_unrealized_node
+    document = Teek::UI::Document.new
+    node = document.create(type: :button, name: :save)
+    document.root.add_child(node)
+
+    assert_nil document.find_by_path('.win.save')
+  end
+
+  def test_find_by_path_returns_nil_for_an_unknown_path
+    document = Teek::UI::Document.new
+    node = document.create(type: :button, name: :save)
+    document.root.add_child(node)
+    node.realized = Teek::UI::RealizedNode.new(app: nil, path: '.win.save')
+
+    assert_nil document.find_by_path('.nope')
+  end
+
+  def test_find_by_path_distinguishes_a_scrollbar_wrapped_nodes_path_from_its_arrange_path
+    document = Teek::UI::Document.new
+    node = document.create(type: :list, name: :items)
+    document.root.add_child(node)
+    node.realized = Teek::UI::RealizedNode.new(app: nil, path: '.wrap.items', arrange_path: '.wrap')
+
+    assert_same node, document.find_by_path('.wrap.items'), "path is the real widget - what a Handle acts on"
+    assert_nil document.find_by_path('.wrap'), "arrange_path is only where the parent's layout places it, not this node's own address"
   end
 
   def test_claim_path_segment_persists_across_separate_calls_not_just_one_realizer_instance
