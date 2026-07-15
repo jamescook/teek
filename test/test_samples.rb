@@ -21,6 +21,12 @@ class TestSamples < Minitest::Test
     assert success, "Goldberg demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
   end
 
+  def test_goldberg_ui
+    success, stdout, stderr = smoke_test_sample("#{SAMPLE_DIR}/goldberg_ui.rb", timeout: 30)
+
+    assert success, "Goldberg teek-ui demo failed\nSTDOUT: #{stdout}\nSTDERR: #{stderr}"
+  end
+
   def test_threading_demo
     success, stdout, stderr = smoke_test_sample(
       "#{SAMPLE_DIR}/threading_demo.rb",
