@@ -6,6 +6,7 @@ require_relative 'event_binding'
 require_relative 'keysyms'
 require_relative 'mouse_events'
 require_relative 'canvas_item'
+require_relative 'text_content'
 require_relative 'widget_addressing'
 require_relative 'widget_types'
 require_relative 'realizer'
@@ -435,6 +436,18 @@ module Teek
         CanvasItem.new(realized.app, realized.path, tag)
       end
 
+      # The rich text API for this widget's content - insert/get/delete,
+      # named formats (Tk's own "tag" concept), markers, search, and
+      # embedded images. See {TextContent} for the full surface. Only
+      # valid on a `ui.text_area` handle.
+      # @return [TextContent]
+      # @raise [ArgumentError] if this handle isn't a text_area
+      # @raise [NotRealizedError] before realize
+      def text_content
+        raise_unless_text_area!('text_content')
+        TextContent.new(realized.app, realized.path)
+      end
+
       private
 
       def realized
@@ -514,6 +527,12 @@ module Teek
       def raise_unless_canvas!(method_name)
         unless type == :canvas
           raise ArgumentError, "##{method_name} only makes sense on a canvas (got a :#{type})"
+        end
+      end
+
+      def raise_unless_text_area!(method_name)
+        unless type == :text_area
+          raise ArgumentError, "##{method_name} only makes sense on a text_area (got a :#{type})"
         end
       end
 

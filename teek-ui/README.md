@@ -310,6 +310,54 @@ end
 
 `at:` is a corner/edge/center anchor (`:top_left`, `:top`, `:top_right`, `:left`, `:center`, `:right`, `:bottom_left`, `:bottom`, `:bottom_right`) - plain English standing in for Tk's own `place -relx/-rely/-anchor`, so it stays correctly positioned across a canvas resize with nothing to redo by hand.
 
+## Text Content
+
+A `text_area` handle's `text_content` gives you the widget's full rich-text API - insert/delete text, named formats, markers, search, embedded images:
+
+```ruby
+session = Teek::UI.app(title: 'Hello') do |ui|
+  ui.text_area(:log)
+end.run
+
+log = session[:log].text_content
+log.insert(:end, 'started up')
+log.value   # => "started up"
+```
+
+**Indices** (every `index`/`from`/`to`/`at` parameter) are Tk's own text index syntax, passed straight through as plain strings - `"1.0"` (line 1, char 0), `"end"`, `"sel.first"`, `"insert +1 line"`, a marker name, `"@12,34"` (pixel position) - see the Tk `text` manual page for the full grammar. Two `Symbol` shortcuts cover the common cases: `:end` and `:cursor` (the text insertion point, Tk's own `insert` mark under a name that doesn't collide with the `#insert` method).
+
+Content: `insert(index, text, *formats)`, `get(from, to)`, `delete(from, to = nil)`, `replace(from, to, text)`, `value`/`value=` (the whole buffer at once), `clear`.
+
+A **format** is Tk's own "tag" concept, renamed - not an HTML tag, a named, reusable set of display properties you apply to ranges, like a CSS class:
+
+```ruby
+log.format(:error, foreground: 'red', font: ['Courier', 10, :bold])
+log.apply_format(:error, '3.0', '3.end')
+log.clear_format(:error, '3.0', '3.end')   # remove from a range, definition stays
+log.delete_format(:error)                  # remove the definition entirely
+log.format_ranges(:error)                  # => ["3.0", "3.end", ...] flat index pairs
+```
+
+`on_format_click(name) { }` (and `on_format(name, event) { }` for any other Tk event pattern) fires when text carrying that format is clicked - wired through the same leak-safe path every other DSL event binding uses, so a format that stops being applied anywhere releases its callback automatically, no manual cleanup.
+
+A **marker** is a named, floating position that moves with edits around it - a bookmark, not a range: `add_marker(name, at:)`, `remove_marker(name)`, `markers` (every marker currently defined). `mark_gravity` (which way a marker drifts when text is inserted exactly at it) is a deeper, rarely-needed Tk concept and stays under its Tk name only.
+
+`search(pattern, from:, to:, backwards:, regexp:, nocase:)` returns the matching index, or `nil`. `scroll_to(index)` scrolls the view to make it visible; `cursor`/`cursor=` read and move the text insertion point; `read_only`/`read_only=` reads/drives the widget's own `-state`.
+
+One thing worth knowing about, so it doesn't surprise you: Tk itself silently no-ops `insert`/`delete`/etc. against a `state: :disabled` (read-only) widget, by design - `-state` is what makes a widget genuinely read-only against direct typing. Every content-mutating method here (`insert`/`delete`/`replace`/`value=`/`clear`/`insert_image`) transparently lifts that restriction for its own duration and restores it after, so an appending, read-only log pane just works with no caller-side state juggling:
+
+```ruby
+log = session[:log].text_content  # built with ui.text_area(:log, state: :disabled)
+log.insert(:end, "new line\n")    # works despite state: :disabled
+log.read_only                     # => true - still read-only afterward
+```
+
+`insert_image(index, image:)` embeds a `ui.image`/`Teek::Photo` inline in the text flow.
+
+Every friendly name above has a plain Tk-named alias, for 1:1 doc mapping or Tk-fluent muscle memory - `tag_configure`/`tag_add`/`tag_remove`/`tag_delete`/`tag_ranges`/`on_tag_click`/`on_tag` for the format methods, `mark_set`/`mark_unset`/`mark_names` for the marker methods, `see` for `scroll_to`, `image_create` for `insert_image`. Either name works identically.
+
+Not wrapped, escape-hatch only via `session.app.command`/`ui.raw` (rare enough in practice that a dedicated wrapper isn't worth it yet): embedding a live widget in the text flow (`window create`), the undo/redo stack (`edit undo`/`edit redo`/`edit modified`), `dump`, and peer widgets.
+
 ## Images
 
 `ui.image(path)` loads an image file for a `label`/`button`'s `image:` option - same build-vs-realize shape as `ui.var`: declare it anywhere in the build block, no interpreter needed yet, and it's actually loaded by the time the tree realizes:
