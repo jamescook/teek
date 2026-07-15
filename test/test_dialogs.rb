@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 # Tests for App's safe Tk dialog wrappers (choose_open_file,
-# choose_save_file, message_box, choose_color, popup_menu).
+# choose_save_file, message_box, choose_color, choose_dir, popup_menu).
 #
 # Real dialogs block waiting for a human, so these stub the underlying
 # Tcl command (tk_getOpenFile, etc.) to capture the args it was actually
@@ -165,6 +165,49 @@ class TestDialogs < Minitest::Test
       app.tcl_eval('proc tk_chooseColor {args} { return {} }')
 
       assert_nil app.choose_color
+    end
+  end
+
+  def test_choose_dir_quotes_options_and_returns_the_path
+    assert_tk_app("choose_dir should pass options safely and return the chosen directory") do
+      app.tcl_eval(<<~TCL)
+        proc tk_chooseDirectory {args} {
+          set ::last_call $args
+          return {/tmp/some dir/with {braces}}
+        }
+      TCL
+
+      result = app.choose_dir(title: 'Pick a } folder', initialdir: '/tmp/some dir')
+
+      assert_equal '/tmp/some dir/with {braces}', result
+      captured = tcl_flag_hash(app.tcl_eval('set ::last_call'))
+      assert_equal({ '-title' => 'Pick a } folder', '-initialdir' => '/tmp/some dir' }, captured)
+    end
+  end
+
+  def test_choose_dir_returns_nil_on_cancel
+    assert_tk_app("choose_dir should return nil when the user cancels (empty Tk result)") do
+      app.tcl_eval('proc tk_chooseDirectory {args} { return {} }')
+
+      assert_nil app.choose_dir
+    end
+  end
+
+  def test_choose_dir_mustexist_passes_the_real_tk_flag_only_when_true
+    assert_tk_app("choose_dir's mustexist: should only appear on the wire when true (Tk's own default is false)") do
+      app.tcl_eval(<<~TCL)
+        proc tk_chooseDirectory {args} {
+          set ::last_call $args
+          return {}
+        }
+      TCL
+
+      app.choose_dir
+      refute_includes app.tcl_eval('set ::last_call'), '-mustexist'
+
+      app.choose_dir(mustexist: true)
+      captured = tcl_flag_hash(app.tcl_eval('set ::last_call'))
+      assert_equal '1', captured['-mustexist']
     end
   end
 

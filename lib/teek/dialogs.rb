@@ -106,6 +106,26 @@ module Teek
       result.empty? ? nil : result
     end
 
+    # Show the native "choose directory" dialog.
+    #
+    # @param initialdir [String, nil] directory the dialog starts in
+    # @param mustexist [Boolean] restrict the choice to an already-existing
+    #   directory (Tk's own default is false, allowing a not-yet-created one)
+    # @param title [String, nil] dialog window title
+    # @param parent [String, nil] parent window (defaults to the root window)
+    # @return [String, nil] the chosen directory path, or +nil+ if cancelled
+    # @see https://www.tcl-lang.org/man/tcl9.0/TkCmd/chooseDirectory.htm tk_chooseDirectory
+    def choose_dir(initialdir: nil, mustexist: false, title: nil, parent: nil)
+      args = ['tk_chooseDirectory']
+      args.push('-initialdir', initialdir) if initialdir
+      args.push('-mustexist', bool_to_tcl(true)) if mustexist
+      args.push('-title', title) if title
+      args.push('-parent', parent) if parent
+
+      result = tcl_invoke(*args)
+      result.empty? ? nil : result
+    end
+
     # Pop up a menu at the given screen coordinates.
     #
     # @param menu [Widget, String] the menu to pop up
