@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'scope'
+
 module Teek
   module UI
     # A single element of the retained-mode tree - a widget, layout
@@ -13,14 +15,17 @@ module Teek
     # the whole build phase; a realizer fills it in later with a live
     # handle.
     class Node
-      attr_reader :type, :name, :opts, :children, :events, :parent
+      attr_reader :type, :name, :opts, :children, :events, :parent, :scope
       attr_accessor :key, :layout, :realized
 
       # @param type [Symbol] node kind, e.g. +:button+, +:column+, +:var+
       # @param name [Symbol, nil] explicit stable name, for addressing (+ui[:name]+)
       # @param key [String, nil] stable identity; defaults to +name+'s string form
       # @param opts [Hash] widget/node options as plain Ruby values
-      def initialize(type:, name: nil, key: nil, opts: {})
+      # @param scope [Scope] the component scope this node was built in -
+      #   {Scope::TOP_LEVEL} (the default) for a build that never calls
+      #   {WidgetDSL#component}
+      def initialize(type:, name: nil, key: nil, opts: {}, scope: Scope::TOP_LEVEL)
         @type = type
         @name = name
         @key = key || name&.to_s
@@ -30,6 +35,7 @@ module Teek
         @events = []
         @realized = nil
         @parent = nil
+        @scope = scope
       end
 
       # @param node [Node]

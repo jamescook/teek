@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require_relative 'node'
+require_relative 'scope'
 
 module Teek
   module UI
@@ -23,25 +24,38 @@ module Teek
         @next_auto_key = 0
       end
 
-      # Construct a node and register it under its name (if any). Does NOT
-      # attach it to any parent - the caller does that with
-      # {Node#add_child}, so Document never needs to know about a
+      # Construct a node and register it under its name (if any), scoped
+      # to +scope+ - the same name used in two different scopes indexes
+      # as two distinct entries, so a component's local +:save+ never
+      # collides with another component's (or the top level's) own
+      # +:save+. Does NOT attach it to any parent - the caller does that
+      # with {Node#add_child}, so Document never needs to know about a
       # current-parent stack.
+      #
+      # The node's own +name+/+key+ stay bare/unqualified - only this
+      # index is scope-aware. A node's real Tk path is already distinct
+      # per scope with no help needed here, since it's built from the
+      # parent chain ({Realizer#allocate_path}), and two components'
+      # subtrees are never siblings of themselves.
       # @param type [Symbol]
       # @param name [Symbol, nil]
       # @param opts [Hash]
+      # @param scope [Scope] see {Scope} - defaults to {Scope::TOP_LEVEL}
       # @return [Node]
-      # @raise [ArgumentError] if +name+ is already registered
-      def create(type:, name: nil, opts: {})
-        node = Node.new(type: type, name: name, key: generate_key(name), opts: opts)
-        register(node) if name
+      # @raise [ArgumentError] if +name+ is already registered within +scope+
+      def create(type:, name: nil, opts: {}, scope: Scope::TOP_LEVEL)
+        node = Node.new(type: type, name: name, key: generate_key(name), opts: opts, scope: scope)
+        register(scope, node) if name
         node
       end
 
       # @param name [Symbol]
+      # @param scope [Scope] must be the same {Scope} instance the node
+      #   was {#create}d with - a name registered inside a scope is never
+      #   found by a lookup in a different one, or vice versa
       # @return [Node, nil]
-      def find(name)
-        @index[name]
+      def find(name, scope: Scope::TOP_LEVEL)
+        @index[[scope, name]]
       end
       alias_method :[], :find
 
@@ -66,12 +80,14 @@ module Teek
 
       private
 
-      def register(node)
-        if @index.key?(node.name)
-          raise ArgumentError, "duplicate widget name :#{node.name} - already used by a #{@index[node.name].type} node"
+      def register(scope, node)
+        key = [scope, node.name]
+        if @index.key?(key)
+          suffix = scope.top_level? ? '' : ' in the same component'
+          raise ArgumentError, "duplicate widget name :#{node.name} - already used by a #{@index[key].type} node#{suffix}"
         end
 
-        @index[node.name] = node
+        @index[key] = node
       end
 
       def generate_key(name)

@@ -8,6 +8,7 @@ require_relative 'screens'
 require_relative 'modal_stack'
 require_relative 'widget_types'
 require_relative 'overlay_anchors'
+require_relative 'scope'
 
 module Teek
   module UI
@@ -24,11 +25,13 @@ module Teek
     #
     # Included classes must provide +@document+ (a {Document}), +@stack+
     # (an Array of {Node}, current-parent stack seeded with
-    # +@document.root+), and +@vars+ (an Array of {Var}) - {Session} sets
-    # all three up in +initialize+. They must also provide +#build_open?+
-    # (a predicate the tree-mutating methods below check via
-    # {#raise_if_closed!} - true before the initial realize and again for
-    # the duration of an +#add+ block, false otherwise).
+    # +@document.root+), +@scope_stack+ (an Array of {Scope}, current-scope
+    # stack seeded with +[Scope::TOP_LEVEL]+ - see {#component}), and
+    # +@vars+ (an Array of {Var}) - {Session} sets all four up in
+    # +initialize+. They must also provide +#build_open?+ (a predicate
+    # the tree-mutating methods below check via {#raise_if_closed!} -
+    # true before the initial realize and again for the duration of an
+    # +#add+ block, false otherwise).
     module WidgetDSL
       # Every widget/container type - leaf or container, plain or special -
       # gets its own `ui.<type>` method(s) here, generated from its own
@@ -57,11 +60,15 @@ module Teek
         append_container(:window, name, opts.merge(modal: modal, resizable: resizable), &block)
       end
 
-      # Look up a named widget declared anywhere in this build.
+      # Look up a named widget declared in the CURRENT scope: at the top
+      # level outside any {#component}, that's everything built outside
+      # one; inside a component's own block, only that component's own
+      # names - a sibling component's (or the top level's) same-named
+      # node is never found this way, and vice versa. See {#component}.
       # @param name [Symbol]
       # @return [Handle, nil]
       def [](name)
-        node = @document.find(name)
+        node = @document.find(name, scope: current_scope)
         node && Handle.new(node)
       end
 
@@ -203,7 +210,7 @@ module Teek
           raise ArgumentError, "menu_bar can only be declared at the top level of a build or directly inside ui.window"
         end
 
-        node = @document.create(type: :menu_bar, name: name, opts: opts)
+        node = @document.create(type: :menu_bar, name: name, opts: opts, scope: current_scope)
         parent.add_child(node)
         build_menu_subtree(node, &block)
         Handle.new(node)
@@ -217,7 +224,7 @@ module Teek
       # @return [Handle]
       def context_menu(name = nil, **opts, &block)
         raise_if_closed!
-        node = @document.create(type: :context_menu, name: name, opts: opts)
+        node = @document.create(type: :context_menu, name: name, opts: opts, scope: current_scope)
         @stack.last.add_child(node)
         build_menu_subtree(node, &block)
         Handle.new(node)
@@ -253,6 +260,36 @@ module Teek
         v = Var.new("::teek_ui_var_#{@var_count}", initial)
         @vars << v
         v
+      end
+
+      # Opens a fresh {Scope} around the block, so names declared inside
+      # it (`ui.button(:save)`, ...) never collide with the same name
+      # used elsewhere - in another component, or at the top level - no
+      # matter how many components share the same (or no) +label+, since
+      # {Scope} identity, not label, is what makes two scopes distinct.
+      # Splices its content directly into whatever's currently open -
+      # this is scope isolation only, not an extra layer of nesting, so
+      # a component built inside `ui.panel(:p) { }` attaches as an
+      # ordinary child of +:p+, exactly like any other widget declared
+      # right there would. The common 80% case - a plain method that
+      # takes +ui+ and appends into whatever's already open
+      # (`def toolbar(ui) = ui.row { ... }`) - needs none of this; reach
+      # for +#component+ only when scope isolation itself is the point
+      # (reuse across files, avoiding name collisions).
+      # @param label [Symbol, String, nil] a human-readable label for
+      #   error messages/debugging - has no bearing on uniqueness
+      # @yieldparam c [self] build the component's content with the
+      #   ordinary widget DSL, same as any other block
+      # @return [nil]
+      def component(label = nil, &block)
+        raise_if_closed!
+        @scope_stack.push(Scope.new(label, parent: current_scope))
+        begin
+          block.call(self) if block
+        ensure
+          @scope_stack.pop
+        end
+        nil
       end
 
       # A push/pop stack for content screens - see {Screens}. One stack per
@@ -294,10 +331,14 @@ module Teek
         raise_if_closed!
         validate_scroll!(type, opts)
         opts, layout = extract_layout(resolve_bind(type, opts))
-        node = @document.create(type: type, name: name, opts: opts)
+        node = @document.create(type: type, name: name, opts: opts, scope: current_scope)
         node.layout = layout if layout
         @stack.last.add_child(node)
         Handle.new(node)
+      end
+
+      def current_scope
+        @scope_stack.last
       end
 
       def resolve_bind(type, opts)
@@ -383,7 +424,7 @@ module Teek
         raise_if_closed!
         validate_scroll!(type, opts)
         opts, layout = extract_layout(opts)
-        node = @document.create(type: type, name: name, opts: opts)
+        node = @document.create(type: type, name: name, opts: opts, scope: current_scope)
         node.layout = layout if layout
         @stack.last.add_child(node)
 

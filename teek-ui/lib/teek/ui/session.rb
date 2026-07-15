@@ -6,6 +6,7 @@ require_relative 'widget_dsl'
 require_relative 'realizer'
 require_relative 'validator'
 require_relative 'event_bus'
+require_relative 'scope'
 
 module Teek
   module UI
@@ -35,6 +36,7 @@ module Teek
         @app_opts = app_opts
         @document = Document.new
         @stack = [@document.root]
+        @scope_stack = [Scope::TOP_LEVEL]
         @vars = []
         @app = nil
         @in_add = false

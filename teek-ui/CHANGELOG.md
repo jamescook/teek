@@ -12,6 +12,7 @@ Nothing has shipped yet - this section is a snapshot of the current API, not a r
 
 - Retained-mode build: `Teek::UI.app { |ui| ... }.run`, Tk-free until realize.
 - Widgets: `ui.<widget>` for every leaf/container type, addressable via `ui[:name]`.
+- Components: `ui.component { }` opens a scope so local names never collide with another component's (or the top level's) same name - splices its content into whatever's already open, not an extra container; plain threaded-builder methods (`def foo(ui) = ...`) need none of this and keep working unchanged.
 - Realize/validation: atomic realize; tree-wide validation surfaces every problem at once, including a grid child missing `g.cell(...)`; build methods raise `ClosedBuilderError` once realized, redirecting to `session.add`.
 - Scrolling: native widgets (`list`/`text_area`/`table`/`tree`) auto-attach a scrollbar (`scroll:` opt-out, 3-level default); `canvas` opts in instead; `ui.scrollable` wraps arbitrary content; both auto-hide and support mouse wheel.
 - Layout: `column`/`row` flow containers (`gap:`/`align:`/`pad:`/`grow:`), `ui.grid` for the rest, `cv.overlay(at: anchor)` to float a widget over a `ui.canvas`.

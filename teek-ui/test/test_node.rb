@@ -2,6 +2,7 @@
 
 require_relative 'test_helper'
 require 'teek/ui/node'
+require 'teek/ui/scope'
 
 class TestNode < Minitest::Test
   def test_defaults
@@ -15,6 +16,14 @@ class TestNode < Minitest::Test
     assert_equal [], node.events
     assert_nil node.layout
     assert_nil node.realized
+    assert_same Teek::UI::Scope::TOP_LEVEL, node.scope
+  end
+
+  def test_scope_is_settable_and_readable
+    scope = Teek::UI::Scope.new(:sidebar)
+    node = Teek::UI::Node.new(type: :button, scope: scope)
+
+    assert_same scope, node.scope
   end
 
   def test_key_defaults_to_the_name_when_no_key_given

@@ -56,6 +56,34 @@ A couple of things follow from that:
 
 The build only ever gets walked into Tk once, at realize. Calling a build method (`ui.button`, `ui.panel`, `ui.raw`, `ui.var`, ...) on a session that's already realized raises `Teek::UI::ClosedBuilderError` rather than silently appending a node that will never show up - use `session.add(parent_name) { }` instead for anything you need to build after the app is already running.
 
+## Components
+
+A retained-mode tree is a plain Ruby value, so splitting a large build across files reduces to splitting a value across files - no separate templating layer needed. Two ways to do it, and most apps only ever need the first:
+
+**A plain method that takes `ui` and appends into whatever's currently open** - zero new API, just Ruby:
+
+```ruby
+def toolbar(ui, on_save:)
+  ui.row(gap: 8) { |r| r.button(text: 'Save').on_click { on_save.call } }
+end
+
+Teek::UI.app(title: 'Editor') do |ui|
+  ui.panel(:top) { |p| toolbar(p, on_save: -> { save_document }) }
+end.run
+```
+
+**`ui.component { }` for when you also want scope isolation** - reuse across files, or just not having to worry whether some OTHER file already used the name `:save`. Everything named inside the block lives in its own scope: it never collides with the same name used elsewhere, and `ui[:name]` inside the block only ever sees that component's own names, not anyone else's:
+
+```ruby
+def sidebar(ui)
+  ui.component do |c|
+    c.button(:save, text: 'Save')  # this :save can't collide with anyone else's :save
+  end
+end
+```
+
+`ui.component` isn't an extra layer of nesting - it splices its content directly into whatever's already open, exactly like the widgets would attach on their own. It's scope isolation only, not a container. Capture what you need from inside the block (`save = c.button(:save, ...)`) the same way threaded-builder style already does - a component's local names aren't reachable from outside it via `ui[:name]`.
+
 ## Widgets
 
 `ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:
