@@ -1,6 +1,6 @@
 # Teek::UI
 
-A DSL for building [Teek](https://github.com/jamescook/teek) (Tk) apps - sugar over teek, not a wall around it.
+**The friendly way to build Tk apps in Ruby.** A DSL over [Teek](https://github.com/jamescook/teek) — sugar over Tk's plumbing, not a wall around it.
 
 **This is the recommended entry point for building a teek app.** teek-ui depends on teek — installing teek-ui brings teek in automatically — and everything here compiles down to plain teek calls (`App#command`, `#bind`, and friends). Reach for bare teek directly only if you're embedding Tk in an existing app or building your own abstraction on top; most app authors want the DSL here instead.
 
@@ -18,6 +18,166 @@ end.run
 
 `Teek::UI.app` returns the same `Teek::UI::Session` object it yields, so `.run` chains directly off the call.
 
+## Your First App
+
+Here's a complete, runnable app that uses only the core: a title, some widgets, flexbox-style layout, an event, and a shared reactive value. Nothing else is needed to build something real.
+
+```ruby
+require 'teek/ui'
+
+Teek::UI.app(title: 'Greeter') do |ui|
+  name = ui.var('')                              # a shared, reactive value
+
+  ui.column(gap: 8, pad: 12, align: :stretch) do |c|
+    c.label(text: "What's your name?")
+    c.text_box(:name_field, bind: name)          # two-way bound to `name`
+    c.button(:greet, text: 'Greet')
+    c.label(:greeting)
+  end
+
+  greet = -> { ui[:greeting].configure(text: "Hello, #{name.value}!") }
+  ui[:greet].on_click(&greet)                     # click the button...
+  ui[:name_field].on_key(:enter, &greet)          # ...or just press Enter
+end.run
+```
+
+You *describe* the UI inside the block; `.run` then *builds* it into real Tk widgets and starts the app - like writing HTML, then loading the page. (The full lifecycle is in [Building vs. Realizing](#building-vs-realizing) under "Going further".)
+
+That's a whole app. The four sections that follow - Widgets, Layout, Events, Reactive Variables - are the rest of that same core. Everything past **Going further** is optional power you reach for only when a screen actually needs it.
+
+## Widgets
+
+`ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:
+
+```ruby
+session = Teek::UI.app(title: 'Hello') do |ui|
+  ui.panel(:controls) do |p|
+    p.text_box(:query)
+    p.button(:go, text: 'Go')
+  end
+end
+session.run # realizes the tree - .controls, .controls.query, .controls.go now exist and are visible
+```
+
+Paths are hierarchical and derived from widget names, not auto-incremented junk like `.ttkbtn7` - `ui[:go].path` above is `.controls.go`. An unnamed widget still gets a valid (if less meaningful) auto-generated path segment.
+
+`ui[:query]` (from anywhere in the build, not just inside the block that declared it) returns a `Handle` - `.path`/`.configure` raise `Teek::UI::NotRealizedError` until realized, then act on the live widget:
+
+```ruby
+session[:query].configure(width: 40) # after session.run/.run_async/.realize
+session[:query].disable              # shorthand for configure(state: :disabled)
+```
+
+Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
+Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`, and the layout containers below.
+
+## Layout
+
+`column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.column(:controls, gap: 8, align: :stretch, pad: 5) do |c|
+    c.button(:start, text: 'Start')
+    c.button(:pause, text: 'Pause')
+    c.spacer                                  # flexible gap - pushes what follows to the bottom
+    c.button(:about, text: 'About')
+  end
+end.run
+```
+
+- `column`/`row` - top-to-bottom / left-to-right.
+- `gap:` - space between children (not before the first or after the last).
+- `align:` - cross-axis placement: `:start` / `:center` / `:end` / `:stretch` (fills the cross axis) - plain words, never compass directions.
+- `pad:` - margin around the whole stack.
+- `grow: true` on any child (leaf or container) - it consumes leftover space along the main axis.
+- `spacer` - a flexible gap (`grow: true` baked in) - the named replacement for the classic invisible "spring row" trick.
+
+`ui.grid` is for the minority of screens flow doesn't fit - a labeled-field form, a table of inputs:
+
+```ruby
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.grid(:form, gap: 4) do |g|
+    g.cell(row: 0, col: 0) { g.label(text: 'Name:') }
+    g.cell(row: 0, col: 1) { g.text_box(:name_field) }
+    g.cell(row: 1, col: 0) { g.label(text: 'Email:') }
+    g.cell(row: 1, col: 1) { g.text_box(:email_field) }
+    g.stretch(columns: [1]) # the input column absorbs extra width
+  end
+end.run
+```
+
+- `g.cell(row:, col:, span: 1) { }` - positions the single widget its block declares. `span:` covers multiple columns.
+- `g.stretch(columns:, rows:)` - which columns/rows absorb leftover space, in English instead of `columnconfigure -weight`.
+
+`cell`/`stretch` only work directly inside a `ui.grid` block - both raise otherwise.
+
+## Events
+
+A handle's `on_*` methods wire real Tk events - intent-named, so nobody needs to know Tk's own event syntax:
+
+```ruby
+session[:go].on_click { puts 'clicked' }
+session[:go].on_right_click { show_context_menu }
+session[:area].on_drag { |x, y| puts "#{x},#{y}" }        # Integer, canvas-converted when bound to a canvas
+session[:query].on_key(:enter) { search }                  # friendly keysym
+session[:query].on_key('Ctrl-s') { save }                   # "Ctrl"/"Alt"/"Shift"/"Cmd", spelled the obvious way
+```
+
+Called before realize (the normal case, right after declaring a widget), these queue on the widget and wire once the whole tree realizes. Called after, they wire immediately - same method, correct behavior either way.
+
+A `ui.window` handle also gets `on_close`, for the titlebar close box (and its platform equivalents, Cmd-W/Alt-F4):
+
+```ruby
+settings = ui.window(:settings)
+settings.on_close { session.app.destroy(settings.path) if confirm_discard_changes? }
+```
+
+The same `ui.window` handle also gets `modal`/`grab_release`, for dialogs that should block interaction with the rest of the app while open. Unlike the queue-then-wire events above, these only make sense once the window is actually realized (there's nothing to grab before it exists), so they raise `NotRealizedError` before that rather than queuing:
+
+```ruby
+settings.modal            # grabs input and focuses the window - stays grabbed
+# ... later, from the window's own on_close/a Done button ...
+settings.grab_release
+```
+
+`modal` also takes an optional block that runs with the grab already set (typically the rest of the window's own show sequence), and releases the grab immediately if that block raises, or if the window is destroyed while still grabbed - see `Teek::Window#modal` in base teek, which this delegates to entirely.
+
+Teek's own default (destroy the window) only applies if nothing has claimed `on_close` - once a block is set, it decides whether the window actually closes.
+
+## Reactive Variables
+
+`ui.var(initial)` wraps a Tcl variable - bind it to more than one widget and they stay in sync for free, via Tk's own `-textvariable`/`-variable` machinery, no manual event wiring needed:
+
+```ruby
+session = Teek::UI.app(title: 'Hello') do |ui|
+  speed = ui.var(5)
+  ui.slider(:speed_slider, from: 1, to: 10, bind: speed)
+  ui.label(:speed_label, bind: speed)     # updates automatically as the slider moves
+  speed.on_change { |v| puts "speed is now #{v}" }
+end
+session.run
+```
+
+`var.value`/`var.value =` read and write it directly (typed to match the initial value - Integer/Float/Boolean, else String); `var.on_change { |v| }` fires with the coerced value on every change, regardless of whether Ruby or a bound widget caused it. `bind:` is mapped per widget type (`text_box`/`label`/`dropdown`/`number_box` use `-textvariable`; `checkbox`/`slider`/`progress` use `-variable`) - widgets without a sensible single bindable value (`text_area`, `list`, `table`/`tree`, `radio`, containers) raise if you try.
+
+## Talking Between Widgets
+
+When one widget needs to affect another, teek-ui gives you four tools - roughly most-direct to most-decoupled. Start at the top and only move down when you actually need the extra decoupling:
+
+| Reach for | When |
+| --- | --- |
+| **A handle** — `ui[:name].configure(...)` | A one-off, direct update: this button updates that label. Simplest and most explicit. |
+| **A reactive var** — `ui.var` + `bind:` | Two or more widgets should stay in sync with one value automatically (a slider and its readout), with no wiring. See [Reactive Variables](#reactive-variables). |
+| **A component facade** — `ui.component` + `screen[:name]` | A parent needs to reach a reusable subtree's widgets without leaking a global name. See [Components](#components). |
+| **The event bus** — `ui.on` / `ui.emit` | Several unrelated widgets react to something and the sender shouldn't know they exist (decoupled fan-out). See [Event Bus](#event-bus). |
+
+---
+
+## Going further
+
+Everything above is a complete app. The sections below are power you reach for when a screen actually needs it - you don't have to read them in order, or at all, until something calls for it. This is also where the retained-mode model (build, then realize) is explained in full, since the advanced features lean on it.
+
 ## Building vs. Realizing
 
 Building is Tk-free: the block passed to `Teek::UI.app` runs immediately, but nothing touches Tk yet - no `Teek::App`/interpreter exists until the session is **realized**. `#run` and `#run_async` both realize (create the app) before doing anything else; you can also call `#realize` directly. This is what makes a build constructible and inspectable (`session.document`) with no display, no Tk, no `package require Tk` - useful for testing UI structure in CI where teek's own Tk-backed suite can't run.
@@ -34,7 +194,7 @@ session.run_async
 session.app.command(:label, '.greeting', text: 'Hi there') # fine now
 ```
 
-Events and timers are the exception - genuinely deferrable, so they don't raise at all: `on_*` handlers and `#every`/`#after` can be declared right inside the build block, queue, and wire/register themselves automatically once the tree realizes (see Events and Timers below) - same method, correct behavior whether called before or after.
+Events and timers are the exception - genuinely deferrable, so they don't raise at all: `on_*` handlers and `#every`/`#after` can be declared right inside the build block, queue, and wire/register themselves automatically once the tree realizes (see Events and Timers) - same method, correct behavior whether called before or after.
 
 Realize also validates the whole tree first - a build with a real problem (a dangling event target, two widgets in the same grid cell) raises one `Teek::UI::ValidationError` listing everything found, before any Tk call happens. A widget that's declared but never actually placed anywhere warns by default; pass `strict: true` to `#run`/`#run_async`/`#realize` to raise on that too.
 
@@ -104,32 +264,6 @@ end.run
 
 A component is mountable more than once - a list of identical rows, say - each `ui.component` call gets its own scope, so instances never collide there. Mounting the same component several times directly under one shared parent is also handled automatically: each instance gets its own facade addressing only its own widgets, with no Tk path collision even when every instance uses the same local names.
 
-## Widgets
-
-`ui.<widget>` methods declare widgets by appending them to the build tree - they don't touch Tk until realize. A `name` makes a widget addressable later via `ui[:name]`, without holding a reference:
-
-```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  ui.panel(:controls) do |p|
-    p.text_box(:query)
-    p.button(:go, text: 'Go')
-  end
-end
-session.run # realizes the tree - .controls, .controls.query, .controls.go now exist and are visible
-```
-
-Paths are hierarchical and derived from widget names, not auto-incremented junk like `.ttkbtn7` - `ui[:go].path` above is `.controls.go`. An unnamed widget still gets a valid (if less meaningful) auto-generated path segment.
-
-`ui[:query]` (from anywhere in the build, not just inside the block that declared it) returns a `Handle` - `.path`/`.configure` raise `Teek::UI::NotRealizedError` until realized, then act on the live widget:
-
-```ruby
-session[:query].configure(width: 40) # after session.run/.run_async/.realize
-session[:query].disable              # shorthand for configure(state: :disabled)
-```
-
-Leaf widgets (no children): `text_box`, `text_area`, `label`, `button`, `checkbox`, `radio`, `slider`, `dropdown`, `number_box`, `list`, `table`, `tree`, `progress`, `divider`.
-Containers (take a block, nest children): `panel` (`box` is the same thing, spelled differently), `group`, `canvas`, `window`, and the layout containers below.
-
 ## Canvas Items
 
 A `canvas` handle draws shapes directly - closer to SVG's persistent, addressable elements than HTML5 `<canvas>`'s paint-and-forget pixels: every shape method returns a live `CanvasItem` you can move, restyle, or delete later, not just ink on a bitmap.
@@ -175,47 +309,6 @@ end
 ```
 
 `at:` is a corner/edge/center anchor (`:top_left`, `:top`, `:top_right`, `:left`, `:center`, `:right`, `:bottom_left`, `:bottom`, `:bottom_right`) - plain English standing in for Tk's own `place -relx/-rely/-anchor`, so it stays correctly positioned across a canvas resize with nothing to redo by hand.
-
-## Layout
-
-`column`/`row` hide all three of Tk's geometry managers behind flexbox-style vocabulary - `pack`/`grid`/`sticky`/`anchor`/`rowconfigure`/`-weight` never appear in app code:
-
-```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.column(:controls, gap: 8, align: :stretch, pad: 5) do |c|
-    c.button(:start, text: 'Start')
-    c.button(:pause, text: 'Pause')
-    c.spacer                                  # flexible gap - pushes what follows to the bottom
-    c.button(:about, text: 'About')
-  end
-end.run
-```
-
-- `column`/`row` - top-to-bottom / left-to-right.
-- `gap:` - space between children (not before the first or after the last).
-- `align:` - cross-axis placement: `:start` / `:center` / `:end` / `:stretch` (fills the cross axis) - plain words, never compass directions.
-- `pad:` - margin around the whole stack.
-- `grow: true` on any child (leaf or container) - it consumes leftover space along the main axis.
-- `spacer` - a flexible gap (`grow: true` baked in) - the named replacement for the classic invisible "spring row" trick.
-
-`ui.grid` is for the minority of screens flow doesn't fit - a labeled-field form, a table of inputs:
-
-```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.grid(:form, gap: 4) do |g|
-    g.cell(row: 0, col: 0) { g.label(text: 'Name:') }
-    g.cell(row: 0, col: 1) { g.text_box(:name_field) }
-    g.cell(row: 1, col: 0) { g.label(text: 'Email:') }
-    g.cell(row: 1, col: 1) { g.text_box(:email_field) }
-    g.stretch(columns: [1]) # the input column absorbs extra width
-  end
-end.run
-```
-
-- `g.cell(row:, col:, span: 1) { }` - positions the single widget its block declares. `span:` covers multiple columns.
-- `g.stretch(columns:, rows:)` - which columns/rows absorb leftover space, in English instead of `columnconfigure -weight`.
-
-`cell`/`stretch` only work directly inside a `ui.grid` block - both raise otherwise.
 
 ## Scrolling
 
@@ -265,7 +358,7 @@ Teek::UI.app(title: 'Hello') do |ui|
 end.run
 ```
 
-`.show` positions the window just to the right of whichever window it's nested under (root, or an enclosing `ui.window`), deiconifies, raises it to the front, and - only if declared `modal: true` - grabs input and focus too (see `modal`/`grab_release` below). `.hide` releases any grab and withdraws it. `resizable:` takes a single Boolean for both axes, or a `[width, height]` pair.
+`.show` positions the window just to the right of whichever window it's nested under (root, or an enclosing `ui.window`), deiconifies, raises it to the front, and - only if declared `modal: true` - grabs input and focus too (see `modal`/`grab_release` under [Events](#events)). `.hide` releases any grab and withdraws it. `resizable:` takes a single Boolean for both axes, or a `[width, height]` pair.
 
 `ui.dialog(...)` is `ui.window` with defaults flipped for the common "small modal window" case - `modal: true`, `resizable: false` - both still overridable:
 
@@ -276,36 +369,15 @@ session[:confirm].show   # grabs and focuses automatically - it's a dialog
 
 Every other container (`panel`/`group`/`canvas`) still just packs its children top-to-bottom with no options - reach for `column`/`row`/`grid` when you actually want control over spacing/alignment/positions. Overlay layout isn't built yet.
 
-## Tabs
+## Navigation
 
-`ui.tabs { }` is a `ttk::notebook`; `t.tab(label, name = nil) { }` declares one page, only valid directly inside it:
+Three constructs swap what's on screen; pick by how separate the new content is from the old:
 
-```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.tabs(:settings) do |t|
-    t.tab('General') { |g| g.checkbox(text: 'Dark mode') }
-    t.tab('Advanced', :advanced_tab) { |a| a.label(text: 'Here be dragons') }
-  end
-  ui[:settings].on_tab_changed { |tab| puts "switched to #{tab}" }  # :advanced_tab, or 0/1 if unnamed
-end.run
-```
-
-A tab's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. `on_tab_changed` surfaces Tk's `<<NotebookTabChanged>>`, delivering the newly selected tab's own name if it has one, otherwise its zero-based index. New tabs can be added at runtime via `session.add`.
-
-## Split Panes
-
-`ui.split(name = nil, orientation: :horizontal) { }` is a `ttk::panedwindow`; `s.pane(name = nil, weight: nil) { }` declares one region, only valid directly inside it:
-
-```ruby
-Teek::UI.app(title: 'Hello') do |ui|
-  ui.split(:main, orientation: :horizontal) do |s|
-    s.pane(weight: 1) { |a| a.list(:files) }
-    s.pane(weight: 3) { |b| b.text_area(:editor) }
-  end
-end.run
-```
-
-`:horizontal` lays panes out side by side with a vertical sash; `:vertical` stacks them with a horizontal sash - dragging the sash between two panes resizes them, same as any native split view. `weight:` sets how much of the leftover space a pane absorbs when the split is resized, relative to its sibling panes' weights (the same word `ttk::panedwindow` itself uses) - a pane left unset gets Tk's own default (fixed size until dragged). A pane's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. New panes can be added at runtime via `session.add`.
+| Reach for | When |
+| --- | --- |
+| **`ui.window` / `ui.dialog`** | A genuinely separate top-level window - settings, a picker - with its own titlebar, optionally modal. See [Windows](#windows). |
+| **`ui.screens`** | Full-content swaps *within one window* - a push/pop stack where showing one screen hides the last (menu → game → menu). |
+| **`ui.modal`** | Stacked *modal* dialogs where dismissing one re-shows the one beneath, with mandatory enter/exit hooks (e.g. pause/resume what's underneath). |
 
 ## Screens
 
@@ -369,54 +441,36 @@ end
 ui.dialog(:main) { |d| d.button(:open, text: 'Settings...').on_click { open_settings(ui) } }
 ```
 
-## Events
+## Tabs
 
-A handle's `on_*` methods wire real Tk events - intent-named, so nobody needs to know Tk's own event syntax:
-
-```ruby
-session[:go].on_click { puts 'clicked' }
-session[:go].on_right_click { show_context_menu }
-session[:area].on_drag { |x, y| puts "#{x},#{y}" }        # Integer, canvas-converted when bound to a canvas
-session[:query].on_key(:enter) { search }                  # friendly keysym
-session[:query].on_key('Ctrl-s') { save }                   # "Ctrl"/"Alt"/"Shift"/"Cmd", spelled the obvious way
-```
-
-Called before realize (the normal case, right after declaring a widget), these queue on the widget and wire once the whole tree realizes. Called after, they wire immediately - same method, correct behavior either way.
-
-A `ui.window` handle also gets `on_close`, for the titlebar close box (and its platform equivalents, Cmd-W/Alt-F4):
+`ui.tabs { }` is a `ttk::notebook`; `t.tab(label, name = nil) { }` declares one page, only valid directly inside it:
 
 ```ruby
-settings = ui.window(:settings)
-settings.on_close { session.app.destroy(settings.path) if confirm_discard_changes? }
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.tabs(:settings) do |t|
+    t.tab('General') { |g| g.checkbox(text: 'Dark mode') }
+    t.tab('Advanced', :advanced_tab) { |a| a.label(text: 'Here be dragons') }
+  end
+  ui[:settings].on_tab_changed { |tab| puts "switched to #{tab}" }  # :advanced_tab, or 0/1 if unnamed
+end.run
 ```
 
-The same `ui.window` handle also gets `modal`/`grab_release`, for dialogs that should block interaction with the rest of the app while open. Unlike the queue-then-wire events above, these only make sense once the window is actually realized (there's nothing to grab before it exists), so they raise `NotRealizedError` before that rather than queuing:
+A tab's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. `on_tab_changed` surfaces Tk's `<<NotebookTabChanged>>`, delivering the newly selected tab's own name if it has one, otherwise its zero-based index. New tabs can be added at runtime via `session.add`.
+
+## Split Panes
+
+`ui.split(name = nil, orientation: :horizontal) { }` is a `ttk::panedwindow`; `s.pane(name = nil, weight: nil) { }` declares one region, only valid directly inside it:
 
 ```ruby
-settings.modal            # grabs input and focuses the window - stays grabbed
-# ... later, from the window's own on_close/a Done button ...
-settings.grab_release
+Teek::UI.app(title: 'Hello') do |ui|
+  ui.split(:main, orientation: :horizontal) do |s|
+    s.pane(weight: 1) { |a| a.list(:files) }
+    s.pane(weight: 3) { |b| b.text_area(:editor) }
+  end
+end.run
 ```
 
-`modal` also takes an optional block that runs with the grab already set (typically the rest of the window's own show sequence), and releases the grab immediately if that block raises, or if the window is destroyed while still grabbed - see `Teek::Window#modal` in base teek, which this delegates to entirely.
-
-Teek's own default (destroy the window) only applies if nothing has claimed `on_close` - once a block is set, it decides whether the window actually closes.
-
-## Reactive Variables
-
-`ui.var(initial)` wraps a Tcl variable - bind it to more than one widget and they stay in sync for free, via Tk's own `-textvariable`/`-variable` machinery, no manual event wiring needed:
-
-```ruby
-session = Teek::UI.app(title: 'Hello') do |ui|
-  speed = ui.var(5)
-  ui.slider(:speed_slider, from: 1, to: 10, bind: speed)
-  ui.label(:speed_label, bind: speed)     # updates automatically as the slider moves
-  speed.on_change { |v| puts "speed is now #{v}" }
-end
-session.run
-```
-
-`var.value`/`var.value =` read and write it directly (typed to match the initial value - Integer/Float/Boolean, else String); `var.on_change { |v| }` fires with the coerced value on every change, regardless of whether Ruby or a bound widget caused it. `bind:` is mapped per widget type (`text_box`/`label`/`dropdown`/`number_box` use `-textvariable`; `checkbox`/`slider`/`progress` use `-variable`) - widgets without a sensible single bindable value (`text_area`, `list`, `table`/`tree`, `radio`, containers) raise if you try.
+`:horizontal` lays panes out side by side with a vertical sash; `:vertical` stacks them with a horizontal sash - dragging the sash between two panes resizes them, same as any native split view. `weight:` sets how much of the leftover space a pane absorbs when the split is resized, relative to its sibling panes' weights (the same word `ttk::panedwindow` itself uses) - a pane left unset gets Tk's own default (fixed size until dragged). A pane's content is an ordinary DSL subtree - name widgets inside it and address them the normal way. New panes can be added at runtime via `session.add`.
 
 ## Event Bus
 
@@ -515,15 +569,6 @@ session.add(:list) { |a| a.button(:item1, text: 'Item 1').on_click { puts 'click
 
 The new widgets route through the same `Teek::App#command`/leak-cleanup path the initial realize uses - destroying one reclaims its callbacks the normal way. `parent_name` must already be realized; calling `add` before the session itself is realized, or naming a widget that doesn't exist, raises.
 
-## Interactive / REPL Use
-
-`#run` blocks on the Tk event loop, which isn't REPL-friendly. `#run_async` realizes, shows the window, and returns immediately instead - but it doesn't (yet) service the event loop automatically between prompts, so call `ui.app.update` yourself to process pending events while exploring:
-
-```ruby
-session = Teek::UI.app(title: 'Hello').run_async
-session.app.update # process events after each change
-```
-
 ## Timers
 
 `#every`/`#after` follow the same queue-then-wire shape as events: declare a tick loop right inside the build block, next to the UI it drives, and it registers automatically once the tree realizes - no need to relocate it to a separate post-`run_async` step. Called after realize, they register immediately instead, with identical runtime behavior either way:
@@ -537,6 +582,15 @@ session.run
 ```
 
 Called before realize, both return `nil` - there's no live, `.cancel`-able timer object to hand back until the app actually exists. Called after, they return the same live timer `Teek::App#every`/`#after` already does.
+
+## Interactive / REPL Use
+
+`#run` blocks on the Tk event loop, which isn't REPL-friendly. `#run_async` realizes, shows the window, and returns immediately instead - but it doesn't (yet) service the event loop automatically between prompts, so call `ui.app.update` yourself to process pending events while exploring:
+
+```ruby
+session = Teek::UI.app(title: 'Hello').run_async
+session.app.update # process events after each change
+```
 
 ## Dialogs
 

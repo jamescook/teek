@@ -6,7 +6,7 @@ Gem::Specification.new do |spec|
   spec.authors       = ["James Cook"]
   spec.email         = ["jcook.rubyist@gmail.com"]
 
-  spec.summary       = "A DSL for building teek (Tk) apps"
+  spec.summary       = "The friendly way to build Tk apps in Ruby"
   spec.description   = "Declarative widgets, layout, events, and reactive state on top of teek"
   spec.homepage      = "https://github.com/jamescook/teek"
   spec.licenses      = ["MIT"]
