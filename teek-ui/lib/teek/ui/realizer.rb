@@ -447,13 +447,19 @@ module Teek
       end
 
       def arrange_children(node)
-        # A lazy child not yet realized (see {Node#lazy?}) has no
-        # +.realized+ to pack/place - excluded here regardless of type,
-        # not just via #unarranged?. Once it IS realized (see
-        # {Handle#realize!}), a later #arrange_children call on this same
-        # node (e.g. from #realize_subtree, adding another sibling) picks
-        # it up normally - this only ever excludes a STILL-unrealized one.
-        candidates = node.children.reject { |child| child.lazy? && !child.realized }
+        # Any not-yet-realized child has no +.realized+ to pack/place -
+        # excluded here regardless of type or WHY it isn't realized yet
+        # (a lazy: true node not explicitly realized, see {Node#lazy?};
+        # or a batch-mate #realize_subtree hasn't reached yet, when
+        # #add's own block declared more than one new sibling at once -
+        # every new child gets #create'd, and this same
+        # #arrange_children called again for the parent, in its own
+        # separate iteration of that same loop). Once a child IS
+        # realized, a later #arrange_children call on this same node
+        # (e.g. from a LATER iteration of that same loop, or a further
+        # sibling added afterward) picks it up normally - this only ever
+        # excludes a STILL-unrealized one.
+        candidates = node.children.reject { |child| !child.realized }
         overlaid, rest = candidates.partition { |child| child.layout && child.layout[:overlay] }
         arrangeable = rest.reject { |child| unarranged?(child.type) }
         registered = WidgetTypes.for_type(node.type)

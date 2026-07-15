@@ -24,6 +24,36 @@ class TestIncrementalRealize < Minitest::Test
     end
   end
 
+  def test_add_creates_multiple_new_siblings_declared_in_one_block
+    assert_tk_app("adding several new widgets inside ONE session.add block should not crash arrange_children on a not-yet-created sibling, and should arrange all of them correctly") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Incremental Realize Test') { |ui| ui.column(:list, gap: 10) }
+      session.run_async
+      session.app.update
+
+      handles = []
+      session.add(:list) { |a| 3.times { |i| handles << a.button(text: "Item #{i}") } }
+      session.app.update
+
+      children = session.document.find(:list).children
+      assert_equal 3, children.length
+      children.each { |child| assert session.app.winfo.exists?(child.realized.path) }
+
+      # a not-yet-created batch-mate shouldn't just avoid crashing - it
+      # should end up correctly positioned too, exactly like an ordinary
+      # sequence of separate session.add calls would (see
+      # test_add_respects_gap_relative_to_pre_existing_siblings above).
+      handles.each_cons(2) do |above, below|
+        above_bottom = session.app.winfo.rooty(above.path) + session.app.winfo.height(above.path)
+        below_top = session.app.winfo.rooty(below.path)
+        assert_equal 10, below_top - above_bottom
+      end
+
+      session.app.destroy
+    end
+  end
+
   def test_add_respects_gap_relative_to_pre_existing_siblings
     assert_tk_app("a widget added to a flow container should respect gap: relative to widgets already there") do
       require 'teek/ui'
