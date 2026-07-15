@@ -163,6 +163,16 @@ module Teek
         @app.choose_dir(initialdir: initialdir, mustexist: mustexist, title: title, parent: parent)
       end
 
+      # @return [Teek::Clipboard] +.set(text)+/+.get+/+.clear+ - text
+      #   widgets don't need this at all for their own copy/cut/paste
+      #   (Tk wires that to the platform's expected keys already); this is
+      #   for reading/writing the clipboard directly from app code.
+      # @raise [NotRealizedError] if called before #realize
+      def clipboard
+        raise_unless_realized!
+        @app.clipboard
+      end
+
       # Build and immediately realize a subtree into the already-running
       # app, as a child of an already-realized widget named +parent_name+ -
       # for dynamic UIs (adding cards/rows/menu entries at runtime), not

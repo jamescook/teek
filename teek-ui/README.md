@@ -446,3 +446,14 @@ dir = ui.choose_dir(title: 'Pick a project folder')
 ```
 
 Each returns `nil` if the user cancels (`ui.message` returns the pressed button as a Symbol - `:ok`/`:yes`/`:no`/... - instead, since there's no single "cancelled" case across every button layout). See `Teek::App#choose_open_file`/`#choose_save_file`/`#message_box`/`#choose_color`/`#choose_dir` for every option.
+
+## Clipboard
+
+`ui.clipboard` reads/writes the clipboard directly - also realize-only:
+
+```ruby
+ui.clipboard.set('copied text')
+ui.clipboard.get # => "copied text", or nil if empty
+```
+
+`text_box`/`text_area` don't need this at all for their own copy/cut/paste - the standard platform keys (Ctrl/Cmd-C/X/V) already work with zero wiring, since that's Tk's own built-in behavior on every text-editing widget.
