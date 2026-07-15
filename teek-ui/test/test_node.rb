@@ -92,6 +92,47 @@ class TestNode < Minitest::Test
     assert_same parent, child.parent
   end
 
+  def test_document_defaults_to_nil
+    node = Teek::UI::Node.new(type: :button)
+
+    assert_nil node.document
+  end
+
+  def test_document_is_settable_at_construction
+    fake_document = Object.new
+    node = Teek::UI::Node.new(type: :button, document: fake_document)
+
+    assert_same fake_document, node.document
+  end
+
+  def test_remove_child_removes_it_from_the_parents_children
+    parent = Teek::UI::Node.new(type: :column)
+    a = parent.add_child(Teek::UI::Node.new(type: :button, name: :a))
+    b = parent.add_child(Teek::UI::Node.new(type: :button, name: :b))
+
+    parent.remove_child(a)
+
+    assert_equal [b], parent.children
+  end
+
+  def test_remove_child_clears_the_removed_nodes_own_parent
+    parent = Teek::UI::Node.new(type: :column)
+    child = parent.add_child(Teek::UI::Node.new(type: :button))
+
+    parent.remove_child(child)
+
+    assert_nil child.parent
+  end
+
+  def test_remove_child_returns_the_removed_node
+    parent = Teek::UI::Node.new(type: :column)
+    child = parent.add_child(Teek::UI::Node.new(type: :button))
+
+    result = parent.remove_child(child)
+
+    assert_same child, result
+  end
+
   def test_parent_is_nil_before_being_attached
     node = Teek::UI::Node.new(type: :button)
 

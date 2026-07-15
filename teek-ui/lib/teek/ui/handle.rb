@@ -417,11 +417,26 @@ module Teek
       # The actual teardown {#destroy!} defers or runs immediately -
       # clears the pending flag first so a LATER, genuinely fresh
       # destroy! (after a rebuild) is never mistaken for a still-pending
-      # one.
+      # one. Unlinks the node from the retained tree afterward (see
+      # #unlink!) so it stops being reachable at all, not just Tk-dead.
       def perform_destroy!
         @node.pending_destroy = false
         realized.app.destroy(realized.path)
         @node.realized = nil
+        unlink!
+      end
+
+      # Removes this node (and every named descendant of its own
+      # subtree - Tk destroys descendants recursively, so their names
+      # need to stop resolving too) from {Document}'s name index, then
+      # removes the node itself from its own parent's +children+. Both
+      # steps are plain Ruby, safe to run even if +@node.document+ is
+      # nil (a raw +Node.new+ built directly, mostly in headless tests)
+      # or +@node.parent+ is nil (already unlinked, or never attached).
+      def unlink!
+        document = @node.document
+        @node.each { |descendant| document.unregister(descendant) } if document
+        @node.parent&.remove_child(@node)
       end
 
       # @return [Boolean] whether this node has a live Tk widget yet -

@@ -189,4 +189,156 @@ class TestHandleDestroyRealTk < Minitest::Test
       session.app.destroy
     end
   end
+
+  def test_destroying_a_widget_unlinks_it_from_its_parents_children
+    assert_tk_app("destroy! should remove the destroyed node from its parent's own children, not just clear its Tk-realized state") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Destroy Defer Test') do |ui|
+        ui.panel(:host) { |p| p.button(:item, text: 'Item') }
+      end
+      session.run_async
+      session.app.update
+      host_node = session.document.find(:host)
+      item_node = session.document.find(:item)
+
+      session[:item].destroy!(defer: false)
+
+      refute_includes host_node.children, item_node
+
+      session.app.destroy
+    end
+  end
+
+  def test_destroying_a_named_widget_frees_its_name_for_reuse
+    assert_tk_app("destroying a named widget should let a later widget reuse the same name in the same scope, and ui[:name] should be nil in between") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Destroy Defer Test') { |ui| ui.panel(:host) }
+      session.run_async
+      session.app.update
+
+      session.add(:host) { |a| a.button(:item, text: 'First') }
+      session.app.update
+      first_path = session[:item].path
+      session[:item].destroy!(defer: false)
+
+      assert_nil session[:item], "ui[:item] should be nil once the widget that owned that name is destroyed"
+
+      session.add(:host) { |a| a.button(:item, text: 'Second') }
+      session.app.update
+
+      refute_nil session[:item], "a new :item should be addable again under the same name once the old one is gone"
+      assert_equal 'Second', session.app.command(session[:item].path, :cget, '-text')
+      refute_equal first_path, session[:item].path
+
+      session.app.destroy
+    end
+  end
+
+  def test_repeated_add_and_destroy_of_a_named_widget_under_one_parent_does_not_crash
+    assert_tk_app("repeatedly adding and destroying a plain (non-window) named widget under one shared parent should never crash arrange_children") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Destroy Defer Test') { |ui| ui.panel(:host) }
+      session.run_async
+      session.app.update
+
+      5.times do |i|
+        handle = nil
+        session.add(:host) { |a| handle = a.button(:item, text: "Item #{i}") }
+        session.app.update
+        assert_equal "Item #{i}", session.app.command(handle.path, :cget, '-text')
+        handle.destroy!(defer: false)
+        session.app.update
+      end
+
+      assert_nil session[:item]
+      assert_equal 0, session.document.find(:host).children.length
+
+      session.app.destroy
+    end
+  end
+
+  def test_a_sibling_added_after_a_destroy_still_arranges_correctly
+    assert_tk_app("arrange_children should correctly position a new sibling relative to survivors, with no trace of a destroyed sibling") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Destroy Defer Test') do |ui|
+        ui.column(:host, gap: 10) { |c| c.button(:first, text: 'First') }
+      end
+      session.run_async
+      session.app.update
+
+      doomed = nil
+      session.add(:host) { |a| doomed = a.button(:doomed, text: 'Doomed') }
+      session.app.update
+      doomed.destroy!(defer: false)
+      session.app.update
+
+      session.add(:host) { |a| a.button(:second, text: 'Second') }
+      session.app.update
+
+      first_bottom = session.app.winfo.rooty(session[:first].path) + session.app.winfo.height(session[:first].path)
+      second_top = session.app.winfo.rooty(session[:second].path)
+      assert_equal 10, second_top - first_bottom,
+        "the new sibling should be positioned relative to :first, as if :doomed never existed"
+
+      session.app.destroy
+    end
+  end
+
+  def test_popping_and_destroying_a_screen_leaves_no_stale_entry_in_screens
+    assert_tk_app("Screens#pop already removes its own Entry before returning the handle, so destroy! afterward can't leave anything stale in Screens' own bookkeeping") do
+      require 'teek/ui'
+
+      session = Teek::UI.app(title: 'Destroy Defer Test') { |ui| ui.panel(:picker) }
+      session.run_async
+      session.app.update
+
+      session.screens.push(:picker, session[:picker])
+      popped = session.screens.pop
+      popped.destroy!(defer: false)
+
+      refute session.screens.active?
+      assert_nil session.screens.current
+      assert_nil session.screens.current_screen
+      assert_equal 0, session.screens.size
+
+      session.app.destroy
+    end
+  end
+
+  def test_destroying_an_unrelated_widget_does_not_disturb_an_already_built_menu
+    assert_tk_app("destroying (and unlinking) an unrelated widget elsewhere in the tree should have zero effect on an already-built menu's own entries/ordering") do
+      require 'teek/ui'
+
+      clicked = []
+      session = Teek::UI.app(title: 'Destroy Defer Test') do |ui|
+        ui.menu_bar do |mb|
+          mb.menu(:file, label: 'File') do |f|
+            f.item(label: 'One') { clicked << :one }
+            f.item(label: 'Two') { clicked << :two }
+          end
+        end
+        ui.panel(:host) { |p| p.button(:item, text: 'Item') }
+      end
+      session.run_async
+      session.app.update
+
+      session[:item].destroy!(defer: false)
+      session.app.update
+
+      file_path = session[:file].path
+      assert_equal 'One', session.app.command(file_path, :entrycget, 0, '-label')
+      assert_equal 'Two', session.app.command(file_path, :entrycget, 1, '-label')
+
+      session.app.tcl_eval("#{file_path} invoke 0")
+      session.app.tcl_eval("#{file_path} invoke 1")
+
+      assert_equal [:one, :two], clicked, "menu entries should still fire in their original order, unaffected by an unrelated destroy elsewhere"
+
+      session.app.destroy
+    end
+  end
 end

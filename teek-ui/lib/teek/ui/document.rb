@@ -19,7 +19,7 @@ module Teek
       attr_reader :root
 
       def initialize
-        @root = Node.new(type: :root)
+        @root = Node.new(type: :root, document: self)
         @index = {}
         @next_auto_key = 0
         @used_segments = {}
@@ -45,7 +45,7 @@ module Teek
       # @return [Node]
       # @raise [ArgumentError] if +name+ is already registered within +scope+
       def create(type:, name: nil, opts: {}, scope: Scope::TOP_LEVEL)
-        node = Node.new(type: type, name: name, key: generate_key(name), opts: opts, scope: scope)
+        node = Node.new(type: type, name: name, key: generate_key(name), opts: opts, scope: scope, document: self)
         register(scope, node) if name
         node
       end
@@ -98,6 +98,22 @@ module Teek
         count = seen[segment]
         seen[segment] += 1
         count.zero? ? segment : "#{segment}##{count + 1}"
+      end
+
+      # Removes +node+ from the name index, scoped exactly like
+      # {#register} does - a no-op if +node+ was never named (nothing to
+      # remove) or already unregistered. Called by {Handle#destroy!} for
+      # a destroyed node and every named descendant of its own subtree
+      # (Tk destroys descendants recursively, so their names need to
+      # stop resolving too), so a later widget can reuse the same name
+      # in the same scope, and {#find} correctly reports the name as
+      # gone in the meantime.
+      # @param node [Node]
+      # @return [void]
+      def unregister(node)
+        return unless node.name
+
+        @index.delete([node.scope, node.name])
       end
 
       private

@@ -15,7 +15,7 @@ module Teek
     # the whole build phase; a realizer fills it in later with a live
     # handle.
     class Node
-      attr_reader :type, :name, :opts, :children, :events, :parent, :scope
+      attr_reader :type, :name, :opts, :children, :events, :parent, :scope, :document
       attr_accessor :key, :layout, :realized
       attr_writer :lazy, :pending_destroy
 
@@ -26,7 +26,12 @@ module Teek
       # @param scope [Scope] the component scope this node was built in -
       #   {Scope::TOP_LEVEL} (the default) for a build that never calls
       #   {WidgetDSL#component}
-      def initialize(type:, name: nil, key: nil, opts: {}, scope: Scope::TOP_LEVEL)
+      # @param document [Document, nil] back-reference to the owning
+      #   {Document} - set by {Document#create}; +nil+ for a raw +Node.new+
+      #   built directly (headless tests, mostly). Lets {Handle#destroy!}
+      #   unregister a destroyed node's own name(s) without every caller
+      #   needing to thread a Document reference through by hand.
+      def initialize(type:, name: nil, key: nil, opts: {}, scope: Scope::TOP_LEVEL, document: nil)
         @type = type
         @name = name
         @key = key || name&.to_s
@@ -37,6 +42,7 @@ module Teek
         @realized = nil
         @parent = nil
         @scope = scope
+        @document = document
         @lazy = false
         @pending_destroy = false
       end
@@ -65,6 +71,20 @@ module Teek
       def add_child(node)
         @children << node
         node.parent = self
+        node
+      end
+
+      # Unlinks +node+ from this node's own children - the symmetric
+      # counterpart to {#add_child}, used by {Handle#destroy!} so a
+      # destroyed node stops being reachable from the retained tree at
+      # all (not just Tk-dead - actually gone from +children+, so a
+      # later sibling addition never iterates it, and it becomes
+      # collectable once nothing else references it).
+      # @param node [Node]
+      # @return [Node] the node just removed
+      def remove_child(node)
+        @children.delete(node)
+        node.parent = nil
         node
       end
 

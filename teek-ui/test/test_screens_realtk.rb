@@ -298,6 +298,12 @@ class TestScreensRealTk < Minitest::Test
 
         session.modal.pop.destroy!
         session.app.update
+
+        # destroy! unlinks the dialog's own node from :host's children,
+        # not just its Tk-realized state - :host should never accumulate
+        # a permanently-dead child across repeated opens.
+        assert_equal 0, session.document.find(:host).children.length,
+          "each mount's dialog should be fully unlinked from :host after destroy!, not just Tk-destroyed"
       end
 
       assert_equal paths.uniq.length, paths.length, "each open should have gotten its own distinct Tk path"

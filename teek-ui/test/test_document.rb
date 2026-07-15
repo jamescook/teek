@@ -32,6 +32,55 @@ class TestDocument < Minitest::Test
     assert_same node, document[:save]
   end
 
+  def test_create_gives_the_node_a_back_reference_to_the_document
+    document = Teek::UI::Document.new
+
+    node = document.create(type: :button, name: :save)
+
+    assert_same document, node.document
+  end
+
+  def test_unregister_removes_a_named_node_from_the_index
+    document = Teek::UI::Document.new
+    node = document.create(type: :button, name: :save)
+    document.root.add_child(node)
+
+    document.unregister(node)
+
+    assert_nil document.find(:save)
+  end
+
+  def test_unregister_frees_the_name_for_reuse
+    document = Teek::UI::Document.new
+    first = document.create(type: :button, name: :save)
+    document.root.add_child(first)
+    document.unregister(first)
+
+    second = document.create(type: :button, name: :save)
+
+    assert_same second, document.find(:save)
+  end
+
+  def test_unregister_on_an_unnamed_node_is_a_safe_no_op
+    document = Teek::UI::Document.new
+    node = document.create(type: :button)
+
+    document.unregister(node)
+  end
+
+  def test_unregister_only_affects_the_given_nodes_own_scope
+    document = Teek::UI::Document.new
+    scope = Teek::UI::Scope.new(:a)
+    top_level = document.create(type: :button, name: :save)
+    document.root.add_child(top_level)
+    scoped = document.create(type: :button, name: :save, scope: scope)
+
+    document.unregister(scoped)
+
+    assert_same top_level, document.find(:save)
+    assert_nil document.find(:save, scope: scope)
+  end
+
   def test_find_returns_nil_for_an_unknown_name
     document = Teek::UI::Document.new
 
