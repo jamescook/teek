@@ -169,6 +169,21 @@ class TestWidgetTypes < Minitest::Test
     assert_nil widget_type.validator
   end
 
+  def test_addressing_defaults_to_widget_addressing
+    widget_type = Teek::UI::WidgetType.new(type: :__test_widget_type_addressing_default__, tk_command: 'ttk::label')
+
+    assert_equal Teek::UI::WidgetAddressing, widget_type.addressing
+  end
+
+  def test_addressing_is_registered_and_read_back
+    custom_strategy = Class.new
+    widget_type = Teek::UI::WidgetType.new(
+      type: :__test_widget_type_custom_addressing__, tk_command: 'ttk::label', addressing: custom_strategy
+    )
+
+    assert_equal custom_strategy, widget_type.addressing
+  end
+
   def test_leaf_default_dsl_defines_a_method_that_calls_append_leaf
     calls = []
     fake_module = Class.new {

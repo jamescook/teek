@@ -6,6 +6,8 @@ require_relative 'event_binding'
 require_relative 'keysyms'
 require_relative 'mouse_events'
 require_relative 'canvas_item'
+require_relative 'widget_addressing'
+require_relative 'widget_types'
 
 module Teek
   module UI
@@ -22,6 +24,7 @@ module Teek
       # @api private
       def initialize(node)
         @node = node
+        @addressing = (WidgetTypes.for_type(node.type)&.addressing || WidgetAddressing).new(node)
       end
 
       # @return [Symbol] the node's type, e.g. +:button+
@@ -34,10 +37,14 @@ module Teek
         @node.name
       end
 
-      # @return [String] the live Tk widget path
+      # @return [String] this node's live address - the real Tk widget
+      #   path for an ordinary widget, or (for a type with none of its
+      #   own, e.g. a menu entry) its {WidgetType#addressing} strategy's
+      #   own marked, Tk-path-shaped virtual path - see
+      #   {MenuEntryAddressing#virtual_path}
       # @raise [NotRealizedError] before realize
       def path
-        realized.path
+        @addressing.virtual_path
       end
 
       # @return [Teek::App] the underlying app this widget was realized into
@@ -46,11 +53,33 @@ module Teek
         realized.app
       end
 
-      # Mutate the live widget's options.
-      # @param opts [Hash] widget options, e.g. +text: "Go"+
+      # Mutate the live widget's (or, for a type with none of its own,
+      # e.g. a menu entry - the entry's own) options - delegated entirely
+      # to this node type's {WidgetType#addressing} strategy, so Handle
+      # itself carries no per-type knowledge of how to reach it.
+      # @param opts [Hash] e.g. +text: "Go"+
       # @raise [NotRealizedError] before realize
       def configure(**opts)
-        realized.app.command(realized.path, :configure, **opts)
+        @addressing.configure(**opts)
+      end
+
+      # Shorthand for +configure(state: :normal)+ - Tk's own default
+      # state, meaningful for anything with a +-state+ option (a menu
+      # entry, a ttk widget, ...).
+      # @return [self]
+      # @raise [NotRealizedError] before realize
+      def enable
+        configure(state: :normal)
+        self
+      end
+
+      # Shorthand for +configure(state: :disabled)+ - greyed out, not
+      # interactive/invocable.
+      # @return [self]
+      # @raise [NotRealizedError] before realize
+      def disable
+        configure(state: :disabled)
+        self
       end
 
       # Fires on a left click.

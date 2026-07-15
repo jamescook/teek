@@ -3,6 +3,7 @@
 require_relative 'test_helper'
 require 'teek/ui/node'
 require 'teek/ui/handle'
+require 'teek/ui/widget_types'
 
 class TestHandle < Minitest::Test
   FakeWindow = Struct.new(:path, :modal_calls, :grab_releases) do
@@ -96,6 +97,35 @@ class TestHandle < Minitest::Test
     handle.configure(text: 'Go', width: 10)
 
     assert_equal [[['.win.save', :configure], { text: 'Go', width: 10 }]], app.calls
+  end
+
+  # Handle itself carries zero per-type addressing knowledge - it resolves
+  # a type's WidgetType#addressing strategy from the registry and
+  # delegates #configure/#path entirely to it. A plugin/custom widget
+  # type registering its own addressing: works correctly with NO changes
+  # to Handle's own code - this test IS the proof of that, not an
+  # incidental check of one more type.
+  def test_configure_and_path_delegate_via_a_custom_registered_addressing_strategy
+    calls = []
+    strategy_class = Class.new do
+      define_method(:initialize) { |node| @node = node }
+      define_method(:virtual_path) { "FAKE:#{@node.name}" }
+      define_method(:configure) { |**opts| calls << [@node, opts] }
+    end
+
+    Teek::UI::WidgetTypes.register(
+      Teek::UI::WidgetType.new(
+        type: :__test_handle_custom_addressing__, tk_command: 'ttk::label', addressing: strategy_class
+      )
+    )
+
+    node = Teek::UI::Node.new(type: :__test_handle_custom_addressing__, name: :thing)
+    handle = Teek::UI::Handle.new(node)
+
+    handle.configure(text: 'hi')
+
+    assert_equal [[node, { text: 'hi' }]], calls
+    assert_equal 'FAKE:thing', handle.path
   end
 
   def test_type_and_name_reflect_the_underlying_node_at_any_phase

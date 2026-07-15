@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require_relative 'widget_addressing'
+
 module Teek
   module UI
     # @api private
@@ -16,7 +18,7 @@ module Teek
     # or a widget needing bespoke DSL methods/realize setup, overrides
     # +dsl:+/+post_create:+.
     class WidgetType
-      attr_reader :type, :tk_command, :bind_option, :validator, :flow
+      attr_reader :type, :tk_command, :bind_option, :validator, :flow, :addressing
 
       # @param type [Symbol] the node type this describes, e.g. +:divider+
       # @param tk_command [String] the Tk widget-creation command, e.g.
@@ -100,9 +102,18 @@ module Teek
       #   see {WindowRealize}/{TabRealize}/{PaneRealize} for real examples.
       #   Defaults to a no-op. Not called at all for a type that sets
       #   +custom_create:+, since that hook bypasses this entire step.
+      # @param addressing [#new, nil] a class - +->(node) { ... }+-shaped
+      #   via +.new+ - knowing how to read/write THIS type's live state
+      #   (+#virtual_path+, +#configure+). {Handle} resolves this per node
+      #   from the registry, with no type-specific knowledge of its own -
+      #   a plugin/custom widget type gets correct addressing purely by
+      #   registering its own +addressing:+ here. Defaults to
+      #   {WidgetAddressing} (an ordinary Tk widget with its own path) -
+      #   see {MenuEntryAddressing} for a type with none of its own.
       def initialize(type:, tk_command:, leaf: true, natively_scrollable: false, arranged: true,
                       scroll_default: :auto_scroll, bind_option: nil, flow: nil, arrange: nil,
-                      custom_children: nil, custom_create: nil, validator: nil, dsl: nil, post_create: nil)
+                      custom_children: nil, custom_create: nil, validator: nil, dsl: nil, post_create: nil,
+                      addressing: WidgetAddressing)
         @type = type.to_sym
         @tk_command = tk_command
         @leaf = leaf
@@ -116,6 +127,7 @@ module Teek
         @custom_create = custom_create
         @validator = validator
         @dsl = dsl || default_dsl
+        @addressing = addressing
         @post_create = post_create
       end
 
