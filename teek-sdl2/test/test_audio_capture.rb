@@ -9,6 +9,8 @@ require "fileutils"
 ENV['SDL_AUDIODRIVER'] ||= 'dummy'
 
 class TestAudioCapture < Minitest::Test
+  include TeekSDL2TestHelper
+
   def setup
     Teek::SDL2.open_audio
     @tmpdir = Dir.mktmpdir("teek_audio_test")

@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
+### Fixed
+
+- **Potential use-after-free in `Sound#destroy`** — SDL_mixer forbids freeing a `Mix_Chunk` that's still playing on any channel; `Sound#destroy` now halts every channel currently playing its own chunk first.
+
+### Added
+
+- `Teek::SDL2.audio_open?` — whether the mixer is currently open.
+- `Teek::SDL2.playing?`/`.channel_paused?` now raise `ArgumentError` for a `-1` channel instead of silently returning SDL_mixer's own aggregate "count of all playing/paused channels" (`.halt`/`.pause_channel`/`.resume_channel` still accept `-1` to mean "every channel").
+
 ## [0.2.1] - 2026-02-19
 
 ### Fixed

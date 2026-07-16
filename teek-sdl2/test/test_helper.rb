@@ -19,6 +19,23 @@ end
 require "minitest/autorun"
 
 module TeekSDL2TestHelper
+  # Halt every mixer channel before any per-test teardown gets a chance
+  # to free a Mix_Chunk or close the mixer. SDL_mixer forbids freeing a
+  # chunk that's still playing (the mixing thread runs even under the
+  # dummy audio driver, so this is a real use-after-free, not a
+  # theoretical one) - a single test that fails before reaching its own
+  # cleanup leaves a channel looping forever, and the next test's
+  # teardown frees a chunk out from under it, corrupting SDL_mixer's own
+  # internal channel state for every test that runs afterward. Chained
+  # via +super+ (Minitest's own +before_teardown+/+teardown+/
+  # +after_teardown+ lifecycle, distinct from plain method overriding),
+  # and guarded by {Teek::SDL2.audio_open?} so this is a clean no-op for
+  # any test that never opened audio in the first place.
+  def before_teardown
+    super
+    Teek::SDL2.halt(-1) if Teek::SDL2.audio_open?
+  end
+
   # Poll +timeout+ seconds for the block to return truthy, instead of a
   # single check right after an operation that takes effect asynchronously
   # (e.g. pause/resume state on SDL_mixer's own audio thread) - a fixed
