@@ -5,13 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-07-16
 
 ### Added
 
-- `Teek::Window` — one object per toplevel window (via `App#window(path = '.')`), grouping the `wm` subcommands with window-lifecycle helpers: `on_close { }`, `grab_set`/`grab_release`, and `modal(global:) { }` (grab-and-focus for dialogs, auto-released if the window is destroyed or the setup block raises; `global:` defaults to false). The existing flat `App` window/`wm` methods now delegate to it and stay for compatibility — `app.window(path)` is preferred for new code.
+- `Teek::Window` — one object per toplevel window (via `App#window(path = '.')`), grouping the `wm` subcommands with window-lifecycle helpers: `on_close { }`, `grab_set`/`grab_release`, and `modal(global:) { }` (grab-and-focus for dialogs, auto-released if the window is destroyed or the setup block raises; `global:` defaults to false). The existing flat `App` window/`wm` methods now delegate to it and stay for compatibility — `app.window(path)` is preferred for new code. `Widget` itself gained the same `#window`/`#grab_set`/`#grab_release`/`#modal` as direct delegates, so a widget handle for a toplevel doesn't need `app.window(widget.path)` spelled out.
 - `App#choose_dir` — the native "choose directory" dialog (`tk_chooseDirectory`), rounding out the standard dialog wrappers alongside `#choose_open_file`/`#choose_save_file`/`#message_box`/`#choose_color`. Returns `nil` on cancel, same as the other file/color pickers.
 - `App#clipboard` (`Teek::Clipboard`) — `#set`/`#get`/`#clear` over Tk's `clipboard` command; `#get` returns `nil` on an empty clipboard instead of raising. Text widgets' own copy/cut/paste already work via Tk's built-in bindings, so nothing there needed wiring.
+- `Teek::CallbackRegistry#counts_by_tag` — a live snapshot of tracked callback ids grouped by container tag (`:bind`, `:menu`, `:canvas_bind`, `:tag_bind`, `:widget_option`, `:wm_protocol`, ...), for diagnosing whether an app is leaking callbacks and where. A tag with nothing currently tracked is absent from the result rather than present at zero.
+
+### Fixed
+
+- Canvas item bindings that use `%`-substitution codes (`CanvasItem#on_drag`, `#on_right_click` with a menu) no longer leak their callback on rebuild/delete — the leak-reconcile regex only matched a bare `ruby_callback <id>` with nothing after it, so any binding carrying substitution codes silently stopped matching and its id was never released.
 
 ## [0.2.0] - 2026-07-12
 
