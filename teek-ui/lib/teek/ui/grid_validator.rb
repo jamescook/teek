@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require_relative 'widget_validators'
-require_relative 'widget_types'
 
 module Teek
   module UI
