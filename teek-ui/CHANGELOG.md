@@ -8,8 +8,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## Unreleased
 
-Nothing has shipped yet - this section is a snapshot of the current API, not a running log.
-
 - Retained-mode build: `Teek::UI.app { |ui| ... }.run`, Tk-free until realize.
 - Widgets: `ui.<widget>` for every leaf/container type, addressable via `ui[:name]`.
 - Components: `ui.component { }` opens a scope so local names never collide with another component's (or the top level's) same name - splices its content into whatever's already open, not an extra container; plain threaded-builder methods (`def foo(ui) = ...`) need none of this and keep working unchanged. Returns a facade (`.handle(:name)`/`[]`) so a parent can address the component's own named widgets from outside it without reaching through the global `ui[]`. Mountable more than once, including several times directly under one shared parent, with no Tk path collision even when every instance reuses the same local names.
