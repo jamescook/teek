@@ -211,6 +211,26 @@ sound_get_volume(VALUE self)
     return INT2NUM(Mix_VolumeChunk(s->chunk, -1));
 }
 
+/* SDL_mixer forbids freeing a Mix_Chunk that's still playing on any
+ * channel - the mixing thread (running even on the dummy driver) may
+ * be actively reading from it, so freeing it out from under a live
+ * channel is a use-after-free that corrupts SDL_mixer's own internal
+ * channel state for every caller afterward, not just this one. Halt
+ * every channel currently playing THIS chunk first - Mix_GetChunk
+ * reports which chunk (if any) a channel is currently playing, so this
+ * only touches channels that are actually ours, leaving any other
+ * chunk's channels alone. */
+static void
+halt_channels_playing_chunk(Mix_Chunk *chunk)
+{
+    int n = Mix_AllocateChannels(-1); /* query the current count, don't change it */
+    for (int ch = 0; ch < n; ch++) {
+        if (Mix_Playing(ch) && Mix_GetChunk(ch) == chunk) {
+            Mix_HaltChannel(ch);
+        }
+    }
+}
+
 /*
  * Teek::SDL2::Sound#destroy
  */
@@ -220,6 +240,7 @@ sound_destroy(VALUE self)
     struct sdl2_sound *s;
     TypedData_Get_Struct(self, struct sdl2_sound, &sound_type, s);
     if (!s->destroyed && s->chunk) {
+        halt_channels_playing_chunk(s->chunk);
         Mix_FreeChunk(s->chunk);
         s->chunk = NULL;
         s->destroyed = 1;
@@ -502,6 +523,17 @@ mixer_close_audio(VALUE mod)
     return Qnil;
 }
 
+/*
+ * Teek::SDL2.audio_open? -> true/false
+ *
+ * Whether the mixer is currently open.
+ */
+static VALUE
+mixer_audio_open_p(VALUE mod)
+{
+    return mixer_initialized ? Qtrue : Qfalse;
+}
+
 /* ---------------------------------------------------------
  * Audio capture (write mixed output to WAV file)
  *
@@ -637,7 +669,19 @@ mixer_stop_capture(VALUE mod)
 static VALUE
 mixer_channel_playing_p(VALUE mod, VALUE channel)
 {
-    return Mix_Playing(NUM2INT(channel)) ? Qtrue : Qfalse;
+    int ch = NUM2INT(channel);
+    /* Mix_Playing(-1) doesn't mean "is anything playing" - it returns
+     * the COUNT of all playing channels, which is truthy (nonzero) as
+     * long as anything anywhere is playing, silently answering a
+     * different question than the one asked. -1 IS meaningful for
+     * actions like .halt/.pause_channel/.resume_channel ("affect every
+     * channel") - only the query wrappers reject it. */
+    if (ch < 0) {
+        rb_raise(rb_eArgError,
+                 "playing?(-1) would return SDL_mixer's own count-of-all-playing-channels "
+                 "instead of a per-channel answer - pass a real channel number");
+    }
+    return Mix_Playing(ch) ? Qtrue : Qfalse;
 }
 
 /*
@@ -648,7 +692,15 @@ mixer_channel_playing_p(VALUE mod, VALUE channel)
 static VALUE
 mixer_channel_paused_p(VALUE mod, VALUE channel)
 {
-    return Mix_Paused(NUM2INT(channel)) ? Qtrue : Qfalse;
+    int ch = NUM2INT(channel);
+    /* Same aggregation hazard as playing? above - Mix_Paused(-1) is a
+     * count, not a per-channel answer. */
+    if (ch < 0) {
+        rb_raise(rb_eArgError,
+                 "channel_paused?(-1) would return SDL_mixer's own count-of-all-paused-channels "
+                 "instead of a per-channel answer - pass a real channel number");
+    }
+    return Mix_Paused(ch) ? Qtrue : Qfalse;
 }
 
 /*
@@ -773,6 +825,7 @@ Init_sdl2mixer(VALUE mTeekSDL2)
     /* Module-level audio functions */
     rb_define_module_function(mTeekSDL2, "open_audio", mixer_open_audio, 0);
     rb_define_module_function(mTeekSDL2, "close_audio", mixer_close_audio, 0);
+    rb_define_module_function(mTeekSDL2, "audio_open?", mixer_audio_open_p, 0);
     rb_define_module_function(mTeekSDL2, "halt", mixer_halt_channel, 1);
     rb_define_module_function(mTeekSDL2, "playing?", mixer_channel_playing_p, 1);
     rb_define_module_function(mTeekSDL2, "channel_paused?", mixer_channel_paused_p, 1);

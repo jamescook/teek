@@ -70,6 +70,23 @@ module Teek
       end
     end
 
+    # Diagnostic aggregate, not itself load-bearing for cleanup - a live
+    # snapshot of how many tracked callback ids currently exist, grouped
+    # by the tag every {#reconcile} container is already keyed on
+    # (+:bind+, +:menu+, +:canvas_bind+, +:tag_bind+, +:widget_option+,
+    # +:wm_protocol+, ...). Counts individual ids, not containers - a
+    # single container can hold several (e.g. one widget bound to
+    # several events). A tag with nothing currently tracked under it is
+    # simply absent from the result, not present with a zero count.
+    # @return [Hash{Object => Integer}]
+    def counts_by_tag
+      counts = Hash.new(0)
+      @entries.each do |(tag, _path), ids|
+        counts[tag] += ids.size unless ids.empty?
+      end
+      counts
+    end
+
     private
 
     # Convention, not a type check: every container is [feature_tag, path].

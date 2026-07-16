@@ -14,6 +14,9 @@ require_relative 'teek/photo'
 require_relative 'teek/dialogs'
 require_relative 'teek/winfo'
 require_relative 'teek/wm'
+require_relative 'teek/window'
+require_relative 'teek/clipboard'
+require_relative 'teek/repeating_timer'
 
 # Ruby interface to Tcl/Tk. Provides a thin wrapper around a Tcl interpreter
 # with Ruby callbacks, event bindings, and background work support.
@@ -90,7 +93,7 @@ module Teek
   ].freeze
 
   class App
-    attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo, :wm
+    attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo, :wm, :clipboard
     attr_writer :_pending_exception # @api private
 
     def initialize(title: nil, track_widgets: true, debug: false, &block)
@@ -98,6 +101,7 @@ module Teek
       @interp.tcl_eval('package require Tk')
       @winfo = Teek::Winfo.new(self)
       @wm = Teek::Wm.new(self)
+      @clipboard = Teek::Clipboard.new(self)
       hide
       @widgets = {}
       @widget_counters = Hash.new(0)
@@ -680,19 +684,19 @@ module Teek
     # Show a window. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
-    # @see Wm#deiconify
+    # @see Window#deiconify
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M38 wm deiconify
     def show(window = '.')
-      @wm.deiconify(window: window)
+      self.window(window).deiconify
     end
 
     # Hide a window without destroying it. Defaults to the root window (".").
     # @param window [String] Tk window path
     # @return [void]
-    # @see Wm#withdraw
+    # @see Window#withdraw
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M65 wm withdraw
     def hide(window = '.')
-      @wm.withdraw(window: window)
+      self.window(window).withdraw
     end
 
     # Enable the Tk debug console. The console starts hidden and can be
@@ -737,38 +741,38 @@ module Teek
     # @param title [String] new title
     # @param window [String] Tk window path
     # @return [String] the title
-    # @see Wm#set_title
+    # @see Window#set_title
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def set_window_title(title, window: '.')
-      @wm.set_title(title, window: window)
+      self.window(window).set_title(title)
     end
 
     # Get a window's current title.
     # @param window [String] Tk window path
     # @return [String] current title
-    # @see Wm#title
+    # @see Window#title
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M63 wm title
     def window_title(window: '.')
-      @wm.title(window: window)
+      self.window(window).title
     end
 
     # Set a window's geometry (e.g. "400x300", "400x300+100+50").
     # @param geometry [String] geometry string
     # @param window [String] Tk window path
     # @return [String] the geometry
-    # @see Wm#set_geometry
+    # @see Window#set_geometry
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def set_window_geometry(geometry, window: '.')
-      @wm.set_geometry(geometry, window: window)
+      self.window(window).set_geometry(geometry)
     end
 
     # Get a window's current geometry.
     # @param window [String] Tk window path
     # @return [String] geometry string (e.g. "400x300+0+0")
-    # @see Wm#geometry
+    # @see Window#geometry
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M42 wm geometry
     def window_geometry(window: '.')
-      @wm.geometry(window: window)
+      self.window(window).geometry
     end
 
     # Set whether a window is resizable.
@@ -776,19 +780,19 @@ module Teek
     # @param height [Boolean] allow vertical resize
     # @param window [String] Tk window path
     # @return [void]
-    # @see Wm#set_resizable
+    # @see Window#set_resizable
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def set_window_resizable(width, height, window: '.')
-      @wm.set_resizable(width, height, window: window)
+      self.window(window).set_resizable(width, height)
     end
 
     # Get whether a window is resizable.
     # @param window [String] Tk window path
     # @return [Array(Boolean, Boolean)] [width_resizable, height_resizable]
-    # @see Wm#resizable
+    # @see Window#resizable
     # @see https://www.tcl-lang.org/man/tcl8.6/TkCmd/wm.htm#M59 wm resizable
     def window_resizable(window: '.')
-      @wm.resizable(window: window)
+      self.window(window).resizable
     end
 
     # Bind a Tk event on a widget, with optional substitutions forwarded
@@ -857,6 +861,20 @@ module Teek
       @interp.tcl_eval("bind #{widget} #{event_str} {}")
     end
 
+    # A single toplevel window, addressed by path - groups `wm` subcommands
+    # and composite window-lifecycle behaviors ({#on_close}, {#grab_set}/
+    # {#grab_release}, {#modal}) into one object instead of threading
+    # +window:+ through a pile of unrelated flat methods. This app's own
+    # +window_title+/+set_window_title+/etc., {#wm}, {#on_close},
+    # {#grab_set}, {#grab_release}, and {#modal} all delegate here
+    # internally - use whichever reads better to you, they're the same
+    # underlying calls.
+    # @param path [String, Widget] (default: the root window)
+    # @return [Window]
+    def window(path = '.')
+      Window.new(self, path)
+    end
+
     # Register a handler for the window manager's close button
     # (WM_DELETE_WINDOW - the titlebar close box, Cmd-W, Alt-F4, etc.,
     # depending on platform).
@@ -875,12 +893,46 @@ module Teek
     # @param window [String] Tk window path (default: the root window)
     # @yield called when the window's close button is pressed
     # @return [void]
-    # @see #bind
+    # @note Prefer +app.window(window).on_close { }+ for new code - this
+    #   flat method is kept for compatibility and just delegates there.
+    # @see Window#on_close
     # @see https://www.tcl-lang.org/man/tcl9.0/TkCmd/wm.htm#M46 wm protocol
     def on_close(window: '.', &block)
-      cb = register_callback(block, relay_break_continue: false)
-      @callback_registry.reconcile([:wm_protocol, window]) { |before| before.merge('WM_DELETE_WINDOW' => cb) }
-      @interp.tcl_eval("wm protocol #{window} WM_DELETE_WINDOW {ruby_callback #{cb}}")
+      self.window(window).on_close(&block)
+    end
+
+    # Set the input grab on window. See {Window#grab_set}.
+    # @param window [String, Widget] (default: the root window)
+    # @param global [Boolean]
+    # @return [void]
+    # @note Prefer +app.window(window).grab_set+ for new code - this flat
+    #   method is kept for compatibility and just delegates there.
+    # @see #grab_release
+    # @see #modal
+    def grab_set(window: '.', global: false)
+      self.window(window).grab_set(global: global)
+    end
+
+    # Release a grab previously set with {#grab_set}. See {Window#grab_release}.
+    # @param window [String, Widget] (default: the root window)
+    # @return [void]
+    # @note Prefer +app.window(window).grab_release+ for new code - this
+    #   flat method is kept for compatibility and just delegates there.
+    def grab_release(window: '.')
+      self.window(window).grab_release
+    end
+
+    # Make window modal. See {Window#modal}.
+    # @param window [String, Widget] (default: the root window)
+    # @param global [Boolean] see {#grab_set}
+    # @note Prefer +app.window(window).modal { }+ for new code - this flat
+    #   method is kept for compatibility and just delegates there.
+    # @yield optional - runs with the grab and focus already set
+    # @return [void]
+    # @see #grab_set
+    # @see #grab_release
+    def modal(window: '.', global: false, &block)
+      self.window(window).modal(global: global, &block)
     end
 
     # Register a widget as a file drop target.
@@ -1068,117 +1120,6 @@ module Teek
       else
         value.to_s
       end
-    end
-  end
-
-  # A cancellable repeating timer that fires on the main thread.
-  #
-  # Created via {App#every}. Reschedules itself after each tick using
-  # Tcl's +after+ command. The block runs in the event loop, so it
-  # must complete quickly to avoid blocking the UI.
-  #
-  # Tracks timing drift: if a tick fires significantly late (more than
-  # 2x the interval), a warning is printed to stderr. This helps catch
-  # blocks that are too slow for the requested interval.
-  #
-  # @see App#every
-  class RepeatingTimer
-    # @return [Integer] interval in milliseconds
-    attr_reader :interval
-
-    # @return [Exception, nil] the last error if the timer stopped due to an
-    #   unhandled exception, nil otherwise
-    attr_reader :last_error
-
-    # @return [Integer] number of ticks that fired late (> 2x interval)
-    attr_reader :late_ticks
-
-    # @api private
-    def initialize(app, ms, on_error: nil, &block)
-      raise ArgumentError, "interval must be positive, got #{ms}" if ms <= 0
-
-      @app = app
-      @interval = ms
-      @block = block
-      @on_error = on_error
-      @cancelled = false
-      @after_id = nil
-      @last_error = nil
-      @late_ticks = 0
-      @next_expected = nil
-      schedule
-    end
-
-    # Stop the timer. Safe to call multiple times.
-    # @return [void]
-    def cancel
-      return if @cancelled
-      @cancelled = true
-      @app.after_cancel(@after_id) if @after_id
-      @after_id = nil
-    end
-
-    # @return [Boolean] true if the timer has been cancelled
-    def cancelled?
-      @cancelled
-    end
-
-    # Change the interval. Takes effect on the next tick.
-    # @param ms [Integer] new interval in milliseconds
-    def interval=(ms)
-      raise ArgumentError, "interval must be positive, got #{ms}" if ms <= 0
-      @interval = ms
-    end
-
-    private
-
-    def schedule
-      return if @cancelled
-      @next_expected = now_ms + @interval
-      @after_id = @app.after(@interval) { tick }
-    end
-
-    def tick
-      return if @cancelled
-      check_drift
-      @block.call
-      schedule
-    rescue => e
-      @last_error = e
-      case @on_error
-      when :raise
-        @cancelled = true
-        # Store on App so it raises from the next app.update call.
-        # Don't re-raise here — that would go through rb_protect → bgerror.
-        @app._pending_exception = e
-      when Proc
-        begin
-          @on_error.call(e)
-        rescue => handler_err
-          @last_error = handler_err
-          @cancelled = true
-          @app._pending_exception = handler_err
-          return
-        end
-        schedule
-      when nil
-        @cancelled = true
-      end
-    end
-
-    def check_drift
-      return unless @next_expected
-      actual = now_ms
-      drift = actual - @next_expected
-      if drift > @interval
-        @late_ticks += 1
-        warn "Teek::RepeatingTimer: tick #{@late_ticks} fired #{drift.round}ms late " \
-             "(interval=#{@interval}ms)"
-      end
-    end
-
-    def now_ms
-      Process.clock_gettime(Process::CLOCK_MONOTONIC, :millisecond)
     end
   end
 end

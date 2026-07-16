@@ -89,6 +89,22 @@ class TestCanvasBindings < Minitest::Test
     end
   end
 
+  def test_item_delete_releases_a_binding_with_percent_substitutions
+    assert_tk_app("deleting an item bound with %-substitution codes should still release its callback") do
+      app.command(:canvas, '.cvs4b')
+      item = app.command('.cvs4b', :create, :rectangle, 0, 0, 50, 50)
+      baseline = app.interp.callback_ids.length
+
+      app.command('.cvs4b', :bind, item, '<B1-Motion>', proc { |*| }, '%x', '%y')
+      assert_equal baseline + 1, app.interp.callback_ids.length
+
+      app.command('.cvs4b', :delete, item)
+
+      assert_equal baseline, app.interp.callback_ids.length,
+        "deleting the bound item should release its tracked callback even with %-substitution args"
+    end
+  end
+
   def test_tag_binding_survives_item_deletion
     assert_tk_app("a tag binding via raw app.command should survive deleting the tagged item") do
       app.command(:canvas, '.cvs5')

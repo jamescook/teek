@@ -45,6 +45,12 @@ module Teek
     #   Shut down the audio mixer and free resources.
     #   @return [nil]
 
+    # @!method self.audio_open?
+    #   Whether the mixer is currently open - {.open_audio} (or the
+    #   {Sound}/{Music} constructors, which call it implicitly) have
+    #   initialized it, and {.close_audio} hasn't shut it down since.
+    #   @return [Boolean]
+
     # @!method self.halt(channel)
     #   Immediately stop playback on a channel.
     #   @param channel [Integer] channel number (returned by {Sound#play})

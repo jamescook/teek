@@ -1,6 +1,16 @@
 # Teek
 
-A Ruby interface to Tcl/Tk.
+Ruby apps for the desktop, built on Tcl/Tk.
+
+**Building an app?** Start with [teek-ui](teek-ui/README.md) — a DSL for declaring widgets, layout, and events instead of hand-writing Tk mechanics:
+
+```
+gem install teek-ui
+```
+
+That pulls in `teek` (below) transitively. Think Rails and Rack: you write against teek-ui, and teek is the engine underneath it.
+
+This repo/gem is **teek** itself — the low-level Ruby↔Tcl/Tk binding teek-ui compiles down to. It's the right layer to reach for directly if you're embedding Tk in an existing app, building your own abstraction on top, or want direct control over widget mechanics — but most app authors want teek-ui instead.
 
 [API Documentation](https://jamescook.github.io/teek/)
 
@@ -293,6 +303,22 @@ app.mainloop
 Dropped files arrive as a Tcl list in the `:data` substitution. Use `split_list` to get a Ruby array of paths. Works on macOS (Cocoa), Windows (OLE IDropTarget), and Linux (X11 XDND).
 
 See [`sample/drop_demo.rb`](sample/drop_demo.rb) for a complete example.
+
+## Multiple Interpreters
+
+Teek can create more than one Tcl/Tk interpreter in a process — each `Teek::App.new` is a fully independent interpreter with its own widget tree, callbacks, and `.` main window — and the low-level `Interp#create_slave(name, safe)` primitive wraps Tcl's master/slave (child) interpreters. **In practice you almost never want either.** Two hard constraints make multi-interpreter setups more trouble than they solve:
+
+- **The event loop is singular.** Tcl's notifier and event queue are per *thread*, not per interpreter. One `mainloop` drives every interpreter on that thread and exits only when the last window anywhere closes; multiple `mainloop` calls do not compose. Multi-interpreter buys you no concurrency — the GUI still runs on one thread.
+- **GUI is main-thread-only on macOS.** Tk on Aqua sits on Cocoa, which requires the main thread. You can run several interpreters *on the main thread*, but you cannot own Tk windows or run a Tk event loop on a background thread on macOS. (X11 is more permissive, but code that leans on that won't port.)
+
+So teek's stance is a hard lean **against** multiple interpreters. Reach for what you actually need instead:
+
+- **More windows** → use `toplevel`, not more interpreters. One interpreter manages any number of top-level windows.
+- **Concurrency / a responsive UI during heavy work** → use Background Work (Ractors) plus `after`/`after_idle`, which marshal results back to the main thread. See [Background Work](#background-work).
+- **Isolating state or widget names** → use Tcl namespaces and a widget-path naming convention within a single interpreter.
+- **Running untrusted Tcl** → this is the one legitimate reason for a separate (safe) interpreter. The `Interp#create_slave` primitive exists, but a safe slave has **no Tk** by default and isn't wired into the `App`/widget layer — treat GUI-in-a-sandbox as advanced, unsupported territory for now.
+
+If you do run multiple `Teek::App`s, keep them all on the main thread and let a single one own the `mainloop`.
 
 ## Known Issues
 

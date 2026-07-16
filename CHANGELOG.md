@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `Teek::Window` — one object per toplevel window (via `App#window(path = '.')`), grouping the `wm` subcommands with window-lifecycle helpers: `on_close { }`, `grab_set`/`grab_release`, and `modal(global:) { }` (grab-and-focus for dialogs, auto-released if the window is destroyed or the setup block raises; `global:` defaults to false). The existing flat `App` window/`wm` methods now delegate to it and stay for compatibility — `app.window(path)` is preferred for new code.
+- `App#choose_dir` — the native "choose directory" dialog (`tk_chooseDirectory`), rounding out the standard dialog wrappers alongside `#choose_open_file`/`#choose_save_file`/`#message_box`/`#choose_color`. Returns `nil` on cancel, same as the other file/color pickers.
+- `App#clipboard` (`Teek::Clipboard`) — `#set`/`#get`/`#clear` over Tk's `clipboard` command; `#get` returns `nil` on an empty clipboard instead of raising. Text widgets' own copy/cut/paste already work via Tk's built-in bindings, so nothing there needed wiring.
+
 ## [0.2.0] - 2026-07-12
 
 ### Added

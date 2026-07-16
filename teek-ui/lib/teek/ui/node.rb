@@ -1,0 +1,141 @@
+# frozen_string_literal: true
+
+require_relative 'scope'
+
+module Teek
+  module UI
+    # A single element of the retained-mode tree - a widget, layout
+    # container, reactive var, or deferred build-time op (the categories
+    # from the architecture doc; this class itself is generic across all of
+    # them). Plain Ruby, no Tk: constructible, mutable, and traversable with
+    # no interpreter, which is what makes the tree headless-testable.
+    #
+    # +key+ is this node's stable identity - the explicit +name+ if given,
+    # else whatever the owning {Document} assigns. +realized+ stays nil for
+    # the whole build phase; a realizer fills it in later with a live
+    # handle.
+    class Node
+      attr_reader :type, :name, :opts, :children, :events, :parent, :scope, :document
+      attr_accessor :key, :layout, :realized
+      attr_writer :lazy, :pending_destroy
+
+      # @param type [Symbol] node kind, e.g. +:button+, +:column+, +:var+
+      # @param name [Symbol, nil] explicit stable name, for addressing (+ui[:name]+)
+      # @param key [String, nil] stable identity; defaults to +name+'s string form
+      # @param opts [Hash] widget/node options as plain Ruby values
+      # @param scope [Scope] the component scope this node was built in -
+      #   {Scope::TOP_LEVEL} (the default) for a build that never calls
+      #   {WidgetDSL#component}
+      # @param document [Document, nil] back-reference to the owning
+      #   {Document} - set by {Document#create}; +nil+ for a raw +Node.new+
+      #   built directly (headless tests, mostly). Lets {Handle#destroy!}
+      #   unregister a destroyed node's own name(s) without every caller
+      #   needing to thread a Document reference through by hand.
+      def initialize(type:, name: nil, key: nil, opts: {}, scope: Scope::TOP_LEVEL, document: nil)
+        @type = type
+        @name = name
+        @key = key || name&.to_s
+        @opts = opts
+        @children = []
+        @layout = nil
+        @events = []
+        @realized = nil
+        @parent = nil
+        @scope = scope
+        @document = document
+        @lazy = false
+        @pending_destroy = false
+      end
+
+      # @return [Boolean] whether this node is excluded from the ambient
+      #   +create+/+link+ tree walk ({Realizer#realize}, {Realizer#realize_subtree})
+      #   - true only for a container built with +lazy: true+ (see
+      #   {WidgetDSL#append_container}). A lazy node stays a normal,
+      #   attached member of the retained tree; it just never gets a real
+      #   Tk widget until something explicitly realizes it (see
+      #   {Handle#realize!}).
+      def lazy?
+        @lazy
+      end
+
+      # @return [Boolean] whether a deferred {Handle#destroy!} is
+      #   currently scheduled (via +after idle+) but hasn't run yet -
+      #   lets a second +destroy!+ call on the same still-pending handle
+      #   no-op instead of double-scheduling.
+      def pending_destroy?
+        @pending_destroy
+      end
+
+      # @param node [Node]
+      # @return [Node] the node just added
+      def add_child(node)
+        @children << node
+        node.parent = self
+        document&.notify(:append, self, node)
+        node
+      end
+
+      # A short, human label for this node - its type, plus the explicit
+      # name if it has one (e.g. +"column"+ or +"column(:ctrl)"+). Used by
+      # {TreeInspector} and the build stack's own +current_path+ breadcrumb
+      # ({WidgetDSL#current_path}) - deliberately bare (no leading marker,
+      # no "unnamed" filler text) since both of those read as a sequence
+      # of these, not a single prose sentence the way {Realizer}'s own
+      # private +describe+ does.
+      # @return [String]
+      def display_name
+        name ? "#{type}(:#{name})" : type.to_s
+      end
+
+      # Unlinks +node+ from this node's own children - the symmetric
+      # counterpart to {#add_child}, used by {Handle#destroy!} so a
+      # destroyed node stops being reachable from the retained tree at
+      # all (not just Tk-dead - actually gone from +children+, so a
+      # later sibling addition never iterates it, and it becomes
+      # collectable once nothing else references it).
+      # @param node [Node]
+      # @return [Node] the node just removed
+      def remove_child(node)
+        @children.delete(node)
+        node.parent = nil
+        node
+      end
+
+      # Depth-first, pre-order traversal of this node and its descendants.
+      # @yieldparam node [Node]
+      # @return [Enumerator] if no block given
+      def each(&block)
+        return enum_for(:each) unless block
+
+        block.call(self)
+        children.each { |child| child.each(&block) }
+      end
+
+      # This node's address, computed purely from the retained tree
+      # (name/key + {#parent}) - no Tk involved, correct before realize.
+      # For an ordinary widget this already equals the real Tk path
+      # ({Realizer#allocate_path} walks this identical parent/segment
+      # structure); for anything without an independent Tk path of its
+      # own (a menu entry, say), an {Addressing} strategy extends past
+      # this with its own marker rather than pretending it's a real one.
+      # The other documented exception: a reusable component mounted more
+      # than once under the same real parent - {Realizer#allocate_path}
+      # only discovers that repeat (and disambiguates the later mounts'
+      # paths) at realize, so this can't predict it ahead of time either.
+      # A node that isn't attached anywhere yet (+parent+ nil, and not
+      # itself the root) is treated as top-level - the best answer
+      # available without a tree to place it in.
+      # @return [String] e.g. +"."+, +".toolbar"+, +".toolbar.save"+
+      def logical_path
+        return '.' if type == :root
+
+        prefix = (parent.nil? || parent.type == :root) ? '.' : "#{parent.logical_path}."
+        "#{prefix}#{name || key}"
+      end
+
+      protected
+
+      attr_writer :parent
+    end
+  end
+end
