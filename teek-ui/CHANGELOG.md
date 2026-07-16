@@ -6,7 +6,7 @@ All notable changes to teek-ui will be documented in this file. See the README f
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## Unreleased
+## [0.1.0] - 2026-07-16
 
 - Retained-mode build: `Teek::UI.app { |ui| ... }.run`, Tk-free until realize.
 - Widgets: `ui.<widget>` for every leaf/container type, addressable via `ui[:name]`.
@@ -28,7 +28,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Screens: `ui.screens` - push/pop stack for swapping displayed content. A `lazy: true` panel/window isn't realized until first pushed; `.pop` returns the popped screen, and `handle.destroy!` tears it down for good (`ui.screens.pop&.destroy!`).
 - Modal stacking: `ui.modal` - push/pop stack for stacked dialogs, with enter/exit/focus-change callbacks. Same `lazy: true`/`.pop&.destroy!` support as `ui.screens` (`document:` on `ModalStack.new`).
 - Dynamic UIs: `session.add` builds and realizes a subtree into an already-running app.
-- Canvas items: `line`/`oval`/`polygon`/`rectangle`/`text`/`arc`/`bitmap` on a canvas handle, each returning a `CanvasItem` - `.move`/`.coords`/`.coords=`/`.configure`/`[]`/`[]=`/`.delete`/`.bring_to_front`/`.send_to_back`/`.scale`/`.bounds`; `tags:` at creation plus `.tagged(tag)` address a shared group the same way as a single item; `on_click`/`on_right_click`/`on_drag` scoped to that item/tag; `draggable` for drag-to-move with no coordinate math.
+- Canvas items: `line`/`ellipse`/`polygon`/`rectangle`/`text`/`arc`/`bitmap` on a canvas handle, each returning a `CanvasItem` - `.move`/`.points`/`.points=`/`.configure`/`[]`/`[]=`/`.delete`/`.bring_to_front`/`.send_to_back`/`.scale`/`.bounds`; `tags:` at creation plus `.tagged(tag)` address a shared group the same way as a single item; `on_click`/`on_right_click`/`on_drag` scoped to that item/tag; `draggable` for drag-to-move with no coordinate math.
 - Images: `ui.image(path)` - queue-then-load like `ui.var`; pass the result as `image:` on a `label`/`button`, swap it later via `configure(image: ...)`. GC-owned via teek core's `Teek::Photo` (`.photo` reaches the live one).
 - Dialogs: `ui.open_file`/`ui.save_file`/`ui.message`/`ui.choose_color`/`ui.choose_dir`, realize-only - thin over teek core's own dialog wrappers.
 - Clipboard: `ui.clipboard.set`/`.get`/`.clear`, realize-only; `text_box`/`text_area` copy/cut/paste already work via Tk's own built-in key bindings, nothing to wire up.
+- Toast: `session.toast(message, duration:)` - transient auto-dismissing notification, replaces rather than stacks.
+- Busy cursor: `session.busy(window:) { }` - thin block wrapper over teek core's `App#busy`.
+- Text content: `handle.text_content` on a `text_area` - insert/get/delete/replace/value/value=/clear; named formats (`format`/`apply_format`/`clear_format`/`delete_format`/`format_ranges`, leak-safe `on_format_click`/`on_format`); markers (`add_marker`/`remove_marker`/`markers`); `search`; `scroll_to`/`cursor`/`cursor=`/`read_only`/`read_only=`; `insert_image`. Every method has a Tk-named alias (`tag_configure`, `mark_set`, `see`, ...).
+- Debug info: `session.debug_info` - live callback counts by kind, for spotting leaks; `run(debug:)`/`run_async(debug:)` print the same summary to stderr.
+- Introspection: `session.find_by_path(path)` - reverse path-to-widget lookup; `handle.events` - live event bindings; `handle.options` - live Tk option dump.
+- Build-phase debugging: `Teek::UI::TreeInspector` - ASCII tree of the current build + opt-in assembly trace; `builder.current_path` - build-parent breadcrumb.
+- Friendly/Tk aliasing: every wrapped Tk concept is reachable by both a friendly name and its original Tk name (`ellipse`/`oval`, `points`/`coords`, `release_focus`/`grab_release`, `shortcut:`/`accelerator:`, ...) - see the README's alias table.
