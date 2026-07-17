@@ -5,7 +5,7 @@ require 'set'
 module Teek
   # Tracks Ruby callback ids scoped to something narrower than a whole
   # widget - keyed by (container, key) pairs - so they can be released
-  # again without waiting for a <Destroy> that may never come for the
+  # again without waiting for a \<Destroy> that may never come for the
   # thing the callback is actually attached to (an event binding, a menu
   # entry, ...). A single instance is shared across every feature that
   # needs this; callers namespace their own container keys (by
@@ -32,7 +32,7 @@ module Teek
   # dropped or replaced is silently never released - a leak, the exact
   # thing this class exists to prevent.
   #
-  # {#forget_all_for_path} is the only thing a <Destroy> handler needs to
+  # {#forget_all_for_path} is the only thing a \<Destroy> handler needs to
   # call: it releases every container ever registered under a path,
   # regardless of which feature created it, via a reverse index built
   # automatically as a side effect of {#reconcile}.
