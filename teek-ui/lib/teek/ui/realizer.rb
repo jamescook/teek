@@ -7,7 +7,7 @@ require_relative 'overlay_anchors'
 module Teek
   module UI
     # Walks a {Document} and realizes it into a live {Teek::App} - two
-    # passes (Resolved decision #4 in the architecture doc):
+    # passes:
     #
     # 1. +create+ - creates every widget, allocates a hierarchical/meaningful
     #    Tk path per node, fills each node's +realized+ slot.
