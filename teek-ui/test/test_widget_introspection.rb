@@ -28,8 +28,6 @@ class TestWidgetIntrospection < Minitest::Test
     session.run_async
 
     assert_nil session.find_by_path('.nope')
-
-    session.app.destroy
   end
 
   tk_test "find_by_path should resolve a real Tk path back to the same node ui[:name] would find" do
@@ -43,8 +41,6 @@ class TestWidgetIntrospection < Minitest::Test
     refute_nil found
     assert_equal :go, found.name
     assert_equal :button, found.type
-
-    session.app.destroy
   end
 
   tk_test "find_by_path should see a widget added dynamically via session.add, not just the initial build" do
@@ -59,8 +55,6 @@ class TestWidgetIntrospection < Minitest::Test
 
     refute_nil found
     assert_equal :item1, found.name
-
-    session.app.destroy
   end
 
   tk_test "options should raise before realize, matching #configure" do
@@ -78,8 +72,6 @@ class TestWidgetIntrospection < Minitest::Test
     session.run_async
 
     assert_equal 'Go', session[:go].options[:text]
-
-    session.app.destroy
   end
 
   tk_test "options should reflect the CURRENT value, not just what the widget was built with" do
@@ -91,8 +83,6 @@ class TestWidgetIntrospection < Minitest::Test
     session[:go].configure(text: 'Stop')
 
     assert_equal 'Stop', session[:go].options[:text]
-
-    session.app.destroy
   end
 
   tk_test "options should work through MenuEntryAddressing too, not just ordinary widgets" do
@@ -104,7 +94,5 @@ class TestWidgetIntrospection < Minitest::Test
     session.run_async
 
     assert_equal 'Open', session[:open].options[:label]
-
-    session.app.destroy
   end
 end

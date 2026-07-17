@@ -40,8 +40,6 @@ class TestHandleDestroyRealTk < Minitest::Test
 
     bgerror = session.app.tcl_eval('set ::bgerror_msg')
     assert_empty bgerror, "no Tcl-level error should have been raised by ttk's own bindings running against an already-destroyed widget"
-
-    session.app.destroy
   end
 
   tk_test "destroy! called outside a callback (default defer: nil) should tear down immediately, with no update needed" do
@@ -55,8 +53,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     session[:box].destroy!
 
     refute session.app.winfo.exists?(path), "destroy! outside a callback should destroy synchronously, before the call returns"
-
-    session.app.destroy
   end
 
   tk_test "destroy!(defer: false) should force an immediate synchronous destroy even from inside a callback" do
@@ -78,8 +74,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     # forced synchronous destroy should already be gone, without
     # needing an idle pass to catch up.
     refute session.app.winfo.exists?(path)
-
-    session.app.destroy
   end
 
   tk_test "destroy!(defer: true) should defer even outside a callback - the widget is still there right after the call, gone after the next idle" do
@@ -97,8 +91,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     session.app.update
 
     refute session.app.winfo.exists?(path), "the deferred destroy should have run by the next update (which processes idle callbacks)"
-
-    session.app.destroy
   end
 
   tk_test "calling destroy! a second time on the same handle before its own deferred teardown has run should not raise or double-schedule" do
@@ -122,8 +114,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     session.app.update
 
     refute session.app.winfo.exists?(path)
-
-    session.app.destroy
   end
 
   tk_test "destroying an ancestor's handle, then a descendant's own handle, should not raise even though the descendant's own Tk widget is already gone" do
@@ -145,8 +135,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     # is gone already, but Tcl's own destroy command is a documented
     # no-op on an already-gone path, so this should not raise.
     child_handle.destroy!(defer: false)
-
-    session.app.destroy
   end
 
   tk_test "a deferred destroy should release its widget's callback once the idle pass runs, same as a synchronous destroy does immediately" do
@@ -172,8 +160,6 @@ class TestHandleDestroyRealTk < Minitest::Test
 
     assert_equal with_button_baseline - 1, session.app.interp.callback_ids.length,
       "once the deferred destroy actually runs, both its own after_idle registration and :a's on_click should be released"
-
-    session.app.destroy
   end
 
   tk_test "destroy! should remove the destroyed node from its parent's own children, not just clear its Tk-realized state" do
@@ -190,8 +176,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     session[:item].destroy!(defer: false)
 
     refute_includes host_node.children, item_node
-
-    session.app.destroy
   end
 
   tk_test "destroying a named widget should let a later widget reuse the same name in the same scope, and ui[:name] should be nil in between" do
@@ -214,8 +198,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     refute_nil session[:item], "a new :item should be addable again under the same name once the old one is gone"
     assert_equal 'Second', session.app.command(session[:item].path, :cget, '-text')
     refute_equal first_path, session[:item].path
-
-    session.app.destroy
   end
 
   tk_test "repeatedly adding and destroying a plain (non-window) named widget under one shared parent should never crash arrange_children" do
@@ -236,8 +218,6 @@ class TestHandleDestroyRealTk < Minitest::Test
 
     assert_nil session[:item]
     assert_equal 0, session.document.find(:host).children.length
-
-    session.app.destroy
   end
 
   tk_test "arrange_children should correctly position a new sibling relative to survivors, with no trace of a destroyed sibling" do
@@ -262,8 +242,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     second_top = session.app.winfo.rooty(session[:second].path)
     assert_equal 10, second_top - first_bottom,
       "the new sibling should be positioned relative to :first, as if :doomed never existed"
-
-    session.app.destroy
   end
 
   tk_test "Screens#pop already removes its own Entry before returning the handle, so destroy! afterward can't leave anything stale in Screens' own bookkeeping" do
@@ -281,8 +259,6 @@ class TestHandleDestroyRealTk < Minitest::Test
     assert_nil session.screens.current
     assert_nil session.screens.current_screen
     assert_equal 0, session.screens.size
-
-    session.app.destroy
   end
 
   tk_test "destroying (and unlinking) an unrelated widget elsewhere in the tree should have zero effect on an already-built menu's own entries/ordering" do
@@ -312,7 +288,5 @@ class TestHandleDestroyRealTk < Minitest::Test
     session.app.tcl_eval("#{file_path} invoke 1")
 
     assert_equal [:one, :two], clicked, "menu entries should still fire in their original order, unaffected by an unrelated destroy elsewhere"
-
-    session.app.destroy
   end
 end

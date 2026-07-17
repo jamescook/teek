@@ -21,8 +21,6 @@ class TestRealizer < Minitest::Test
     assert_equal '.controls.go', go_handle.path
     assert session.app.winfo.exists?(go_handle.path)
     assert session.app.winfo.ismapped?(go_handle.path), "realized widgets should be packed/visible, not just created"
-
-    session.app.destroy
   end
 
   tk_test "an unnamed node should still realize to a real, addressable Tk path" do
@@ -39,8 +37,6 @@ class TestRealizer < Minitest::Test
     # per-Realizer-instance counter, so it stays collision-free across
     # separate realize_subtree calls too (see Session#add).
     assert_match(/\A\.\S+\z/, handle.path)
-
-    session.app.destroy
   end
 
   tk_test "handle.configure after realize should mutate the real widget" do
@@ -53,8 +49,6 @@ class TestRealizer < Minitest::Test
     session[:greeting].configure(text: 'Bye')
 
     assert_equal 'Bye', session.app.command(session[:greeting].path, :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "an event binding targeting a widget declared later should resolve once the whole tree is realized" do
@@ -79,8 +73,6 @@ class TestRealizer < Minitest::Test
     session.app.update
 
     assert fired, "the forward-referenced target's binding did not fire"
-
-    session.app.destroy
   end
 
   tk_test "a binding target inside a component should resolve to THAT component's like-named node, never a sibling component's" do
@@ -127,8 +119,6 @@ class TestRealizer < Minitest::Test
 
     assert a_fired, "component A's own trigger should have fired component A's own binding"
     refute b_fired, "component A's trigger firing should never fire component B's binding"
-
-    session.app.destroy
   end
 
   tk_test "a forward reference to a not-yet-built sibling should still resolve when both are inside the same component" do
@@ -153,8 +143,6 @@ class TestRealizer < Minitest::Test
     session.app.update
 
     assert fired, "the intra-component forward-referenced target's binding did not fire"
-
-    session.app.destroy
   end
 
   tk_test "an error partway through realize should leave the root window unmapped and the session not realized" do
@@ -212,8 +200,6 @@ class TestRealizer < Minitest::Test
       children.each { |child| check.call(child) }
     end
     check.call('.')
-
-    session.app.destroy
   end
 
   # A genuinely mixed master turns out to be impossible to even construct
@@ -240,7 +226,5 @@ class TestRealizer < Minitest::Test
 
     error = assert_raises(Teek::TclError) { session.app.command(:grid, '.guarded.b', row: 0, column: 0) }
     assert_match(/geometry manager/i, error.message)
-
-    session.app.destroy
   end
 end

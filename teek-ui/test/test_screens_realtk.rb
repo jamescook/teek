@@ -25,8 +25,6 @@ class TestScreensRealTk < Minitest::Test
     session.app.update
 
     assert session.app.winfo.ismapped?(session[:picker].path)
-
-    session.app.destroy
   end
 
   tk_test "pushing a second screen should pack-forget the previous one" do
@@ -46,8 +44,6 @@ class TestScreensRealTk < Minitest::Test
 
     refute session.app.winfo.ismapped?(session[:picker].path)
     assert session.app.winfo.ismapped?(session[:emulator].path)
-
-    session.app.destroy
   end
 
   tk_test "pop should hide the topmost screen and re-show whatever's underneath" do
@@ -70,8 +66,6 @@ class TestScreensRealTk < Minitest::Test
     assert session.app.winfo.ismapped?(session[:picker].path)
     refute session.app.winfo.ismapped?(session[:emulator].path)
     assert_equal :picker, session.screens.current
-
-    session.app.destroy
   end
 
   tk_test "replace_current should hide the old panel, show the new one, keep the same name/depth" do
@@ -94,8 +88,6 @@ class TestScreensRealTk < Minitest::Test
     assert session.app.winfo.ismapped?(session[:other_picker].path)
     assert_equal :picker, session.screens.current
     assert_equal 1, session.screens.size
-
-    session.app.destroy
   end
 
   tk_test "pushing a window screen should show it (deiconified/mapped)" do
@@ -111,8 +103,6 @@ class TestScreensRealTk < Minitest::Test
     session.app.update
 
     assert session.app.winfo.ismapped?(session[:settings].path)
-
-    session.app.destroy
   end
 
   tk_test "popping a window screen should withdraw it" do
@@ -129,8 +119,6 @@ class TestScreensRealTk < Minitest::Test
     session.app.update
 
     refute session.app.winfo.ismapped?(session[:settings].path)
-
-    session.app.destroy
   end
 
   tk_test "a modal: true window screen should grab on push, release on pop" do
@@ -150,8 +138,6 @@ class TestScreensRealTk < Minitest::Test
     session.app.update
 
     assert_equal '', session.app.tcl_eval("grab current #{path}")
-
-    session.app.destroy
   end
 
   tk_test "pushing a lazy: true panel screen should realize it on demand, then pack it" do
@@ -171,8 +157,6 @@ class TestScreensRealTk < Minitest::Test
 
     assert session.app.winfo.ismapped?(handle.path)
     assert session.app.winfo.exists?("#{handle.path}.load")
-
-    session.app.destroy
   end
 
   tk_test "popping a lazy screen (which only conceals, doesn't destroy) and pushing it again should just re-reveal the same live widget, not rebuild it" do
@@ -198,8 +182,6 @@ class TestScreensRealTk < Minitest::Test
 
     assert_equal first_path, handle.path, "re-pushing the same still-realized handle should reveal the SAME widget, not build a new one at a disambiguated path"
     assert session.app.winfo.ismapped?(first_path)
-
-    session.app.destroy
   end
 
   tk_test "popping a lazy screen and destroying it should tear it down; a freshly-mounted replacement should push and realize fine" do
@@ -243,8 +225,6 @@ class TestScreensRealTk < Minitest::Test
 
     assert session.app.winfo.ismapped?(second_handle.path)
     refute_equal first_path, second_handle.path
-
-    session.app.destroy
   end
 
   tk_test "a lazy: true window pushed through ModalStack should realize fresh each open, cleaning up on close" do
@@ -286,7 +266,5 @@ class TestScreensRealTk < Minitest::Test
     end
 
     assert_equal paths.uniq.length, paths.length, "each open should have gotten its own distinct Tk path"
-
-    session.app.destroy
   end
 end

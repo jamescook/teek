@@ -30,7 +30,6 @@ class TestModalHandle < Minitest::Test
     assert_equal path, session.app.tcl_eval('focus')
 
     session[:settings].grab_release
-    session.app.destroy
   end
 
   tk_test "grab_release should clear the grab set by modal" do
@@ -46,8 +45,6 @@ class TestModalHandle < Minitest::Test
 
     path = session[:settings].path
     assert_equal '', session.app.tcl_eval("grab current #{path}")
-
-    session.app.destroy
   end
 
   tk_test "modal should release the grab immediately if its setup block raises, not leave it stuck" do
@@ -63,8 +60,6 @@ class TestModalHandle < Minitest::Test
     assert_equal 'boom', error.message
 
     assert_equal '', session.app.tcl_eval("grab current #{path}")
-
-    session.app.destroy
   end
 
   tk_test "modal's grab should still be held after a successful setup block - released explicitly, not automatically" do
@@ -83,7 +78,6 @@ class TestModalHandle < Minitest::Test
     assert_equal path, session.app.tcl_eval("grab current #{path}")
 
     session[:settings].grab_release
-    session.app.destroy
   end
 
   tk_test "modal should release the grab if its window is destroyed without an explicit grab_release" do
@@ -101,8 +95,6 @@ class TestModalHandle < Minitest::Test
     session.app.destroy(path)
 
     assert_equal '', session.app.tcl_eval('grab current')
-
-    session.app.destroy
   end
 
   tk_test "modal on a non-window handle should raise a clear error" do
@@ -114,8 +106,6 @@ class TestModalHandle < Minitest::Test
 
     error = assert_raises(ArgumentError) { session[:go].modal }
     assert_match(/window/i, error.message)
-
-    session.app.destroy
   end
 
   tk_test "grab_release on a non-window handle should raise a clear error" do
@@ -127,7 +117,5 @@ class TestModalHandle < Minitest::Test
 
     error = assert_raises(ArgumentError) { session[:go].grab_release }
     assert_match(/window/i, error.message)
-
-    session.app.destroy
   end
 end

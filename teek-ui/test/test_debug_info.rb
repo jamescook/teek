@@ -29,8 +29,6 @@ class TestDebugInfo < Minitest::Test
     session.app.update
 
     assert_equal 1, session.debug_info[:event_bindings]
-
-    session.app.destroy
   end
 
   tk_test "debug_info should count a menu item's own command callback as a menu entry" do
@@ -43,8 +41,6 @@ class TestDebugInfo < Minitest::Test
     session.app.update
 
     assert_equal 1, session.debug_info[:menu_entries]
-
-    session.app.destroy
   end
 
   tk_test "debug_info should count a canvas item's on_click as a canvas item bind" do
@@ -56,8 +52,6 @@ class TestDebugInfo < Minitest::Test
     session[:board].oval(0, 0, 10, 10).on_click { }
 
     assert_equal 1, session.debug_info[:canvas_item_binds]
-
-    session.app.destroy
   end
 
   tk_test "debug_info should count a bare -command option (e.g. from a Var bind:) as a widget-option callback" do
@@ -76,8 +70,6 @@ class TestDebugInfo < Minitest::Test
     session.app.command(session[:agree].path, :configure, command: -> { })
 
     assert_equal 1, session.debug_info[:widget_option_callbacks]
-
-    session.app.destroy
   end
 
   tk_test "creating N event bindings then destroying those widgets should return the count to baseline, not just count monotonically upward" do
@@ -101,8 +93,6 @@ class TestDebugInfo < Minitest::Test
 
     assert_equal baseline, session.debug_info[:event_bindings] || 0,
       "destroying the widgets should release their callbacks, bringing the count back to baseline"
-
-    session.app.destroy
   end
 
   tk_test "run_async(debug: true) should print the same grouped summary to stderr right after realize" do
@@ -111,7 +101,6 @@ class TestDebugInfo < Minitest::Test
     _out, err = capture_io do
       session = Teek::UI.app(title: 'Debug Info Test') { |ui| ui.button(:go, text: 'Go').on_click { } }
       session.run_async(debug: true)
-      session.app.destroy
     end
 
     assert_match(/event_bindings/, err)
@@ -124,7 +113,6 @@ class TestDebugInfo < Minitest::Test
     _out, err = capture_io do
       session = Teek::UI.app(title: 'Debug Info Test') { |ui| ui.button(:go, text: 'Go').on_click { } }
       session.run_async
-      session.app.destroy
     end
 
     assert_empty err

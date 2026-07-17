@@ -38,8 +38,6 @@ class TestScrollable < Minitest::Test
     refute_empty scrollregion, "the scrollregion should track the viewport's content size"
     height = scrollregion.split.last.to_i
     assert_operator height, :>, 200, "30 stacked buttons should produce a tall scrollregion"
-
-    session.app.destroy
   end
 
   tk_test "a scrollable should default to a vertical scrollbar only" do
@@ -54,8 +52,6 @@ class TestScrollable < Minitest::Test
     region_path = session[:region].path
     assert_equal '1', session.app.tcl_eval("winfo exists #{region_path}.vsb")
     assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.hsb")
-
-    session.app.destroy
   end
 
   tk_test "y: false should leave no scrollbar at all if x: isn't given either" do
@@ -70,8 +66,6 @@ class TestScrollable < Minitest::Test
     region_path = session[:region].path
     assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.vsb")
     assert_equal '0', session.app.tcl_eval("winfo exists #{region_path}.hsb")
-
-    session.app.destroy
   end
 
   tk_test "x: true should additionally wire a horizontal scrollbar" do
@@ -85,8 +79,6 @@ class TestScrollable < Minitest::Test
 
     region_path = session[:region].path
     assert_equal '1', session.app.tcl_eval("winfo exists #{region_path}.hsb")
-
-    session.app.destroy
   end
 
   tk_test "without x: scrolling, resizing the canvas should resize the embedded viewport to match" do
@@ -108,8 +100,6 @@ class TestScrollable < Minitest::Test
     canvas_width = session.app.tcl_eval("winfo width #{canvas_path}")
     viewport_width = session.app.tcl_eval("winfo width #{viewport_path}")
     assert_equal canvas_width, viewport_width
-
-    session.app.destroy
   end
 
   tk_test "x: true should leave the viewport free to be wider than the canvas, for horizontal scrolling" do
@@ -124,8 +114,6 @@ class TestScrollable < Minitest::Test
     canvas_path = "#{session[:region].path}.canvas"
     assert_equal '', session.app.tcl_eval("bind #{canvas_path} <Configure>"),
       "no width-sync binding should be wired when x: true"
-
-    session.app.destroy
   end
 
   tk_test "a scrollable nested in a column with grow: true should realize and map without error" do
@@ -141,8 +129,6 @@ class TestScrollable < Minitest::Test
     session.app.update
 
     assert session.app.winfo.ismapped?(session[:region].path)
-
-    session.app.destroy
   end
 
   tk_test "grid (region) and pack (viewport content) must never collide on the same master" do
@@ -163,7 +149,5 @@ class TestScrollable < Minitest::Test
       children.each { |child| check.call(child) }
     end
     check.call('.')
-
-    session.app.destroy
   end
 end

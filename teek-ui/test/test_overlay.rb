@@ -26,8 +26,6 @@ class TestOverlay < Minitest::Test
     assert_match(/-relx 1(?:\s|$)/, info)
     assert_match(/-rely 1(?:\s|$)/, info)
     assert_match(/-anchor se(?:\s|$)/, info)
-
-    session.app.destroy
   end
 
   tk_test "two overlays on the same canvas should each land at their own anchor" do
@@ -52,8 +50,6 @@ class TestOverlay < Minitest::Test
     assert_match(/-relx 1(?:\s|$)/, controls_info)
     assert_match(/-rely 0(?:\s|$)/, controls_info)
     assert_match(/-anchor ne(?:\s|$)/, controls_info)
-
-    session.app.destroy
   end
 
   tk_test "an overlay's real on-screen position should scale with the canvas, not stay fixed" do
@@ -78,8 +74,6 @@ class TestOverlay < Minitest::Test
 
     assert_operator after_x, :>, before_x, "the overlay should have followed the canvas's new bottom-right corner"
     assert_operator after_y, :>, before_y, "the overlay should have followed the canvas's new bottom-right corner"
-
-    session.app.destroy
   end
 
   tk_test "overlay declared outside ui.canvas should raise immediately, not silently do nothing" do

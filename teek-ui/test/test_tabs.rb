@@ -29,8 +29,6 @@ class TestTabs < Minitest::Test
 
     assert_equal 'General', session.app.command(notebook_path, :tab, tab_paths[0], '-text')
     assert_equal 'Advanced', session.app.command(notebook_path, :tab, tab_paths[1], '-text')
-
-    session.app.destroy
   end
 
   tk_test "a widget declared inside a tab should be a normal, addressable, configurable widget" do
@@ -46,8 +44,6 @@ class TestTabs < Minitest::Test
     session.app.update
 
     assert_equal 'Changed', session.app.command(session[:go].path, :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "a tab's own frame should be placed only by notebook add, not pack/grid" do
@@ -61,8 +57,6 @@ class TestTabs < Minitest::Test
 
     assert_equal 'notebook', session.app.tcl_eval("winfo manager #{session[:general].path}"),
       "the notebook itself should be the only geometry manager - proves no pack/grid call also ran"
-
-    session.app.destroy
   end
 
   tk_test "switching to a named tab should fire on_tab_changed with that name" do
@@ -84,8 +78,6 @@ class TestTabs < Minitest::Test
     session.app.update
 
     assert_equal [:advanced], received
-
-    session.app.destroy
   end
 
   tk_test "switching to an unnamed tab should fire on_tab_changed with its zero-based index" do
@@ -109,8 +101,6 @@ class TestTabs < Minitest::Test
     session.app.update
 
     assert_equal [1], received
-
-    session.app.destroy
   end
 
   tk_test "on_tab_changed declared before realize should still fire correctly once realized" do
@@ -140,8 +130,6 @@ class TestTabs < Minitest::Test
     session.app.update
 
     assert_equal [:advanced], received
-
-    session.app.destroy
   end
 
   tk_test "on_tab_changed should raise a clear error on a non-tabs handle" do
@@ -153,8 +141,6 @@ class TestTabs < Minitest::Test
 
     error = assert_raises(ArgumentError) { session[:go].on_tab_changed { } }
     assert_match(/tabs/i, error.message)
-
-    session.app.destroy
   end
 
   tk_test "session.add should be able to add a whole new tab to an already-realized ui.tabs" do
@@ -179,7 +165,5 @@ class TestTabs < Minitest::Test
     session.app.command(notebook_path, :select, session[:new_tab].path)
     session.app.update
     assert session.app.winfo.ismapped?(session[:new_button].path)
-
-    session.app.destroy
   end
 end

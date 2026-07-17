@@ -36,8 +36,6 @@ class TestBusy < Minitest::Test
     assert was_busy, "expected the window to be busy during the block"
     assert_equal '0', session.app.tcl_eval('tk busy status .')
     assert_equal 42, result
-
-    session.app.destroy
   end
 
   tk_test "session.busy should clear the busy cursor even if the block raises" do
@@ -49,8 +47,6 @@ class TestBusy < Minitest::Test
 
     assert_raises(RuntimeError) { session.busy { raise 'boom' } }
     assert_equal '0', session.app.tcl_eval('tk busy status .')
-
-    session.app.destroy
   end
 
   tk_test "session.busy's window: should target that window, not just the root" do
@@ -68,7 +64,5 @@ class TestBusy < Minitest::Test
     }
 
     assert was_busy, "expected the extra window to be busy during the block"
-
-    session.app.destroy
   end
 end

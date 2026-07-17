@@ -28,8 +28,6 @@ class TestCloseHandling < Minitest::Test
     session.app.tcl_eval(script)
 
     assert closed, "on_close block did not fire"
-
-    session.app.destroy
   end
 
   tk_test "on_close should not implicitly destroy the window - that's the block's own call" do
@@ -46,8 +44,6 @@ class TestCloseHandling < Minitest::Test
     session.app.tcl_eval(script)
 
     assert session.app.winfo.exists?(path), "on_close must not destroy the window itself unless the block chooses to"
-
-    session.app.destroy
   end
 
   tk_test "an on_close block that destroys the window should actually close it" do
@@ -64,8 +60,6 @@ class TestCloseHandling < Minitest::Test
     session.app.tcl_eval(script)
 
     refute session.app.winfo.exists?(path)
-
-    session.app.destroy
   end
 
   tk_test "calling on_close again should replace the handler, not accumulate a callback" do
@@ -89,8 +83,6 @@ class TestCloseHandling < Minitest::Test
     session.app.tcl_eval(script)
 
     assert fired_new, "the replaced on_close handler should be the one that fires"
-
-    session.app.destroy
   end
 
   tk_test "on_close on a non-window handle should raise a clear error" do
@@ -102,7 +94,5 @@ class TestCloseHandling < Minitest::Test
 
     error = assert_raises(ArgumentError) { session[:go].on_close { } }
     assert_match(/window/i, error.message)
-
-    session.app.destroy
   end
 end

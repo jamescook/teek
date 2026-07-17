@@ -16,8 +16,6 @@ class TestMenuRealize < Minitest::Test
     session.app.update
 
     assert_equal session[:mb].path, session.app.tcl_eval('. cget -menu')
-
-    session.app.destroy
   end
 
   tk_test "a menu_bar declared inside ui.window should attach to that window, not the root" do
@@ -33,8 +31,6 @@ class TestMenuRealize < Minitest::Test
     assert_equal session[:mb].path, session.app.tcl_eval("#{settings_path} cget -menu")
     refute_equal session[:mb].path, session.app.tcl_eval('. cget -menu'),
       "the root window should not also pick up the settings window's menu bar"
-
-    session.app.destroy
   end
 
   tk_test "a nested .menu should realize as a real menu widget, added as a cascade entry" do
@@ -55,8 +51,6 @@ class TestMenuRealize < Minitest::Test
     assert_equal 'cascade', session.app.tcl_eval("#{mb_path} type 0")
     assert_equal 'File', session.app.command(mb_path, :entrycget, 0, '-label')
     assert_equal file_path, session.app.command(mb_path, :entrycget, 0, '-menu')
-
-    session.app.destroy
   end
 
   tk_test "a menu item's block should fire like any other command entry" do
@@ -72,8 +66,6 @@ class TestMenuRealize < Minitest::Test
     session.app.tcl_eval("#{session[:file].path} invoke 0")
 
     assert fired, "the item's block did not fire"
-
-    session.app.destroy
   end
 
   tk_test "a named item should be addressable via ui[:name] and support .enable/.disable/.configure" do
@@ -103,8 +95,6 @@ class TestMenuRealize < Minitest::Test
 
     item.configure(label: 'Load Recent Save')
     assert_equal 'Load Recent Save', session.app.command(file_path, :entrycget, 1, '-label')
-
-    session.app.destroy
   end
 
   tk_test "addressing a named item should stay correct even after an earlier sibling entry is removed" do
@@ -130,8 +120,6 @@ class TestMenuRealize < Minitest::Test
     session[:quick_load].disable
 
     assert_equal 'disabled', session.app.command(file_path, :entrycget, 0, '-state')
-
-    session.app.destroy
   end
 
   tk_test "a named item's .path should be marked past the real Tk boundary, and rejected if used raw" do
@@ -149,8 +137,6 @@ class TestMenuRealize < Minitest::Test
 
     error = assert_raises(Teek::TclError) { session.app.tcl_eval("#{virtual_path} entrycget 0 -label") }
     assert_match(/invalid command name/i, error.message)
-
-    session.app.destroy
   end
 
   tk_test "ui.separator should realize as a real Tk separator entry" do
@@ -163,8 +149,6 @@ class TestMenuRealize < Minitest::Test
     session.app.update
 
     assert_equal 'separator', session.app.tcl_eval("#{session[:file].path} type 1")
-
-    session.app.destroy
   end
 
   tk_test "a menu checkbox entry bound to a var should toggle that var on invoke" do
@@ -183,8 +167,6 @@ class TestMenuRealize < Minitest::Test
     session.app.tcl_eval("#{session[:edit].path} invoke 0")
 
     assert_equal true, wrap.value, "invoking the checkbutton entry should flip the bound var"
-
-    session.app.destroy
   end
 
   tk_test "menu radio entries bound to the same var should set it to their own value on invoke" do
@@ -206,8 +188,6 @@ class TestMenuRealize < Minitest::Test
     session.app.tcl_eval("#{session[:edit].path} invoke 1")
 
     assert_equal 'large', size.value
-
-    session.app.destroy
   end
 
   tk_test "rebuilding a context menu's contents on every right-click should not accumulate entry callbacks" do
@@ -227,8 +207,6 @@ class TestMenuRealize < Minitest::Test
 
     assert_equal baseline, session.app.interp.callback_ids.length,
       "rebuilding the context menu repeatedly should not accumulate callbacks"
-
-    session.app.destroy
   end
 
   tk_test "a widget wired via on_right_click(context_menu) should tk_popup the right menu at the click's screen coordinates" do
@@ -251,8 +229,6 @@ class TestMenuRealize < Minitest::Test
 
     captured = session.app.split_list(session.app.tcl_eval('set ::last_popup_call'))
     assert_equal [session[:ctx].path, '123', '456'], captured
-
-    session.app.destroy
   end
 
   tk_test "a context_menu should exist as a real widget but never auto-attach via -menu" do
@@ -264,7 +240,5 @@ class TestMenuRealize < Minitest::Test
 
     assert session.app.winfo.exists?(session[:ctx].path)
     assert_equal '', session.app.tcl_eval('. cget -menu')
-
-    session.app.destroy
   end
 end

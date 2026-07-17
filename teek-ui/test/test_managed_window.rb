@@ -21,8 +21,6 @@ class TestManagedWindow < Minitest::Test
 
     refute session.app.winfo.ismapped?(session[:settings].path),
       "a freshly realized window should be withdrawn by default"
-
-    session.app.destroy
   end
 
   tk_test "title:/geometry: opts should be applied via wm at realize" do
@@ -43,8 +41,6 @@ class TestManagedWindow < Minitest::Test
     session[:settings].show
     session.app.update_idletasks
     assert_includes session.app.tcl_eval("wm geometry #{path}"), '300x200'
-
-    session.app.destroy
   end
 
   tk_test "resizable: false should set both width and height non-resizable" do
@@ -57,8 +53,6 @@ class TestManagedWindow < Minitest::Test
     session.app.update
 
     assert_equal '0 0', session.app.tcl_eval("wm resizable #{session[:settings].path}")
-
-    session.app.destroy
   end
 
   tk_test "resizable: [true, false] should set width/height independently" do
@@ -71,8 +65,6 @@ class TestManagedWindow < Minitest::Test
     session.app.update
 
     assert_equal '1 0', session.app.tcl_eval("wm resizable #{session[:settings].path}")
-
-    session.app.destroy
   end
 
   tk_test "without a resizable: opt, Tk's own default (resizable both ways) should apply" do
@@ -83,8 +75,6 @@ class TestManagedWindow < Minitest::Test
     session.app.update
 
     assert_equal '1 1', session.app.tcl_eval("wm resizable #{session[:settings].path}")
-
-    session.app.destroy
   end
 
   tk_test "a top-level ui.window should be transient to the root window by default" do
@@ -95,8 +85,6 @@ class TestManagedWindow < Minitest::Test
     session.app.update
 
     assert_equal '.', session.app.tcl_eval("wm transient #{session[:settings].path}")
-
-    session.app.destroy
   end
 
   tk_test "a ui.window nested inside another ui.window should be transient to that window" do
@@ -111,8 +99,6 @@ class TestManagedWindow < Minitest::Test
     outer_path = session[:outer].path
     inner_path = session[:inner].path
     assert_equal outer_path, session.app.tcl_eval("wm transient #{inner_path}")
-
-    session.app.destroy
   end
 
   tk_test "transient: false should leave the window with no transient parent" do
@@ -125,8 +111,6 @@ class TestManagedWindow < Minitest::Test
     session.app.update
 
     assert_equal '', session.app.tcl_eval("wm transient #{session[:settings].path}")
-
-    session.app.destroy
   end
 
   tk_test "show should map the window and position it just to the right of its parent" do
@@ -144,8 +128,6 @@ class TestManagedWindow < Minitest::Test
     settings_x, settings_y, = session.app.interp.window_geometry(session[:settings].path)
     assert_equal root_x + root_w + 12, settings_x
     assert_equal root_y, settings_y
-
-    session.app.destroy
   end
 
   tk_test "hide should withdraw a previously shown window" do
@@ -162,8 +144,6 @@ class TestManagedWindow < Minitest::Test
     session[:settings].hide
     session.app.update
     refute session.app.winfo.ismapped?(session[:settings].path)
-
-    session.app.destroy
   end
 
   tk_test "show should grab input and force focus when the window was declared modal: true" do
@@ -179,8 +159,6 @@ class TestManagedWindow < Minitest::Test
     path = session[:settings].path
     assert_equal path, session.app.tcl_eval("grab current #{path}")
     assert_equal path, session.app.tcl_eval('focus')
-
-    session.app.destroy
   end
 
   tk_test "show should not grab input for an ordinary (non-modal) window" do
@@ -194,8 +172,6 @@ class TestManagedWindow < Minitest::Test
     session.app.update
 
     assert_equal '', session.app.tcl_eval("grab current #{session[:settings].path}")
-
-    session.app.destroy
   end
 
   tk_test "hide should release the grab a modal show set" do
@@ -213,8 +189,6 @@ class TestManagedWindow < Minitest::Test
     session[:settings].hide
     session.app.update
     assert_equal '', session.app.tcl_eval("grab current #{path}")
-
-    session.app.destroy
   end
 
   tk_test "ui.dialog should default to modal: true, resizable: false" do
@@ -231,8 +205,6 @@ class TestManagedWindow < Minitest::Test
     session[:confirm].show
     session.app.update
     assert_equal path, session.app.tcl_eval("grab current #{path}")
-
-    session.app.destroy
   end
 
   tk_test "ui.dialog's modal:/resizable: defaults should still be overridable" do
@@ -250,8 +222,6 @@ class TestManagedWindow < Minitest::Test
     session[:confirm].show
     session.app.update
     assert_equal '', session.app.tcl_eval("grab current #{path}")
-
-    session.app.destroy
   end
 
   tk_test "show/hide on a non-window handle should raise a clear error" do
@@ -266,7 +236,5 @@ class TestManagedWindow < Minitest::Test
 
     hide_error = assert_raises(ArgumentError) { session[:go].hide }
     assert_match(/window/i, hide_error.message)
-
-    session.app.destroy
   end
 end

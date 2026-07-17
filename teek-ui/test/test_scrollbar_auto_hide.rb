@@ -35,8 +35,6 @@ class TestScrollbarAutoHide < Minitest::Test
     assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb"), "the scrollbar widget itself still exists"
     assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") },
       "should be grid-removed once idle processing settles, since everything fits"
-
-    session.app.destroy
   end
 
   tk_test "a scrollbar should be mapped once its content overflows the visible area" do
@@ -48,8 +46,6 @@ class TestScrollbarAutoHide < Minitest::Test
 
     wrapper = session[:items].path.sub(/\.widget\z/, '')
     assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }
-
-    session.app.destroy
   end
 
   tk_test "a scrollbar hidden at realize should reappear once enough content is added later" do
@@ -65,8 +61,6 @@ class TestScrollbarAutoHide < Minitest::Test
     session.app.command(session[:items].path, :insert, :end, *(1..50).map { |i| "More #{i}" })
 
     assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should reappear once content overflows"
-
-    session.app.destroy
   end
 
   tk_test "a visible scrollbar should hide again once enough content is removed" do
@@ -82,8 +76,6 @@ class TestScrollbarAutoHide < Minitest::Test
     session.app.command(session[:items].path, :delete, 2, :end)
 
     assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should hide again once only 2 items remain"
-
-    session.app.destroy
   end
 
   tk_test "ui.scrollable's own canvas-driven scrollbar should auto-hide the same way" do
@@ -96,8 +88,6 @@ class TestScrollbarAutoHide < Minitest::Test
 
     assert wait_until { !session.app.winfo.ismapped?("#{session[:region].path}.vsb") },
       "one small button shouldn't overflow the canvas's own default size"
-
-    session.app.destroy
   end
 
   tk_test "ui.scrollable's canvas-driven scrollbar should appear once its content overflows" do
@@ -109,7 +99,5 @@ class TestScrollbarAutoHide < Minitest::Test
     session.run_async
 
     assert wait_until { session.app.winfo.ismapped?("#{session[:region].path}.vsb") }
-
-    session.app.destroy
   end
 end

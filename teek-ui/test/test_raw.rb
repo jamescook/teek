@@ -17,8 +17,6 @@ class TestRaw < Minitest::Test
 
     assert session.app.winfo.exists?('.raw_label')
     assert_equal 'from raw', session.app.command('.raw_label', :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "ui.raw's block should not fire during build, only at realize" do
@@ -31,8 +29,6 @@ class TestRaw < Minitest::Test
 
     session.realize
     assert executed, "raw block did not run at realize"
-
-    session.app.destroy
   end
 
   tk_test "a raw op declared before a sibling it references should still resolve its realized path" do
@@ -46,7 +42,5 @@ class TestRaw < Minitest::Test
     session.app.update
 
     assert_equal 'Changed by raw', session.app.command(session[:later].path, :cget, '-text')
-
-    session.app.destroy
   end
 end

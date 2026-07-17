@@ -37,8 +37,6 @@ class TestReactiveVars < Minitest::Test
     session.app.update
     assert_equal 3.0, session.app.command(slider_path, :get).to_f
     assert_equal 3.0, session.app.command(label_path, :cget, '-text').to_f
-
-    session.app.destroy
   end
 
   tk_test "a var bound to a text_box should sync in both directions" do
@@ -60,8 +58,6 @@ class TestReactiveVars < Minitest::Test
     session.app.command(box_path, :insert, 0, 'typed')
     session.app.update
     assert_equal 'typed', name.value
-
-    session.app.destroy
   end
 
   tk_test "on_change should fire with a coerced Integer, triggered by the bound widget" do
@@ -82,8 +78,6 @@ class TestReactiveVars < Minitest::Test
 
     assert_includes changes, 9
     assert_kind_of Integer, changes.last
-
-    session.app.destroy
   end
 
   tk_test "a Boolean var bound to a checkbox should use Tk's 1/0 convention and coerce back to true/false" do
@@ -104,7 +98,5 @@ class TestReactiveVars < Minitest::Test
     session.app.update
     assert_equal false, enabled.value
     assert_equal '0', session.app.get_variable(enabled.name)
-
-    session.app.destroy
   end
 end

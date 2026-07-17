@@ -31,8 +31,6 @@ class TestNativeScrollable < Minitest::Test
     assert_equal '1', session.app.tcl_eval("winfo exists #{vsb_path}")
     assert_equal '0', session.app.tcl_eval("winfo exists #{wrapper_path}.hsb"), "x: defaults to false"
     assert_equal "#{list_path} yview", session.app.command(vsb_path, :cget, '-command')
-
-    session.app.destroy
   end
 
   tk_test "Handle#configure/#on_click should still act on the real widget once auto-wrapped" do
@@ -53,8 +51,6 @@ class TestNativeScrollable < Minitest::Test
     session.app.update
 
     assert clicked
-
-    session.app.destroy
   end
 
   tk_test "scroll: false should leave the widget exactly as it was before auto-scroll existed" do
@@ -68,8 +64,6 @@ class TestNativeScrollable < Minitest::Test
 
     assert_equal "#{session[:panel].path}.items", session[:items].path
     assert_equal '0', session.app.tcl_eval("winfo exists #{session[:items].path}.vsb")
-
-    session.app.destroy
   end
 
   tk_test "text_area/table/tree should get the same auto-attach treatment as list" do
@@ -87,8 +81,6 @@ class TestNativeScrollable < Minitest::Test
       wrapper = session[name].path.sub(/\.widget\z/, '')
       assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb"), "#{name} should have auto-attached a scrollbar"
     end
-
-    session.app.destroy
   end
 
   tk_test "canvas should default to scroll: false, unlike the other native types" do
@@ -100,8 +92,6 @@ class TestNativeScrollable < Minitest::Test
 
     assert_equal '.board', session[:board].path
     assert_equal '0', session.app.tcl_eval("winfo exists .board.vsb")
-
-    session.app.destroy
   end
 
   tk_test "scroll: true should override canvas's own false default" do
@@ -113,8 +103,6 @@ class TestNativeScrollable < Minitest::Test
 
     wrapper = session[:board].path.sub(/\.widget\z/, '')
     assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb")
-
-    session.app.destroy
   end
 
   tk_test "a canvas's own DSL children (via ui.raw) should target the real canvas, not the wrapper" do
@@ -131,8 +119,6 @@ class TestNativeScrollable < Minitest::Test
 
     item_ids = session.app.split_list(session.app.command(session[:board].path, :find, :all))
     assert_equal 1, item_ids.length
-
-    session.app.destroy
   end
 
   tk_test "x: true on a bare native widget should wire a horizontal scrollbar" do
@@ -145,8 +131,6 @@ class TestNativeScrollable < Minitest::Test
     wrapper = session[:hierarchy].path.sub(/\.widget\z/, '')
     assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.hsb")
     assert_equal "#{session[:hierarchy].path} xview", session.app.command("#{wrapper}.hsb", :cget, '-command')
-
-    session.app.destroy
   end
 
   tk_test "the layout should pack/place the WRAPPER, not the raw widget, inside a flow container" do
@@ -164,8 +148,6 @@ class TestNativeScrollable < Minitest::Test
     wrapper = session[:items].path.sub(/\.widget\z/, '')
     assert_equal 'pack', session.app.tcl_eval("winfo manager #{wrapper}")
     assert session.app.winfo.ismapped?(wrapper)
-
-    session.app.destroy
   end
 
   tk_test "Teek::UI.app(scroll: false) should suppress auto-attach app-wide" do
@@ -177,8 +159,6 @@ class TestNativeScrollable < Minitest::Test
 
     assert_equal '.items', session[:items].path
     assert_equal '0', session.app.tcl_eval("winfo exists .items.vsb")
-
-    session.app.destroy
   end
 
   tk_test "a widget's own scroll: true should win over the app-level default" do
@@ -190,8 +170,6 @@ class TestNativeScrollable < Minitest::Test
 
     wrapper = session[:items].path.sub(/\.widget\z/, '')
     assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb")
-
-    session.app.destroy
   end
 
   tk_test "Teek::UI.auto_scroll = false should suppress the default everywhere it isn't overridden" do
@@ -218,7 +196,6 @@ class TestNativeScrollable < Minitest::Test
       forced_wrapper = session[:forced_items].path.sub(/\.widget\z/, '')
       assert_equal '1', session.app.tcl_eval("winfo exists #{forced_wrapper}.vsb")
 
-      session.app.destroy
     ensure
       Teek::UI.auto_scroll = original
     end

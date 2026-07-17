@@ -37,8 +37,6 @@ class TestScrollableWheel < Minitest::Test
     session.app.update
 
     assert_operator yview_first.call, :>, 0.0
-
-    session.app.destroy
   end
 
   tk_test "MouseWheel over a widget nested deep inside the viewport should still scroll the canvas" do
@@ -61,8 +59,6 @@ class TestScrollableWheel < Minitest::Test
     session.app.update
 
     assert_operator yview_first.call, :>, 0.0
-
-    session.app.destroy
   end
 
   tk_test "MouseWheel over a widget with no bindtag from the scrollable region should leave it alone" do
@@ -83,8 +79,6 @@ class TestScrollableWheel < Minitest::Test
     session.app.update
 
     assert_equal 0.0, yview_first.call
-
-    session.app.destroy
   end
 
   tk_test "the X11 Button-4/Button-5 wheel fallback should scroll the region too" do
@@ -108,8 +102,6 @@ class TestScrollableWheel < Minitest::Test
     session.app.tcl_eval("event generate #{canvas_path} <Button-4>")
     session.app.update
     assert_operator yview_first.call, :<, after_down
-
-    session.app.destroy
   end
 
   tk_test "Shift-MouseWheel should drive xview when x: true" do
@@ -130,8 +122,6 @@ class TestScrollableWheel < Minitest::Test
     session.app.update
 
     assert_operator xview_first.call, :>, 0.0
-
-    session.app.destroy
   end
 
   tk_test "MouseWheel over a native scrollable widget (Tk's own class binding) should work through the DSL" do
@@ -154,7 +144,5 @@ class TestScrollableWheel < Minitest::Test
     session.app.update
 
     assert_operator yview_first.call, :>, 0.0
-
-    session.app.destroy
   end
 end

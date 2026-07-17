@@ -19,8 +19,6 @@ class TestEvents < Minitest::Test
     session.app.update
 
     assert clicked, "on_click did not fire"
-
-    session.app.destroy
   end
 
   tk_test "on_right_click should fire on Button-3 (Linux/Windows right-click)" do
@@ -36,8 +34,6 @@ class TestEvents < Minitest::Test
     session.app.update
 
     assert clicked, "on_right_click did not fire on Button-3"
-
-    session.app.destroy
   end
 
   tk_test "on_drag should deliver Integer x/y, not raw Tcl strings" do
@@ -55,8 +51,6 @@ class TestEvents < Minitest::Test
     assert_equal [40, 55], received
     assert_kind_of Integer, received[0]
     assert_kind_of Integer, received[1]
-
-    session.app.destroy
   end
 
   tk_test "on_drag should convert raw window coords through canvasx/canvasy when bound to a canvas" do
@@ -84,8 +78,6 @@ class TestEvents < Minitest::Test
     refute_nil received
     assert_equal [expected_x, expected_y], received
     refute_equal [50, 60], received, "the canvas is scrolled, so conversion should actually change the coordinates"
-
-    session.app.destroy
   end
 
   tk_test "on_key(:enter) should fire on a real Return keypress" do
@@ -104,8 +96,6 @@ class TestEvents < Minitest::Test
     session.app.update
 
     assert fired, "on_key(:enter) did not fire"
-
-    session.app.destroy
   end
 
   tk_test "on_key('Ctrl-s') should fire on a real Control-s keypress" do
@@ -124,8 +114,6 @@ class TestEvents < Minitest::Test
     session.app.update
 
     assert fired, "on_key('Ctrl-s') did not fire"
-
-    session.app.destroy
   end
 
   tk_test "on_key('Shift-Tab') should fire even though X11 delivers it as ISO_Left_Tab, not Shift-Tab" do
@@ -144,7 +132,5 @@ class TestEvents < Minitest::Test
     session.app.update
 
     assert fired, "on_key('Shift-Tab') did not fire for the X11 ISO_Left_Tab keysym"
-
-    session.app.destroy
   end
 end

@@ -18,8 +18,6 @@ class TestIncrementalRealize < Minitest::Test
 
     assert session.app.winfo.exists?(session[:item1].path)
     assert session.app.winfo.ismapped?(session[:item1].path)
-
-    session.app.destroy
   end
 
   tk_test "adding several new widgets inside ONE session.add block should not crash arrange_children on a not-yet-created sibling, and should arrange all of them correctly" do
@@ -46,8 +44,6 @@ class TestIncrementalRealize < Minitest::Test
       below_top = session.app.winfo.rooty(below.path)
       assert_equal 10, below_top - above_bottom
     end
-
-    session.app.destroy
   end
 
   tk_test "a widget added to a flow container should respect gap: relative to widgets already there" do
@@ -66,8 +62,6 @@ class TestIncrementalRealize < Minitest::Test
     second_top = session.app.winfo.rooty(session[:second].path)
 
     assert_equal 20, second_top - first_bottom
-
-    session.app.destroy
   end
 
   tk_test "on_click wired inside an add block should fire, using the same queue-then-wire-at-link path the initial build uses" do
@@ -85,8 +79,6 @@ class TestIncrementalRealize < Minitest::Test
     session.app.update
 
     assert clicked, "on_click wired inside ui.add did not fire"
-
-    session.app.destroy
   end
 
   tk_test "destroying an incrementally-added widget should release its callback via teek's existing <Destroy> machinery" do
@@ -105,8 +97,6 @@ class TestIncrementalRealize < Minitest::Test
     session.app.update
 
     assert_equal baseline, session.app.interp.callback_ids.length, "destroying the added widget should release its callback"
-
-    session.app.destroy
   end
 
   tk_test "ui.var declared inside an add block should get its backing Tcl variable, not stay forever unrealized" do
@@ -129,8 +119,6 @@ class TestIncrementalRealize < Minitest::Test
     count.value = 9
     session.app.update
     assert_equal '9', session.app.command(session[:count_label].path, :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "ui.image declared inside an add block should actually load, not raise 'image does not exist' - the ChildWindow fresh-mount-per-open pattern depends on this" do
@@ -157,8 +145,6 @@ class TestIncrementalRealize < Minitest::Test
 
       assert_equal icon.name, session.app.command(session[:pic].path, :cget, '-image')
       assert_equal 'photo', session.app.tcl_eval("image type #{icon.name}")
-
-      session.app.destroy
     end
   end
 
@@ -179,7 +165,5 @@ class TestIncrementalRealize < Minitest::Test
 
     error = assert_raises(ArgumentError) { session.add(:nope) { |a| a.button(:item1) } }
     assert_match(/nope/, error.message)
-
-    session.app.destroy
   end
 end

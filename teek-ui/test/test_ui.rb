@@ -60,8 +60,6 @@ class TestUI < Minitest::Test
 
     assert_operator ticks, :>=, 2, "a build-block ui.every should have ticked after realize, same as a post-realize one"
     assert fired, "a build-block ui.after should have fired after realize, same as a post-realize one"
-
-    session.app.destroy
   end
 
   tk_test "a timer declared inside the build block and one declared after realize should produce the same runtime behavior" do
@@ -79,8 +77,6 @@ class TestUI < Minitest::Test
 
     assert_operator queued_ticks, :>=, 2
     assert_operator post_realize_ticks, :>=, 2
-
-    session.app.destroy
   end
 
   tk_test "session.every should return nil when queued (no live timer object exists yet to hand back)" do
@@ -92,8 +88,6 @@ class TestUI < Minitest::Test
     session.app.update
 
     assert_nil result
-
-    session.app.destroy
   end
 
   tk_test "realize should create the app once and return the same app on repeat calls" do
@@ -107,8 +101,6 @@ class TestUI < Minitest::Test
 
     assert_same app1, app2, "realize should be idempotent, not build a second interpreter"
     assert_equal baseline + 1, Teek::Interp.instance_count
-
-    session.app.destroy
   end
 
   tk_test "session.app after realize should expose the real Teek::App with the title applied" do
@@ -119,8 +111,6 @@ class TestUI < Minitest::Test
 
     assert_kind_of Teek::App, session.app
     assert_equal 'UI Scaffold Test', session.app.wm.title(window: '.')
-
-    session.app.destroy
   end
 
   tk_test "run_async should realize, show the window, and return the session without entering mainloop" do
@@ -137,8 +127,6 @@ class TestUI < Minitest::Test
     # own event-loop-driven flow would need to do.
     session.app.update
     assert session.app.winfo.ismapped?('.'), "run_async should have shown the root window"
-
-    session.app.destroy
   end
 
   tk_test "ui.every should delegate to App#every and actually tick, once realized" do
@@ -154,7 +142,6 @@ class TestUI < Minitest::Test
 
     assert_operator ticks, :>=, 2, "ui.every's block did not tick"
     timer.cancel
-    session.app.destroy
   end
 
   tk_test "ui.after should delegate to App#after, once realized" do
@@ -169,7 +156,6 @@ class TestUI < Minitest::Test
     session.app.update until fired || Time.now > deadline
 
     assert fired, "ui.after's block did not fire"
-    session.app.destroy
   end
 
   tk_test "session's dialog methods should raise a clear error before realize, not queue" do
@@ -207,8 +193,6 @@ class TestUI < Minitest::Test
         '-parent' => '.mywin', '-multiple' => '1' },
       captured
     )
-
-    session.app.destroy
   end
 
   tk_test "session.save_file should forward every option to App#choose_save_file under the right flag" do
@@ -235,8 +219,6 @@ class TestUI < Minitest::Test
         '-defaultextension' => '.png', '-confirmoverwrite' => '0', '-parent' => '.mywin' },
       captured
     )
-
-    session.app.destroy
   end
 
   tk_test "session.message should forward every option to App#message_box under the right flag" do
@@ -263,8 +245,6 @@ class TestUI < Minitest::Test
         '-icon' => 'warning', '-type' => 'yesno', '-default' => 'no', '-parent' => '.mywin' },
       captured
     )
-
-    session.app.destroy
   end
 
   tk_test "session.choose_color should forward every option to App#choose_color under the right flag" do
@@ -284,8 +264,6 @@ class TestUI < Minitest::Test
     assert_equal '#ff0080', result
     captured = Hash[*session.app.split_list(session.app.tcl_eval('set ::last_call'))]
     assert_equal({ '-initialcolor' => '#112233', '-title' => 'Pick', '-parent' => '.mywin' }, captured)
-
-    session.app.destroy
   end
 
   tk_test "session.choose_dir should forward every option to App#choose_dir under the right flag" do
@@ -308,8 +286,6 @@ class TestUI < Minitest::Test
       { '-initialdir' => '/tmp/dir', '-mustexist' => '1', '-title' => 'Folder', '-parent' => '.mywin' },
       captured
     )
-
-    session.app.destroy
   end
 
   tk_test "a validation failure should prevent any Teek::App/Interp from being constructed at all" do
@@ -345,8 +321,6 @@ class TestUI < Minitest::Test
     assert_raises(Teek::UI::ClosedBuilderError) { session.var(1) }
     assert_raises(Teek::UI::ClosedBuilderError) { session.menu_bar }
     assert_raises(Teek::UI::ClosedBuilderError) { session.context_menu }
-
-    session.app.destroy
   end
 
   tk_test "the closed-builder guard should never fire during the ordinary, still-open initial build" do
@@ -360,8 +334,6 @@ class TestUI < Minitest::Test
     session.app.update
 
     assert session.app.winfo.ismapped?(session[:go].path)
-
-    session.app.destroy
   end
 
   tk_test "session.add's own block should be exempt from the closed-builder guard" do
@@ -378,7 +350,5 @@ class TestUI < Minitest::Test
     # the guard should still apply to code OUTSIDE session.add, even
     # though it's fine again momentarily while add's own block runs
     assert_raises(Teek::UI::ClosedBuilderError) { session.button(:still_too_late, text: 'Nope') }
-
-    session.app.destroy
   end
 end

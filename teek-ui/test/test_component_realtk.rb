@@ -33,8 +33,6 @@ class TestComponentRealTk < Minitest::Test
     assert session.app.winfo.exists?(save_b.path)
     assert_equal 'Save A', session.app.command(save_a.path, :cget, '-text')
     assert_equal 'Save B', session.app.command(save_b.path, :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "a component's facade should resolve to its own :save, never a sibling component's like-named one" do
@@ -60,8 +58,6 @@ class TestComponentRealTk < Minitest::Test
     assert_equal 'Changed A', session.app.command(handle_a.path, :cget, '-text')
     assert_equal 'Save B', session.app.command(handle_b.path, :cget, '-text'),
       "mutating component A's facade handle should never affect component B's widget"
-
-    session.app.destroy
   end
 
   tk_test "mounting the same component 3x directly under one parent (not each under its own sub-panel) should realize 3 distinct :save widgets, each addressable through its own mount's facade" do
@@ -85,8 +81,6 @@ class TestComponentRealTk < Minitest::Test
     assert_equal 'Changed', session.app.command(paths[1], :cget, '-text'),
       "configuring through the second mount's facade should mutate the second mount's own widget"
     assert_equal 'Row 3', session.app.command(paths[2], :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "a click handler declared inside one mount of a 3x-repeated component should fire only for that mount's own widget, never a sibling mount's" do
@@ -106,7 +100,5 @@ class TestComponentRealTk < Minitest::Test
     session.app.update
 
     assert_equal ['Row 2'], fired, "clicking the second mount's widget should fire only its own handler"
-
-    session.app.destroy
   end
 end

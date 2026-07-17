@@ -24,8 +24,6 @@ class TestModalStackRealTk < Minitest::Test
     path = session[:settings].path
     assert session.app.winfo.ismapped?(path)
     assert_equal path, session.app.tcl_eval("grab current #{path}")
-
-    session.app.destroy
   end
 
   tk_test "pushing a second dialog should withdraw/release the first and grab the second" do
@@ -52,8 +50,6 @@ class TestModalStackRealTk < Minitest::Test
     assert_equal replay_path, session.app.tcl_eval("grab current #{replay_path}")
     assert_equal :replay, session.modal.current
     assert_equal 2, session.modal.size
-
-    session.app.destroy
   end
 
   tk_test "popping the top dialog should re-show and re-grab the one underneath" do
@@ -81,8 +77,6 @@ class TestModalStackRealTk < Minitest::Test
     refute session.app.winfo.ismapped?(replay_path)
     assert_equal settings_path, session.app.tcl_eval("grab current #{settings_path}")
     assert_equal :settings, session.modal.current
-
-    session.app.destroy
   end
 
   tk_test "on_enter should fire on the first push, on_exit on the last pop" do
@@ -117,7 +111,5 @@ class TestModalStackRealTk < Minitest::Test
       [:exit],
     ], events
     refute session.modal.active?
-
-    session.app.destroy
   end
 end

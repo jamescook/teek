@@ -24,8 +24,6 @@ class TestSplit < Minitest::Test
     split_path = session[:s].path
     pane_paths = session.app.split_list(session.app.command(split_path, :panes))
     assert_equal 2, pane_paths.length
-
-    session.app.destroy
   end
 
   tk_test "a widget declared inside a pane should be a normal, addressable, configurable widget" do
@@ -41,8 +39,6 @@ class TestSplit < Minitest::Test
     session.app.update
 
     assert_equal 'Changed', session.app.command(session[:go].path, :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "a pane's own frame should be placed only by panedwindow add, not pack/grid" do
@@ -56,8 +52,6 @@ class TestSplit < Minitest::Test
 
     assert_equal 'panedwindow', session.app.tcl_eval("winfo manager #{session[:left].path}"),
       "the panedwindow itself should be the only geometry manager - proves no pack/grid call also ran"
-
-    session.app.destroy
   end
 
   tk_test "ui.split with no orientation given should realize with -orient horizontal" do
@@ -70,8 +64,6 @@ class TestSplit < Minitest::Test
     session.app.update
 
     assert_equal 'horizontal', session.app.command(session[:s].path, :cget, '-orient')
-
-    session.app.destroy
   end
 
   tk_test "ui.split(orientation: :vertical) should realize with -orient vertical" do
@@ -84,8 +76,6 @@ class TestSplit < Minitest::Test
     session.app.update
 
     assert_equal 'vertical', session.app.command(session[:s].path, :cget, '-orient')
-
-    session.app.destroy
   end
 
   tk_test "s.pane(weight:) should set the real -weight panedwindow uses to divide leftover space" do
@@ -103,8 +93,6 @@ class TestSplit < Minitest::Test
     split_path = session[:s].path
     assert_equal '1', session.app.command(split_path, :pane, session[:left].path, '-weight')
     assert_equal '3', session.app.command(split_path, :pane, session[:right].path, '-weight')
-
-    session.app.destroy
   end
 
   tk_test "session.add should be able to add a whole new pane to an already-realized ui.split" do
@@ -125,7 +113,5 @@ class TestSplit < Minitest::Test
     pane_paths = session.app.split_list(session.app.command(split_path, :panes))
     assert_equal 2, pane_paths.length
     assert session.app.winfo.ismapped?(session[:new_button].path)
-
-    session.app.destroy
   end
 end

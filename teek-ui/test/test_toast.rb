@@ -30,8 +30,6 @@ class TestToast < Minitest::Test
 
     assert_equal 'Saved', session.app.command('.toast', :cget, '-text')
     assert session.app.winfo.ismapped?('.toast')
-
-    session.app.destroy
   end
 
   tk_test "toast should auto-dismiss after the given duration, not stay forever" do
@@ -48,8 +46,6 @@ class TestToast < Minitest::Test
     session.app.update while session.app.winfo.ismapped?('.toast') && Time.now < deadline
 
     refute session.app.winfo.ismapped?('.toast'), "should have auto-dismissed by now"
-
-    session.app.destroy
   end
 
   tk_test "toast with no duration: override should still auto-dismiss, using the built-in default" do
@@ -66,8 +62,6 @@ class TestToast < Minitest::Test
     session.app.update while session.app.winfo.ismapped?('.toast') && Time.now < deadline
 
     refute session.app.winfo.ismapped?('.toast'), "the default duration should have elapsed by now"
-
-    session.app.destroy
   end
 
   tk_test "a second toast while one is showing should replace it, not create a second widget" do
@@ -87,8 +81,6 @@ class TestToast < Minitest::Test
 
     assert_equal before + 1, after, "calling toast twice should not leave two separate widgets behind"
     assert_equal 'Settings', session.app.command('.toast', :cget, '-text')
-
-    session.app.destroy
   end
 
   tk_test "replacing a toast should cancel the earlier one's auto-dismiss - it must not hide the NEW toast early" do
@@ -108,7 +100,5 @@ class TestToast < Minitest::Test
     assert session.app.winfo.ismapped?('.toast'),
       "the first toast's short timer should have been cancelled, not fired and hidden the replacement"
     assert_equal 'Settings', session.app.command('.toast', :cget, '-text')
-
-    session.app.destroy
   end
 end

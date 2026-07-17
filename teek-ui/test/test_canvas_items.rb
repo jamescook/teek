@@ -30,8 +30,6 @@ class TestCanvasItems < Minitest::Test
 
     assert_equal 'line', session.app.tcl_eval("#{session[:board].path} type #{item.tag_or_id}")
     assert_equal [10.0, 10.0, 50.0, 50.0], item.coords
-
-    session.app.destroy
   end
 
   tk_test "every shape method should create the matching Tk item type" do
@@ -54,8 +52,6 @@ class TestCanvasItems < Minitest::Test
     items.each do |expected_type, item|
       assert_equal expected_type, session.app.tcl_eval("#{board.path} type #{item.tag_or_id}")
     end
-
-    session.app.destroy
   end
 
   tk_test "flat and nested coordinate arguments should produce the same item" do
@@ -69,8 +65,6 @@ class TestCanvasItems < Minitest::Test
     nested = session[:board].line([10, 10], [50, 50])
 
     assert_equal flat.coords, nested.coords
-
-    session.app.destroy
   end
 
   tk_test "move should shift by a relative delta" do
@@ -84,8 +78,6 @@ class TestCanvasItems < Minitest::Test
     item.move(5, -3)
 
     assert_equal [15.0, 7.0, 35.0, 27.0], item.coords
-
-    session.app.destroy
   end
 
   tk_test "coords= should replace the coordinate list, not shift it" do
@@ -99,8 +91,6 @@ class TestCanvasItems < Minitest::Test
     item.coords = [1, 2, 3, 4, 5, 6]
 
     assert_equal [1.0, 2.0, 3.0, 4.0, 5.0, 6.0], item.coords
-
-    session.app.destroy
   end
 
   tk_test "configure should mutate item options" do
@@ -115,8 +105,6 @@ class TestCanvasItems < Minitest::Test
 
     assert_equal 'green', item[:fill]
     assert_equal '3.0', item[:width]
-
-    session.app.destroy
   end
 
   tk_test "item[:opt] should read, item[:opt] = value should write" do
@@ -131,8 +119,6 @@ class TestCanvasItems < Minitest::Test
 
     item[:fill] = 'purple'
     assert_equal 'purple', item[:fill]
-
-    session.app.destroy
   end
 
   tk_test "delete should remove the item from the canvas" do
@@ -149,8 +135,6 @@ class TestCanvasItems < Minitest::Test
 
     refute item.exists?
     assert_nil item.bounds
-
-    session.app.destroy
   end
 
   tk_test "bring_to_front/send_to_back with no target should move all the way" do
@@ -173,8 +157,6 @@ class TestCanvasItems < Minitest::Test
 
     c.send_to_back
     assert_equal [c.tag_or_id, b.tag_or_id, a.tag_or_id], stacking.call
-
-    session.app.destroy
   end
 
   tk_test "bring_to_front(target) should reposition just above target, not to the very top" do
@@ -192,8 +174,6 @@ class TestCanvasItems < Minitest::Test
 
     a.bring_to_front(b)
     assert_equal [b.tag_or_id, a.tag_or_id, c.tag_or_id], stacking.call
-
-    session.app.destroy
   end
 
   tk_test "scale should resize relative to the given origin" do
@@ -207,8 +187,6 @@ class TestCanvasItems < Minitest::Test
     item.scale(10, 10, 2, 2)
 
     assert_equal [10.0, 10.0, 30.0, 30.0], item.coords
-
-    session.app.destroy
   end
 
   tk_test "bounds should return the item's bounding box" do
@@ -223,8 +201,6 @@ class TestCanvasItems < Minitest::Test
 
     refute_nil box
     assert_equal 4, box.length
-
-    session.app.destroy
   end
 
   tk_test "tagged should address a shared tag as a single movable/configurable/deletable group" do
@@ -254,8 +230,6 @@ class TestCanvasItems < Minitest::Test
     refute one.exists?
     refute two.exists?
     assert board.tagged('group_b').exists?
-
-    session.app.destroy
   end
 
   tk_test "tagged on an unused tag should report exists? false, not raise" do
@@ -266,8 +240,6 @@ class TestCanvasItems < Minitest::Test
     session.app.update
 
     refute session[:board].tagged('nothing_has_this_tag').exists?
-
-    session.app.destroy
   end
 
   # Item-level canvas bindings only fire through Tk's "current item"
@@ -303,8 +275,6 @@ class TestCanvasItems < Minitest::Test
     session.app.tcl_eval(b_script)
     assert_equal 1, a_hits, "invoking B's own binding should not fire A's handler again"
     assert_equal 1, b_hits, "invoking B's own binding should fire B's handler"
-
-    session.app.destroy
   end
 
   tk_test "on_right_click should bind a script that fires the given block" do
@@ -323,8 +293,6 @@ class TestCanvasItems < Minitest::Test
     session.app.tcl_eval(script)
 
     assert fired, "on_right_click's bound script did not fire the given block"
-
-    session.app.destroy
   end
 
   tk_test "on_right_click(menu) should tk_popup the given menu at the click's root coordinates" do
@@ -355,8 +323,6 @@ class TestCanvasItems < Minitest::Test
 
     captured = session.app.split_list(session.app.tcl_eval('set ::last_popup_call'))
     assert_equal [session[:ctx].path, '123', '456'], captured
-
-    session.app.destroy
   end
 
   tk_test "on_right_click with neither a menu nor a block should raise" do
@@ -368,8 +334,6 @@ class TestCanvasItems < Minitest::Test
 
     item = session[:board].oval(10, 10, 30, 30)
     assert_raises(ArgumentError) { item.on_right_click }
-
-    session.app.destroy
   end
 
   tk_test "on_right_click with both a menu and a block should raise" do
@@ -385,8 +349,6 @@ class TestCanvasItems < Minitest::Test
     item = session[:board].oval(10, 10, 30, 30)
     error = assert_raises(ArgumentError) { item.on_right_click(session[:ctx]) { } }
     assert_match(/menu/i, error.message)
-
-    session.app.destroy
   end
 
   tk_test "on_right_click given a non-menu handle should raise a clear error" do
@@ -399,8 +361,6 @@ class TestCanvasItems < Minitest::Test
     item = session[:board].oval(10, 10, 30, 30)
     error = assert_raises(ArgumentError) { item.on_right_click(session[:board]) }
     assert_match(/menu/i, error.message)
-
-    session.app.destroy
   end
 
   tk_test "on_drag should deliver canvasx/canvasy-converted coordinates, not raw window coordinates" do
@@ -433,8 +393,6 @@ class TestCanvasItems < Minitest::Test
     refute_nil received
     assert_equal [expected_x, expected_y], received
     refute_equal [50, 60], received, "the canvas is scrolled, so conversion should actually change the coordinates"
-
-    session.app.destroy
   end
 
   tk_test "draggable should move the item by the drag delta, with no coordinate math in app code" do
@@ -458,8 +416,6 @@ class TestCanvasItems < Minitest::Test
     session.app.tcl_eval(drag_script.sub('%x', '30').sub('%y', '25'))
 
     assert_equal [20.0, 15.0, 40.0, 35.0], item.coords, "the item should have moved by the (10, 5) drag delta"
-
-    session.app.destroy
   end
 
   tk_test "deleting an item should release its on_click/on_drag callbacks, not leak them" do
@@ -482,8 +438,6 @@ class TestCanvasItems < Minitest::Test
     assert_equal baseline, session.app.interp.callback_ids.length,
       "deleting the item should release both its click and drag callbacks - on_drag's %-substitution " \
       "args must not stop the leak-tracking regex from recognizing the binding"
-
-    session.app.destroy
   end
 
   tk_test "shape creation and tagged should raise a clear error on a non-canvas handle" do
@@ -497,7 +451,5 @@ class TestCanvasItems < Minitest::Test
     assert_match(/canvas/i, error.message)
 
     assert_raises(ArgumentError) { session[:not_a_canvas].tagged('whatever') }
-
-    session.app.destroy
   end
 end

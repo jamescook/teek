@@ -27,8 +27,6 @@ class TestTextContent < Minitest::Test
 
     error = assert_raises(ArgumentError) { session[:go].text_content }
     assert_match(/text_area/i, error.message)
-
-    session.app.destroy
   end
 
   # -- Content -----------------------------------------------------------
@@ -44,8 +42,6 @@ class TestTextContent < Minitest::Test
 
     assert_equal 'hello', text.get('1.0', '1.5')
     assert_equal 'hello world', text.value
-
-    session.app.destroy
   end
 
   tk_test "delete should remove a range" do
@@ -59,8 +55,6 @@ class TestTextContent < Minitest::Test
     text.delete('1.0', '1.6')
 
     assert_equal 'world', text.value
-
-    session.app.destroy
   end
 
   tk_test "replace should atomically swap a range for new text" do
@@ -74,8 +68,6 @@ class TestTextContent < Minitest::Test
     text.replace('1.0', '1.5', 'goodbye')
 
     assert_equal 'goodbye world', text.value
-
-    session.app.destroy
   end
 
   tk_test "value= should replace the entire buffer's content" do
@@ -89,8 +81,6 @@ class TestTextContent < Minitest::Test
     text.value = 'new content'
 
     assert_equal 'new content', text.value
-
-    session.app.destroy
   end
 
   tk_test "clear should empty the whole buffer" do
@@ -104,8 +94,6 @@ class TestTextContent < Minitest::Test
     text.clear
 
     assert_equal '', text.value
-
-    session.app.destroy
   end
 
   tk_test ":end and :cursor should resolve to Tk's own end/insert indices" do
@@ -120,8 +108,6 @@ class TestTextContent < Minitest::Test
 
     assert_equal 'first second', text.value
     assert_equal text.index(:end), text.index('end')
-
-    session.app.destroy
   end
 
   # -- Read-only footgun ---------------------------------------------------
@@ -143,8 +129,6 @@ class TestTextContent < Minitest::Test
     text.clear
     assert text.read_only, "should still be read-only after clear"
     assert_equal '', text.value
-
-    session.app.destroy
   end
 
   tk_test "read_only/read_only= should read and drive the widget's own -state" do
@@ -160,8 +144,6 @@ class TestTextContent < Minitest::Test
 
     text.read_only = false
     refute text.read_only
-
-    session.app.destroy
   end
 
   # -- Formats (Tk tags) ---------------------------------------------------
@@ -179,8 +161,6 @@ class TestTextContent < Minitest::Test
 
     assert_equal 'red', session.app.command(session[:code].path, :tag, :cget, :error, '-foreground')
     assert_equal ['1.0', '1.5'], text.format_ranges(:error)
-
-    session.app.destroy
   end
 
   tk_test "clear_format should remove the format from a range but keep the definition applyable elsewhere" do
@@ -199,8 +179,6 @@ class TestTextContent < Minitest::Test
 
     text.apply_format(:hl, '1.3', '1.6')
     assert_equal ['1.3', '1.6'], text.format_ranges(:hl)
-
-    session.app.destroy
   end
 
   tk_test "delete_format should remove the format definition and every range it was applied to" do
@@ -217,8 +195,6 @@ class TestTextContent < Minitest::Test
 
     names = session.app.split_list(session.app.command(session[:code].path, :tag, :names))
     refute_includes names, 'hl'
-
-    session.app.destroy
   end
 
   tk_test "tag_configure/tag_add/tag_remove/tag_delete/tag_ranges should alias the friendly names" do
@@ -240,8 +216,6 @@ class TestTextContent < Minitest::Test
     text.tag_delete(:hl)
     names = session.app.split_list(session.app.command(session[:code].path, :tag, :names))
     refute_includes names, 'hl'
-
-    session.app.destroy
   end
 
   # -- Leak-safe format/tag event bindings ---------------------------------
@@ -277,8 +251,6 @@ class TestTextContent < Minitest::Test
     session.app.tcl_eval("event generate #{session[:log].path} <Button-1> -x #{x} -y #{y}")
 
     assert wait_until { clicked }, "on_format_click did not fire"
-
-    session.app.destroy
   end
 
   tk_test "removing a formatted range's callback should release it, not leak, proving this routes through app.command (not tcl_eval)" do
@@ -307,8 +279,6 @@ class TestTextContent < Minitest::Test
 
     assert_equal baseline, session.debug_info[:tag_binds] || 0,
       "deleting the format should release its callback via the leak-safe tag_bind reconcile"
-
-    session.app.destroy
   end
 
   tk_test "on_format should accept an arbitrary Tk event pattern, auto-wrapped in angle brackets" do
@@ -338,8 +308,6 @@ class TestTextContent < Minitest::Test
     session.app.tcl_eval("event generate #{session[:log].path} <Control-Button-1> -x #{x} -y #{y}")
 
     assert wait_until { fired }, "on_format with a custom event pattern did not fire"
-
-    session.app.destroy
   end
 
   # -- Markers -------------------------------------------------------------
@@ -359,8 +327,6 @@ class TestTextContent < Minitest::Test
 
     text.remove_marker(:checkpoint)
     refute_includes text.markers, 'checkpoint'
-
-    session.app.destroy
   end
 
   tk_test "mark_gravity should read the default and accept an explicit direction" do
@@ -376,8 +342,6 @@ class TestTextContent < Minitest::Test
 
     text.mark_gravity(:checkpoint, :left)
     assert_equal 'left', text.mark_gravity(:checkpoint)
-
-    session.app.destroy
   end
 
   # -- Search ----------------------------------------------------------------
@@ -392,8 +356,6 @@ class TestTextContent < Minitest::Test
 
     assert_equal '1.4', text.search('quick', from: '1.0')
     assert_nil text.search('nonexistent', from: '1.0')
-
-    session.app.destroy
   end
 
   tk_test "search's backwards/regexp/nocase switches should all forward correctly" do
@@ -407,8 +369,6 @@ class TestTextContent < Minitest::Test
     assert_equal '1.8', text.search('foo', from: :end, to: '1.0', backwards: true)
     assert_equal '1.0', text.search('F[A-Z]{2}', from: '1.0', regexp: true)
     assert_equal '1.0', text.search('foo', from: '1.0', nocase: true)
-
-    session.app.destroy
   end
 
   # -- View / cursor / state --------------------------------------------------
@@ -423,8 +383,6 @@ class TestTextContent < Minitest::Test
 
     text.scroll_to('10.0')
     text.see('1.0')
-
-    session.app.destroy
   end
 
   tk_test "index should resolve any index expression to canonical line.char form" do
@@ -437,8 +395,6 @@ class TestTextContent < Minitest::Test
 
     assert_equal '2.0', text.index('2.0')
     assert_equal '1.4', text.index('1.0 +4 chars')
-
-    session.app.destroy
   end
 
   tk_test "cursor should read and move the text insertion point" do
@@ -453,8 +409,6 @@ class TestTextContent < Minitest::Test
 
     assert_equal '1.5', text.cursor
     assert_equal text.index(:cursor), text.cursor
-
-    session.app.destroy
   end
 
   # -- Embedded images ---------------------------------------------------------
@@ -484,8 +438,6 @@ class TestTextContent < Minitest::Test
 
       dump = session.app.command(session[:notes].path, :dump, '-image', '1.0', 'end')
       assert_match(/#{Regexp.escape(icon.name)}/, dump)
-
-      session.app.destroy
     end
   end
 
@@ -511,8 +463,6 @@ class TestTextContent < Minitest::Test
       text.insert_image(:end, image: icon)
 
       assert text.read_only, "should still be read-only after insert_image"
-
-      session.app.destroy
     end
   end
 
@@ -531,8 +481,6 @@ class TestTextContent < Minitest::Test
     text.apply_format(:keyword, '3.0', '3.3')
 
     assert_equal ['1.0', '1.3', '3.0', '3.3'], text.format_ranges(:keyword)
-
-    session.app.destroy
   end
 
   tk_test "driving use case: search-and-replace via search + replace" do
@@ -553,8 +501,6 @@ class TestTextContent < Minitest::Test
     end
 
     assert_equal 'THE cat sat on THE mat', text.value
-
-    session.app.destroy
   end
 
   tk_test "driving use case: an appending, auto-scrolling, read-only log pane" do
@@ -569,8 +515,6 @@ class TestTextContent < Minitest::Test
 
     assert text.read_only, "the log pane should still be read-only after appending"
     assert_match(/log line 4/, text.value)
-
-    session.app.destroy
   end
 
   tk_test "driving use case: inline images via insert_image" do
@@ -597,8 +541,6 @@ class TestTextContent < Minitest::Test
 
       dump = session.app.command(session[:notes].path, :dump, '-image', '1.0', 'end')
       assert_match(/#{Regexp.escape(icon.name)}/, dump)
-
-      session.app.destroy
     end
   end
 end

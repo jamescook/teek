@@ -36,8 +36,6 @@ class TestImageRealTk < Minitest::Test
       w, h = icon.photo.get_size
       assert_equal 8, w
       assert_equal 8, h
-
-      session.app.destroy
     end
   end
 
@@ -62,8 +60,6 @@ class TestImageRealTk < Minitest::Test
       session.app.update
 
       assert_equal icon.name, session.app.command(session[:go].path, :cget, '-image')
-
-      session.app.destroy
     end
   end
 
@@ -98,8 +94,6 @@ class TestImageRealTk < Minitest::Test
       session[:pic].configure(image: icon_b)
 
       assert_equal icon_b.name, session.app.command(pic_path, :cget, '-image')
-
-      session.app.destroy
     end
   end
 
@@ -131,8 +125,6 @@ class TestImageRealTk < Minitest::Test
       image = session.images.first
       assert_equal 'photo', session.app.tcl_eval("image type #{image.name}")
       assert_equal image.name, session.app.command(session[:pic].path, :cget, '-image')
-
-      session.app.destroy
     end
   end
 end

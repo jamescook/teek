@@ -29,8 +29,6 @@ class TestClipboard < Minitest::Test
     session.clipboard.set('hello from teek-ui')
 
     assert_equal 'hello from teek-ui', session.clipboard.get
-
-    session.app.destroy
   end
 
   tk_test "a DSL text_box should support Ctrl-C copy out of the box - no on_key wiring needed" do
@@ -51,8 +49,6 @@ class TestClipboard < Minitest::Test
     session.app.update
 
     assert_equal 'hello', session.clipboard.get
-
-    session.app.destroy
   end
 
   tk_test "a DSL text_area should support Ctrl-C copy out of the box - no on_key wiring needed" do
@@ -73,7 +69,5 @@ class TestClipboard < Minitest::Test
     session.app.update
 
     assert_equal 'hello', session.clipboard.get
-
-    session.app.destroy
   end
 end

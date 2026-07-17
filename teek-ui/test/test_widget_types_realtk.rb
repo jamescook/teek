@@ -25,8 +25,6 @@ class TestWidgetTypesRealTk < Minitest::Test
 
     assert_equal 'TSeparator', session.app.tcl_eval("winfo class #{session[:sep].path}")
     assert session.app.winfo.ismapped?(session[:sep].path)
-
-    session.app.destroy
   end
 
   tk_test "registering a new WidgetType should light up ui.<type>, its realize, and its validator" do
@@ -52,8 +50,6 @@ class TestWidgetTypesRealTk < Minitest::Test
     # validate: the composed validator ran during session.realize's
     # internal Validator.validate! call, seeing the right node/parent types
     assert_equal [[custom_type, :root]], validated
-
-    session.app.destroy
   end
 
   tk_test "a descriptor with no validator: should realize normally and never appear in WidgetValidators" do
@@ -70,7 +66,5 @@ class TestWidgetTypesRealTk < Minitest::Test
 
     assert_equal 'Hi', session.app.command(session[:thing].path, :cget, '-text')
     assert_empty Teek::UI::WidgetValidators.for_type(custom_type)
-
-    session.app.destroy
   end
 end

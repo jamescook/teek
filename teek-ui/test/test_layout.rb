@@ -22,8 +22,6 @@ class TestLayout < Minitest::Test
     b_top = session.app.winfo.rooty(session[:b].path)
 
     assert_equal 20, b_top - a_bottom
-
-    session.app.destroy
   end
 
   tk_test "row should stack children horizontally with `gap` pixels between them" do
@@ -42,8 +40,6 @@ class TestLayout < Minitest::Test
     b_left = session.app.winfo.rootx(session[:b].path)
 
     assert_equal 15, b_left - a_right
-
-    session.app.destroy
   end
 
   tk_test "align: :stretch should make a narrower child match the widest sibling's width" do
@@ -62,8 +58,6 @@ class TestLayout < Minitest::Test
     wide_width = session.app.winfo.width(session[:wide].path)
 
     assert_equal wide_width, narrow_width
-
-    session.app.destroy
   end
 
   tk_test "without align: :stretch, a narrower child should keep its own natural width" do
@@ -82,8 +76,6 @@ class TestLayout < Minitest::Test
     wide_width = session.app.winfo.width(session[:wide].path)
 
     refute_equal wide_width, narrow_width
-
-    session.app.destroy
   end
 
   tk_test "pad: should add space before the first child and after the last" do
@@ -99,8 +91,6 @@ class TestLayout < Minitest::Test
     only_top = session.app.winfo.rooty(session[:only].path)
 
     assert_equal 10, only_top - col_top
-
-    session.app.destroy
   end
 
   tk_test "a spacer should absorb leftover space, pushing what follows it to the bottom - the spring-row replacement" do
@@ -130,8 +120,6 @@ class TestLayout < Minitest::Test
     top_bottom = session.app.winfo.rooty(session[:top].path) + session.app.winfo.height(session[:top].path)
     bottom_top = session.app.winfo.rooty(session[:bottom].path)
     assert_operator (bottom_top - top_bottom), :>, 100, "the spacer should have absorbed most of the leftover height"
-
-    session.app.destroy
   end
 
   tk_test "goldberg's control panel column should realize correctly using only column/gap/align/spacer" do
@@ -165,7 +153,5 @@ class TestLayout < Minitest::Test
     # every widget stretches to the column's own width (align: :stretch)
     widths = %i[start pause about].map { |n| session.app.winfo.width(session[n].path) }
     assert_equal 1, widths.uniq.length
-
-    session.app.destroy
   end
 end

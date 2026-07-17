@@ -32,8 +32,6 @@ class TestGrid < Minitest::Test
     # the input column (1) is the one that should absorb extra width
     weight = session.app.tcl_eval("grid columnconfigure #{session[:form].path} 1 -weight")
     assert_equal '1', weight
-
-    session.app.destroy
   end
 
   tk_test "span: should produce a real -columnspan in the realized grid" do
@@ -51,8 +49,6 @@ class TestGrid < Minitest::Test
 
     sep_info = session.app.command(:grid, :info, session[:sep].path)
     assert_match(/-columnspan 2/, sep_info)
-
-    session.app.destroy
   end
 
   tk_test "a grid child never wrapped in g.cell should be caught by validation, before any Tk call happens" do
@@ -83,7 +79,5 @@ class TestGrid < Minitest::Test
     error = assert_raises(ArgumentError) { session.add(:form) { |a| a.label(:oops, text: 'no cell') } }
     assert_match(/cell/i, error.message)
     assert_match(/oops/, error.message)
-
-    session.app.destroy
   end
 end
