@@ -653,12 +653,12 @@ module Teek
     # @see https://www.tcl-lang.org/man/tcl8.6/TkLib/MainLoop.htm Tk_MainLoop
     def mainloop
       if defined?(IRB) || defined?(Pry) || $0 == 'irb' || $0 == 'pry'
-        warn "Teek: mainloop blocks the current thread and will make your REPL unresponsive.\n" \
-             "  Instead, use app.update in a loop or call app.update manually between commands:\n" \
-             "    app.show\n" \
-             "    app.update          # process pending events\n" \
-             "    # ... interact with your app ...\n" \
-             "    app.update          # process again after changes"
+        warn "Teek: mainloop blocks the current thread and will make your REPL completely " \
+             "unresponsive until the window closes - don't call it here.\n" \
+             "  Driving a Tk app interactively from IRB/Pry doesn't work properly on macOS " \
+             "even without mainloop: nothing services the event loop while the REPL blocks " \
+             "waiting for your next line, so the window beachballs between commands no matter " \
+             "how often you call app.update by hand. Build and run teek apps from a script."
       end
       @interp.mainloop
     end

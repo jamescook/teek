@@ -400,12 +400,7 @@ Before realize they return `nil`; after realize they return the live, `.cancel`-
 
 ## Interactive / REPL Use
 
-`#run` blocks the event loop. `#run_async` shows the window and returns; call `ui.app.update` yourself to process events between prompts:
-
-```ruby
-session = Teek::UI.app(title: 'Hello').run_async
-session.app.update
-```
+`#run` blocks the event loop, so it can't be used from IRB/Pry at all - it would freeze the REPL. `#run_async` shows the window and returns without blocking, but **driving a session interactively from IRB/Pry does not work properly on macOS**: nothing services Tk's event loop while the REPL sits waiting for your next line, so the window beachballs the moment you stop typing, no matter how often you call `ui.app.update` between statements - it only helps at the instant you call it, not while you're reading the screen or thinking about what to type next. Build and drive teek-ui apps from a script, not an interactive session.
 
 ## Dialogs
 

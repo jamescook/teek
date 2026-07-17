@@ -150,15 +150,16 @@ module Teek
         print_debug_info if debug
       end
 
-      # Realize and show the window without entering the event loop, for
-      # interactive/REPL use. Returns immediately.
+      # Realize and show the window without entering the event loop. Returns
+      # immediately - the caller is responsible for servicing the event loop
+      # from then on (e.g. its own timer/callback-driven flow).
       #
-      # @note this does not (yet) service the event loop automatically between
-      #   REPL prompts - call `ui.app.update` yourself to process pending
-      #   events while exploring interactively, the same manual-pump workaround
-      #   {Teek::App#mainloop}'s own REPL warning documents. A REPL session
-      #   helper that services the loop for you on its own is future work,
-      #   not built yet.
+      # @note Not a substitute for {#run} in an interactive REPL (IRB/Pry):
+      #   nothing services the event loop while the REPL blocks waiting for
+      #   your next line, so the window beachballs between commands on macOS
+      #   no matter how often you call `ui.app.update` by hand - see
+      #   {Teek::App#mainloop}'s own REPL warning. Driving a session
+      #   interactively from IRB/Pry isn't a supported workflow.
       # @param strict [Boolean] see {Validator.validate!}
       # @param debug [Boolean] print {#debug_info}'s summary to stderr
       #   right after realize

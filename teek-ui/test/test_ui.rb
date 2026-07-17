@@ -152,8 +152,8 @@ class TestUI < Minitest::Test
 
       # run_async deliberately doesn't pump the event loop itself (that's the
       # documented caveat) - the deiconify it issued only becomes visible to
-      # winfo after something processes events, same as a real caller would
-      # need to do between REPL statements.
+      # winfo after something processes events, same as any real caller's
+      # own event-loop-driven flow would need to do.
       session.app.update
       assert session.app.winfo.ismapped?('.'), "run_async should have shown the root window"
 
