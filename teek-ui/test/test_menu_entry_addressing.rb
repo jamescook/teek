@@ -34,40 +34,38 @@ class TestMenuEntryAddressing < Minitest::Test
     assert_raises(Teek::UI::NotRealizedError) { addressing.configure(state: :disabled) }
   end
 
-  def test_configure_targets_the_live_current_index_immune_to_earlier_sibling_removal
-    assert_tk_app("configure should entryconfigure the entry at its CURRENT live index, not a stale cached one") do
-      require 'teek/ui/node'
-      require 'teek/ui/realized_node'
-      require 'teek/ui/menu_entry_addressing'
+  tk_test "configure should entryconfigure the entry at its CURRENT live index, not a stale cached one" do
+    require 'teek/ui/node'
+    require 'teek/ui/realized_node'
+    require 'teek/ui/menu_entry_addressing'
 
-      menu_path = '.testmenu1'
-      app.menu(menu_path)
-      app.command(menu_path, :add, :command, label: 'First')
-      app.command(menu_path, :add, :command, label: 'Second')
-      app.command(menu_path, :add, :command, label: 'Third')
+    menu_path = '.testmenu1'
+    app.menu(menu_path)
+    app.command(menu_path, :add, :command, label: 'First')
+    app.command(menu_path, :add, :command, label: 'Second')
+    app.command(menu_path, :add, :command, label: 'Third')
 
-      menu_node = Teek::UI::Node.new(type: :menu, name: :testmenu1)
-      menu_node.realized = Teek::UI::RealizedNode.new(app: app, path: menu_path)
+    menu_node = Teek::UI::Node.new(type: :menu, name: :testmenu1)
+    menu_node.realized = Teek::UI::RealizedNode.new(app: app, path: menu_path)
 
-      first_entry = menu_node.add_child(Teek::UI::Node.new(type: :menu_item, name: :first))
-      menu_node.add_child(Teek::UI::Node.new(type: :menu_item, name: :second))
-      third_entry = menu_node.add_child(Teek::UI::Node.new(type: :menu_item, name: :third))
+    first_entry = menu_node.add_child(Teek::UI::Node.new(type: :menu_item, name: :first))
+    menu_node.add_child(Teek::UI::Node.new(type: :menu_item, name: :second))
+    third_entry = menu_node.add_child(Teek::UI::Node.new(type: :menu_item, name: :third))
 
-      # Removing First shifts Second and Third down one live index each -
-      # Tk itself renumbers around the delete; nothing in teek does the
-      # shifting. Node#parent.children.index(node) just re-reads whatever
-      # the CURRENT position is, so it's automatically correct with no
-      # bookkeeping - a stale index cached at creation time (2, for Third)
-      # would now be wrong.
-      app.command(menu_path, :delete, 0)
-      menu_node.children.delete(first_entry)
+    # Removing First shifts Second and Third down one live index each -
+    # Tk itself renumbers around the delete; nothing in teek does the
+    # shifting. Node#parent.children.index(node) just re-reads whatever
+    # the CURRENT position is, so it's automatically correct with no
+    # bookkeeping - a stale index cached at creation time (2, for Third)
+    # would now be wrong.
+    app.command(menu_path, :delete, 0)
+    menu_node.children.delete(first_entry)
 
-      Teek::UI::MenuEntryAddressing.new(third_entry).configure(state: :disabled)
+    Teek::UI::MenuEntryAddressing.new(third_entry).configure(state: :disabled)
 
-      assert_equal 'disabled', app.tcl_eval("#{menu_path} entrycget 1 -state"),
-        "Third's live index is now 1 (after First was removed) - entry 1 should be disabled"
-      assert_equal 'normal', app.tcl_eval("#{menu_path} entrycget 0 -state"),
-        "Second's live index is now 0 - it should be untouched"
-    end
+    assert_equal 'disabled', app.tcl_eval("#{menu_path} entrycget 1 -state"),
+      "Third's live index is now 1 (after First was removed) - entry 1 should be disabled"
+    assert_equal 'normal', app.tcl_eval("#{menu_path} entrycget 0 -state"),
+      "Second's live index is now 0 - it should be untouched"
   end
 end

@@ -11,116 +11,104 @@ require_relative '../../test/tk_test_helper'
 class TestToast < Minitest::Test
   include TeekTestHelper
 
-  def test_toast_raises_before_realize
-    assert_tk_app("session.toast should raise before realize, matching every other realize-only action") do
-      require 'teek/ui'
+  tk_test "session.toast should raise before realize, matching every other realize-only action" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Toast Test')
+    session = Teek::UI.app(title: 'Toast Test')
 
-      assert_raises(Teek::UI::NotRealizedError) { session.toast('Saved') }
-    end
+    assert_raises(Teek::UI::NotRealizedError) { session.toast('Saved') }
   end
 
-  def test_toast_shows_the_message
-    assert_tk_app("toast should create a visible widget carrying the given text") do
-      require 'teek/ui'
+  tk_test "toast should create a visible widget carrying the given text" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Toast Test')
-      session.run_async
+    session = Teek::UI.app(title: 'Toast Test')
+    session.run_async
 
-      session.toast('Saved')
-      session.app.update
+    session.toast('Saved')
+    session.app.update
 
-      assert_equal 'Saved', session.app.command('.toast', :cget, '-text')
-      assert session.app.winfo.ismapped?('.toast')
+    assert_equal 'Saved', session.app.command('.toast', :cget, '-text')
+    assert session.app.winfo.ismapped?('.toast')
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_toast_auto_dismisses_after_a_custom_duration
-    assert_tk_app("toast should auto-dismiss after the given duration, not stay forever") do
-      require 'teek/ui'
+  tk_test "toast should auto-dismiss after the given duration, not stay forever" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Toast Test')
-      session.run_async
+    session = Teek::UI.app(title: 'Toast Test')
+    session.run_async
 
-      session.toast('Saved', duration: 30)
-      session.app.update
-      assert session.app.winfo.ismapped?('.toast'), "should be visible immediately after showing"
+    session.toast('Saved', duration: 30)
+    session.app.update
+    assert session.app.winfo.ismapped?('.toast'), "should be visible immediately after showing"
 
-      deadline = Time.now + 2
-      session.app.update while session.app.winfo.ismapped?('.toast') && Time.now < deadline
+    deadline = Time.now + 2
+    session.app.update while session.app.winfo.ismapped?('.toast') && Time.now < deadline
 
-      refute session.app.winfo.ismapped?('.toast'), "should have auto-dismissed by now"
+    refute session.app.winfo.ismapped?('.toast'), "should have auto-dismissed by now"
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_toast_auto_dismisses_after_the_default_duration
-    assert_tk_app("toast with no duration: override should still auto-dismiss, using the built-in default") do
-      require 'teek/ui'
+  tk_test "toast with no duration: override should still auto-dismiss, using the built-in default" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Toast Test')
-      session.run_async
+    session = Teek::UI.app(title: 'Toast Test')
+    session.run_async
 
-      session.toast('Saved')
-      session.app.update
-      assert session.app.winfo.ismapped?('.toast')
+    session.toast('Saved')
+    session.app.update
+    assert session.app.winfo.ismapped?('.toast')
 
-      deadline = Time.now + 3
-      session.app.update while session.app.winfo.ismapped?('.toast') && Time.now < deadline
+    deadline = Time.now + 3
+    session.app.update while session.app.winfo.ismapped?('.toast') && Time.now < deadline
 
-      refute session.app.winfo.ismapped?('.toast'), "the default duration should have elapsed by now"
+    refute session.app.winfo.ismapped?('.toast'), "the default duration should have elapsed by now"
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_toast_called_again_replaces_rather_than_stacks
-    assert_tk_app("a second toast while one is showing should replace it, not create a second widget") do
-      require 'teek/ui'
+  tk_test "a second toast while one is showing should replace it, not create a second widget" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Toast Test')
-      session.run_async
+    session = Teek::UI.app(title: 'Toast Test')
+    session.run_async
 
-      before = session.app.split_list(session.app.tcl_eval('winfo children .')).length
+    before = session.app.split_list(session.app.tcl_eval('winfo children .')).length
 
-      session.toast('Saved')
-      session.app.update
-      session.toast('Settings')
-      session.app.update
+    session.toast('Saved')
+    session.app.update
+    session.toast('Settings')
+    session.app.update
 
-      after = session.app.split_list(session.app.tcl_eval('winfo children .')).length
+    after = session.app.split_list(session.app.tcl_eval('winfo children .')).length
 
-      assert_equal before + 1, after, "calling toast twice should not leave two separate widgets behind"
-      assert_equal 'Settings', session.app.command('.toast', :cget, '-text')
+    assert_equal before + 1, after, "calling toast twice should not leave two separate widgets behind"
+    assert_equal 'Settings', session.app.command('.toast', :cget, '-text')
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_toast_called_again_cancels_the_earlier_dismiss_timer
-    assert_tk_app("replacing a toast should cancel the earlier one's auto-dismiss - it must not hide the NEW toast early") do
-      require 'teek/ui'
+  tk_test "replacing a toast should cancel the earlier one's auto-dismiss - it must not hide the NEW toast early" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Toast Test')
-      session.run_async
+    session = Teek::UI.app(title: 'Toast Test')
+    session.run_async
 
-      session.toast('Saved', duration: 30)
-      session.app.update
-      session.toast('Settings', duration: 1000)
-      session.app.update
+    session.toast('Saved', duration: 30)
+    session.app.update
+    session.toast('Settings', duration: 1000)
+    session.app.update
 
-      sleep 0.08
-      session.app.update
+    sleep 0.08
+    session.app.update
 
-      assert session.app.winfo.ismapped?('.toast'),
-        "the first toast's short timer should have been cancelled, not fired and hidden the replacement"
-      assert_equal 'Settings', session.app.command('.toast', :cget, '-text')
+    assert session.app.winfo.ismapped?('.toast'),
+      "the first toast's short timer should have been cancelled, not fired and hidden the replacement"
+    assert_equal 'Settings', session.app.command('.toast', :cget, '-text')
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 end

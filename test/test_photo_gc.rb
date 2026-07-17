@@ -40,90 +40,80 @@ require_relative 'tk_test_helper'
 class TestPhotoGC < Minitest::Test
   include TeekTestHelper
 
-  def test_queue_for_main_runs_a_block_on_the_main_thread
-    assert_tk_app("Interp#queue_for_main should run its block on the main Tcl thread") do
-      ran_on_main = nil
-      app.interp.queue_for_main(proc { ran_on_main = app.interp.on_main_thread? })
-      app.update
+  tk_test "Interp#queue_for_main should run its block on the main Tcl thread" do
+    ran_on_main = nil
+    app.interp.queue_for_main(proc { ran_on_main = app.interp.on_main_thread? })
+    app.update
 
-      assert_equal true, ran_on_main, "queued block should have run on the main thread"
-    end
+    assert_equal true, ran_on_main, "queued block should have run on the main thread"
   end
 
-  def test_finalizer_deletes_the_image_it_was_built_for
-    assert_tk_app("the proc Photo.finalizer_for builds should delete the named image when called") do
-      app.command(:image, :create, :photo, 'teek_test_finalizer_target', width: 5, height: 5)
-      assert_includes app.split_list(app.tcl_eval('image names')), 'teek_test_finalizer_target'
+  tk_test "the proc Photo.finalizer_for builds should delete the named image when called" do
+    app.command(:image, :create, :photo, 'teek_test_finalizer_target', width: 5, height: 5)
+    assert_includes app.split_list(app.tcl_eval('image names')), 'teek_test_finalizer_target'
 
-      Teek::Photo.finalizer_for('teek_test_finalizer_target', app).call
-      app.update
+    Teek::Photo.finalizer_for('teek_test_finalizer_target', app).call
+    app.update
 
-      refute_includes app.split_list(app.tcl_eval('image names')), 'teek_test_finalizer_target',
-        "the finalizer proc should have deleted the image"
-    end
+    refute_includes app.split_list(app.tcl_eval('image names')), 'teek_test_finalizer_target',
+      "the finalizer proc should have deleted the image"
   end
 
-  def test_explicit_delete_cancels_the_pending_finalizer
-    assert_tk_app("explicitly deleting a Photo should cancel its finalizer, not just the image") do
-      p = Teek::Photo.new(app, width: 5, height: 5)
-      name = p.name
-      p.delete
+  tk_test "explicitly deleting a Photo should cancel its finalizer, not just the image" do
+    p = Teek::Photo.new(app, width: 5, height: 5)
+    name = p.name
+    p.delete
 
-      # Recreate a *different* photo at the same name before a stale
-      # finalizer could fire - if #delete didn't cancel it, a later GC
-      # could delete this unrelated image out from under it.
-      p2 = Teek::Photo.new(app, name: name, width: 5, height: 5)
-      GC.start
-      app.update
+    # Recreate a *different* photo at the same name before a stale
+    # finalizer could fire - if #delete didn't cancel it, a later GC
+    # could delete this unrelated image out from under it.
+    p2 = Teek::Photo.new(app, name: name, width: 5, height: 5)
+    GC.start
+    app.update
 
-      assert p2.exist?, "a stale finalizer must not delete a same-named image created after explicit delete"
-      p2.delete
-    end
+    assert p2.exist?, "a stale finalizer must not delete a same-named image created after explicit delete"
+    p2.delete
   end
 
-  def test_command_passthrough_supports_copy_with_subsample
-    assert_tk_app("Photo#command should support arbitrary photo subcommands like copy") do
-      source = Teek::Photo.new(app, width: 40, height: 20)
-      red = ([255, 0, 0, 255].pack('CCCC')) * (40 * 20)
-      source.put_block(red, 40, 20)
+  tk_test "Photo#command should support arbitrary photo subcommands like copy" do
+    source = Teek::Photo.new(app, width: 40, height: 20)
+    red = ([255, 0, 0, 255].pack('CCCC')) * (40 * 20)
+    source.put_block(red, 40, 20)
 
-      dest = Teek::Photo.new(app, name: 'teek_test_copy_dest')
-      dest.command(:copy, source, subsample: 4)
+    dest = Teek::Photo.new(app, name: 'teek_test_copy_dest')
+    dest.command(:copy, source, subsample: 4)
 
-      w, h = dest.get_size
-      assert_equal 10, w
-      assert_equal 5, h
+    w, h = dest.get_size
+    assert_equal 10, w
+    assert_equal 5, h
 
-      source.delete
-      dest.delete
-    end
+    source.delete
+    dest.delete
   end
 
-  def test_from_file_and_subsample_produce_a_correctly_sized_image
-    assert_tk_app("Photo.new(file:) + #command copy subsample should produce a correctly-sized image") do
-      require 'tmpdir'
-      Dir.mktmpdir do |dir|
-        path = File.join(dir, 'test.png')
-        seed = Teek::Photo.new(app, width: 80, height: 40)
-        blue = ([0, 0, 255, 255].pack('CCCC')) * (80 * 40)
-        seed.put_block(blue, 80, 40)
-        app.tcl_eval("#{seed.name} write {#{path}} -format png")
-        seed.delete
+  tk_test "Photo.new(file:) + #command copy subsample should produce a correctly-sized image" do
+    require 'tmpdir'
+    Dir.mktmpdir do |dir|
+      path = File.join(dir, 'test.png')
+      seed = Teek::Photo.new(app, width: 80, height: 40)
+      blue = ([0, 0, 255, 255].pack('CCCC')) * (80 * 40)
+      seed.put_block(blue, 80, 40)
+      app.tcl_eval("#{seed.name} write {#{path}} -format png")
+      seed.delete
 
-        loaded = Teek::Photo.new(app, file: path)
-        w, h = loaded.get_size
-        assert_equal 80, w
-        assert_equal 40, h
+      loaded = Teek::Photo.new(app, file: path)
+      w, h = loaded.get_size
+      assert_equal 80, w
+      assert_equal 40, h
 
-        small = Teek::Photo.new(app)
-        small.command(:copy, loaded, subsample: 2)
-        sw, sh = small.get_size
-        assert_equal 40, sw
-        assert_equal 20, sh
+      small = Teek::Photo.new(app)
+      small.command(:copy, loaded, subsample: 2)
+      sw, sh = small.get_size
+      assert_equal 40, sw
+      assert_equal 20, sh
 
-        loaded.delete
-        small.delete
-      end
+      loaded.delete
+      small.delete
     end
   end
 end

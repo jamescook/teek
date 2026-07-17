@@ -16,235 +16,211 @@ require_relative '../../test/tk_test_helper'
 class TestNativeScrollable < Minitest::Test
   include TeekTestHelper
 
-  def test_a_bare_list_auto_attaches_a_vertical_scrollbar_by_default
-    assert_tk_app("ui.list should get a scrollbar with no ui.scrollable wrapper") do
-      require 'teek/ui'
+  tk_test "ui.list should get a scrollbar with no ui.scrollable wrapper" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.list(:items) }
-      session.run_async
-      session.app.update
+    session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.list(:items) }
+    session.run_async
+    session.app.update
 
-      list_path = session[:items].path
-      wrapper_path = list_path.sub(/\.widget\z/, '')
-      vsb_path = "#{wrapper_path}.vsb"
+    list_path = session[:items].path
+    wrapper_path = list_path.sub(/\.widget\z/, '')
+    vsb_path = "#{wrapper_path}.vsb"
 
-      refute_equal wrapper_path, list_path, "the handle path should be the real widget, not the wrapper"
-      assert_equal '1', session.app.tcl_eval("winfo exists #{vsb_path}")
-      assert_equal '0', session.app.tcl_eval("winfo exists #{wrapper_path}.hsb"), "x: defaults to false"
-      assert_equal "#{list_path} yview", session.app.command(vsb_path, :cget, '-command')
+    refute_equal wrapper_path, list_path, "the handle path should be the real widget, not the wrapper"
+    assert_equal '1', session.app.tcl_eval("winfo exists #{vsb_path}")
+    assert_equal '0', session.app.tcl_eval("winfo exists #{wrapper_path}.hsb"), "x: defaults to false"
+    assert_equal "#{list_path} yview", session.app.command(vsb_path, :cget, '-command')
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_configure_and_events_act_on_the_real_widget_not_the_wrapper
-    assert_tk_app("Handle#configure/#on_click should still act on the real widget once auto-wrapped") do
-      require 'teek/ui'
+  tk_test "Handle#configure/#on_click should still act on the real widget once auto-wrapped" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.list(:items) }
-      session.run_async
-      session.app.update
+    session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.list(:items) }
+    session.run_async
+    session.app.update
 
-      clicked = false
-      session[:items].on_click { clicked = true }
-      session[:items].configure(exportselection: false)
-      session.app.update
+    clicked = false
+    session[:items].on_click { clicked = true }
+    session[:items].configure(exportselection: false)
+    session.app.update
 
-      assert_equal '0', session.app.command(session[:items].path, :cget, '-exportselection')
+    assert_equal '0', session.app.command(session[:items].path, :cget, '-exportselection')
 
-      session.app.tcl_eval("event generate #{session[:items].path} <Button-1>")
-      session.app.update
+    session.app.tcl_eval("event generate #{session[:items].path} <Button-1>")
+    session.app.update
 
-      assert clicked
+    assert clicked
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_scroll_false_opts_out_leaving_a_plain_unwrapped_widget
-    assert_tk_app("scroll: false should leave the widget exactly as it was before auto-scroll existed") do
-      require 'teek/ui'
+  tk_test "scroll: false should leave the widget exactly as it was before auto-scroll existed" do
+    require 'teek/ui'
 
+    session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
+      ui.column(:panel) { |c| c.list(:items, scroll: false) }
+    end
+    session.run_async
+    session.app.update
+
+    assert_equal "#{session[:panel].path}.items", session[:items].path
+    assert_equal '0', session.app.tcl_eval("winfo exists #{session[:items].path}.vsb")
+
+    session.app.destroy
+  end
+
+  tk_test "text_area/table/tree should get the same auto-attach treatment as list" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
+      ui.text_area(:notes)
+      ui.table(:grid_view)
+      ui.tree(:hierarchy)
+    end
+    session.run_async
+    session.app.update
+
+    %i[notes grid_view hierarchy].each do |name|
+      wrapper = session[name].path.sub(/\.widget\z/, '')
+      assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb"), "#{name} should have auto-attached a scrollbar"
+    end
+
+    session.app.destroy
+  end
+
+  tk_test "canvas should default to scroll: false, unlike the other native types" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.canvas(:board) }
+    session.run_async
+    session.app.update
+
+    assert_equal '.board', session[:board].path
+    assert_equal '0', session.app.tcl_eval("winfo exists .board.vsb")
+
+    session.app.destroy
+  end
+
+  tk_test "scroll: true should override canvas's own false default" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.canvas(:board, scroll: true) }
+    session.run_async
+    session.app.update
+
+    wrapper = session[:board].path.sub(/\.widget\z/, '')
+    assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb")
+
+    session.app.destroy
+  end
+
+  tk_test "a canvas's own DSL children (via ui.raw) should target the real canvas, not the wrapper" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
+      # ui.canvas's own block yields the builder itself (not a scoped
+      # Handle - see WidgetDSL's own doc comment), so the real canvas
+      # handle is looked up by name via the outer `ui` instead.
+      ui.canvas(:board, scroll: true) { |c| c.raw { |app| app.command(ui[:board].path, :create, :text, 10, 10, text: 'hi') } }
+    end
+    session.run_async
+    session.app.update
+
+    item_ids = session.app.split_list(session.app.command(session[:board].path, :find, :all))
+    assert_equal 1, item_ids.length
+
+    session.app.destroy
+  end
+
+  tk_test "x: true on a bare native widget should wire a horizontal scrollbar" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.tree(:hierarchy, x: true) }
+    session.run_async
+    session.app.update
+
+    wrapper = session[:hierarchy].path.sub(/\.widget\z/, '')
+    assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.hsb")
+    assert_equal "#{session[:hierarchy].path} xview", session.app.command("#{wrapper}.hsb", :cget, '-command')
+
+    session.app.destroy
+  end
+
+  tk_test "the layout should pack/place the WRAPPER, not the raw widget, inside a flow container" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
+      ui.column do |c|
+        c.label(text: 'Header')
+        c.list(:items, grow: true)
+      end
+    end
+    session.run_async
+    session.app.update
+
+    wrapper = session[:items].path.sub(/\.widget\z/, '')
+    assert_equal 'pack', session.app.tcl_eval("winfo manager #{wrapper}")
+    assert session.app.winfo.ismapped?(wrapper)
+
+    session.app.destroy
+  end
+
+  tk_test "Teek::UI.app(scroll: false) should suppress auto-attach app-wide" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test', scroll: false) { |ui| ui.list(:items) }
+    session.run_async
+    session.app.update
+
+    assert_equal '.items', session[:items].path
+    assert_equal '0', session.app.tcl_eval("winfo exists .items.vsb")
+
+    session.app.destroy
+  end
+
+  tk_test "a widget's own scroll: true should win over the app-level default" do
+    require 'teek/ui'
+
+    session = Teek::UI.app(title: 'Native Scrollable Test', scroll: false) { |ui| ui.list(:items, scroll: true) }
+    session.run_async
+    session.app.update
+
+    wrapper = session[:items].path.sub(/\.widget\z/, '')
+    assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb")
+
+    session.app.destroy
+  end
+
+  tk_test "Teek::UI.auto_scroll = false should suppress the default everywhere it isn't overridden" do
+    require 'teek/ui'
+
+    # The test runner keeps one Tk worker process alive across every test
+    # in this file, reusing its already-loaded Teek::UI module - so a
+    # global class-level default mutated here would otherwise leak into
+    # every test that runs afterward in the same process. Always restore
+    # it, success or failure.
+    original = Teek::UI.auto_scroll
+    begin
+      Teek::UI.auto_scroll = false
       session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
-        ui.column(:panel) { |c| c.list(:items, scroll: false) }
+        ui.list(:default_items)
+        ui.list(:forced_items, scroll: true)
       end
       session.run_async
       session.app.update
 
-      assert_equal "#{session[:panel].path}.items", session[:items].path
-      assert_equal '0', session.app.tcl_eval("winfo exists #{session[:items].path}.vsb")
+      assert_equal '.default_items', session[:default_items].path
+      assert_equal '0', session.app.tcl_eval("winfo exists .default_items.vsb")
+
+      forced_wrapper = session[:forced_items].path.sub(/\.widget\z/, '')
+      assert_equal '1', session.app.tcl_eval("winfo exists #{forced_wrapper}.vsb")
 
       session.app.destroy
-    end
-  end
-
-  def test_text_area_and_table_and_tree_also_auto_attach
-    assert_tk_app("text_area/table/tree should get the same auto-attach treatment as list") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
-        ui.text_area(:notes)
-        ui.table(:grid_view)
-        ui.tree(:hierarchy)
-      end
-      session.run_async
-      session.app.update
-
-      %i[notes grid_view hierarchy].each do |name|
-        wrapper = session[name].path.sub(/\.widget\z/, '')
-        assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb"), "#{name} should have auto-attached a scrollbar"
-      end
-
-      session.app.destroy
-    end
-  end
-
-  def test_canvas_defaults_to_no_auto_attach
-    assert_tk_app("canvas should default to scroll: false, unlike the other native types") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.canvas(:board) }
-      session.run_async
-      session.app.update
-
-      assert_equal '.board', session[:board].path
-      assert_equal '0', session.app.tcl_eval("winfo exists .board.vsb")
-
-      session.app.destroy
-    end
-  end
-
-  def test_canvas_scroll_true_forces_it_on
-    assert_tk_app("scroll: true should override canvas's own false default") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.canvas(:board, scroll: true) }
-      session.run_async
-      session.app.update
-
-      wrapper = session[:board].path.sub(/\.widget\z/, '')
-      assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb")
-
-      session.app.destroy
-    end
-  end
-
-  def test_canvas_children_still_create_inside_the_real_canvas_once_wrapped
-    assert_tk_app("a canvas's own DSL children (via ui.raw) should target the real canvas, not the wrapper") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
-        # ui.canvas's own block yields the builder itself (not a scoped
-        # Handle - see WidgetDSL's own doc comment), so the real canvas
-        # handle is looked up by name via the outer `ui` instead.
-        ui.canvas(:board, scroll: true) { |c| c.raw { |app| app.command(ui[:board].path, :create, :text, 10, 10, text: 'hi') } }
-      end
-      session.run_async
-      session.app.update
-
-      item_ids = session.app.split_list(session.app.command(session[:board].path, :find, :all))
-      assert_equal 1, item_ids.length
-
-      session.app.destroy
-    end
-  end
-
-  def test_x_true_wires_a_horizontal_scrollbar_on_a_native_widget_too
-    assert_tk_app("x: true on a bare native widget should wire a horizontal scrollbar") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test') { |ui| ui.tree(:hierarchy, x: true) }
-      session.run_async
-      session.app.update
-
-      wrapper = session[:hierarchy].path.sub(/\.widget\z/, '')
-      assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.hsb")
-      assert_equal "#{session[:hierarchy].path} xview", session.app.command("#{wrapper}.hsb", :cget, '-command')
-
-      session.app.destroy
-    end
-  end
-
-  def test_wrapped_widget_composes_correctly_inside_a_flow_container
-    assert_tk_app("the layout should pack/place the WRAPPER, not the raw widget, inside a flow container") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
-        ui.column do |c|
-          c.label(text: 'Header')
-          c.list(:items, grow: true)
-        end
-      end
-      session.run_async
-      session.app.update
-
-      wrapper = session[:items].path.sub(/\.widget\z/, '')
-      assert_equal 'pack', session.app.tcl_eval("winfo manager #{wrapper}")
-      assert session.app.winfo.ismapped?(wrapper)
-
-      session.app.destroy
-    end
-  end
-
-  def test_app_level_scroll_false_overrides_the_global_default
-    assert_tk_app("Teek::UI.app(scroll: false) should suppress auto-attach app-wide") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test', scroll: false) { |ui| ui.list(:items) }
-      session.run_async
-      session.app.update
-
-      assert_equal '.items', session[:items].path
-      assert_equal '0', session.app.tcl_eval("winfo exists .items.vsb")
-
-      session.app.destroy
-    end
-  end
-
-  def test_per_widget_scroll_true_overrides_an_app_level_false
-    assert_tk_app("a widget's own scroll: true should win over the app-level default") do
-      require 'teek/ui'
-
-      session = Teek::UI.app(title: 'Native Scrollable Test', scroll: false) { |ui| ui.list(:items, scroll: true) }
-      session.run_async
-      session.app.update
-
-      wrapper = session[:items].path.sub(/\.widget\z/, '')
-      assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb")
-
-      session.app.destroy
-    end
-  end
-
-  def test_global_default_false_suppresses_auto_attach_unless_overridden
-    assert_tk_app("Teek::UI.auto_scroll = false should suppress the default everywhere it isn't overridden") do
-      require 'teek/ui'
-
-      # The test runner keeps one Tk worker process alive across every test
-      # in this file, reusing its already-loaded Teek::UI module - so a
-      # global class-level default mutated here would otherwise leak into
-      # every test that runs afterward in the same process. Always restore
-      # it, success or failure.
-      original = Teek::UI.auto_scroll
-      begin
-        Teek::UI.auto_scroll = false
-        session = Teek::UI.app(title: 'Native Scrollable Test') do |ui|
-          ui.list(:default_items)
-          ui.list(:forced_items, scroll: true)
-        end
-        session.run_async
-        session.app.update
-
-        assert_equal '.default_items', session[:default_items].path
-        assert_equal '0', session.app.tcl_eval("winfo exists .default_items.vsb")
-
-        forced_wrapper = session[:forced_items].path.sub(/\.widget\z/, '')
-        assert_equal '1', session.app.tcl_eval("winfo exists #{forced_wrapper}.vsb")
-
-        session.app.destroy
-      ensure
-        Teek::UI.auto_scroll = original
-      end
+    ensure
+      Teek::UI.auto_scroll = original
     end
   end
 end

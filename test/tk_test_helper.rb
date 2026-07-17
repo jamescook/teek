@@ -275,6 +275,34 @@ module TeekTestHelper
     false
   end
 
+  # Class macro: collapses the `def test_x; assert_tk_app("x") do ... end; end`
+  # duplication (the same sentence twice - once as a snake_case method name,
+  # once as the message) into a single full-punctuation description, the way
+  # minitest/spec's `it` does - but stays on Minitest::Test and leaves all of
+  # assert_tk_app's subprocess mechanics untouched.
+  #
+  # Example:
+  #   tk_test "facade resolves its own :save, never a sibling's" do
+  #     ...
+  #   end
+  #
+  # The generated method name ("test_: <description>") is how minitest/spec
+  # already names its own generated methods, so ordinary test discovery
+  # (methods.grep(/^test_/) + send(name)) picks it up unchanged. The
+  # original block is passed straight through (not rewrapped), so
+  # block.source/source_location inside assert_tk_app still resolve to
+  # wherever the caller actually wrote it - required for the subprocess body
+  # extraction to show correct file:line in backtraces.
+  def self.included(base)
+    base.extend(ClassMethods)
+  end
+
+  module ClassMethods
+    def tk_test(description, **opts, &block)
+      define_method("test_: #{description}") { assert_tk_app(description, **opts, &block) }
+    end
+  end
+
   # Run test using persistent Teek::TestWorker (fast, no subprocess spawn per test).
   #
   # The test code has access to `app` (a Teek::App instance) and minitest assertions.

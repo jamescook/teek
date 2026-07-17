@@ -24,104 +24,92 @@ require_relative '../../test/tk_test_helper'
 class TestScrollbarAutoHide < Minitest::Test
   include TeekTestHelper
 
-  def test_scrollbar_is_hidden_when_content_fits
-    assert_tk_app("a scrollbar should be grid-removed when its content doesn't overflow the visible area") do
-      require 'teek/ui'
+  tk_test "a scrollbar should be grid-removed when its content doesn't overflow the visible area" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 10) }
-      session.run_async
-      session.app.command(session[:items].path, :insert, :end, 'one', 'two', 'three')
+    session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 10) }
+    session.run_async
+    session.app.command(session[:items].path, :insert, :end, 'one', 'two', 'three')
 
-      wrapper = session[:items].path.sub(/\.widget\z/, '')
-      assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb"), "the scrollbar widget itself still exists"
-      assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") },
-        "should be grid-removed once idle processing settles, since everything fits"
+    wrapper = session[:items].path.sub(/\.widget\z/, '')
+    assert_equal '1', session.app.tcl_eval("winfo exists #{wrapper}.vsb"), "the scrollbar widget itself still exists"
+    assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") },
+      "should be grid-removed once idle processing settles, since everything fits"
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_scrollbar_is_shown_when_content_overflows
-    assert_tk_app("a scrollbar should be mapped once its content overflows the visible area") do
-      require 'teek/ui'
+  tk_test "a scrollbar should be mapped once its content overflows the visible area" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 5) }
-      session.run_async
-      session.app.command(session[:items].path, :insert, :end, *(1..50).map { |i| "Item #{i}" })
+    session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 5) }
+    session.run_async
+    session.app.command(session[:items].path, :insert, :end, *(1..50).map { |i| "Item #{i}" })
 
-      wrapper = session[:items].path.sub(/\.widget\z/, '')
-      assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }
+    wrapper = session[:items].path.sub(/\.widget\z/, '')
+    assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_scrollbar_appears_once_content_grows_past_fitting
-    assert_tk_app("a scrollbar hidden at realize should reappear once enough content is added later") do
-      require 'teek/ui'
+  tk_test "a scrollbar hidden at realize should reappear once enough content is added later" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 5) }
-      session.run_async
-      session.app.command(session[:items].path, :insert, :end, 'one', 'two')
+    session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 5) }
+    session.run_async
+    session.app.command(session[:items].path, :insert, :end, 'one', 'two')
 
-      wrapper = session[:items].path.sub(/\.widget\z/, '')
-      assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should start hidden with only 2 items"
+    wrapper = session[:items].path.sub(/\.widget\z/, '')
+    assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should start hidden with only 2 items"
 
-      session.app.command(session[:items].path, :insert, :end, *(1..50).map { |i| "More #{i}" })
+    session.app.command(session[:items].path, :insert, :end, *(1..50).map { |i| "More #{i}" })
 
-      assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should reappear once content overflows"
+    assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should reappear once content overflows"
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_scrollbar_disappears_again_once_content_shrinks_back_to_fitting
-    assert_tk_app("a visible scrollbar should hide again once enough content is removed") do
-      require 'teek/ui'
+  tk_test "a visible scrollbar should hide again once enough content is removed" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 5) }
-      session.run_async
-      session.app.command(session[:items].path, :insert, :end, *(1..50).map { |i| "Item #{i}" })
+    session = Teek::UI.app(title: 'Auto-Hide Test') { |ui| ui.list(:items, height: 5) }
+    session.run_async
+    session.app.command(session[:items].path, :insert, :end, *(1..50).map { |i| "Item #{i}" })
 
-      wrapper = session[:items].path.sub(/\.widget\z/, '')
-      assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should start shown with 50 items"
+    wrapper = session[:items].path.sub(/\.widget\z/, '')
+    assert wait_until { session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should start shown with 50 items"
 
-      session.app.command(session[:items].path, :delete, 2, :end)
+    session.app.command(session[:items].path, :delete, 2, :end)
 
-      assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should hide again once only 2 items remain"
+    assert wait_until { !session.app.winfo.ismapped?("#{wrapper}.vsb") }, "should hide again once only 2 items remain"
 
-      session.app.destroy
-    end
+    session.app.destroy
   end
 
-  def test_the_frame_case_also_auto_hides_its_scrollbar
-    assert_tk_app("ui.scrollable's own canvas-driven scrollbar should auto-hide the same way") do
-      require 'teek/ui'
+  tk_test "ui.scrollable's own canvas-driven scrollbar should auto-hide the same way" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Auto-Hide Test') do |ui|
-        ui.scrollable(:region) { |s| s.column(:rows) { |c| c.button(text: 'One lone button') } }
-      end
-      session.run_async
-
-      assert wait_until { !session.app.winfo.ismapped?("#{session[:region].path}.vsb") },
-        "one small button shouldn't overflow the canvas's own default size"
-
-      session.app.destroy
+    session = Teek::UI.app(title: 'Auto-Hide Test') do |ui|
+      ui.scrollable(:region) { |s| s.column(:rows) { |c| c.button(text: 'One lone button') } }
     end
+    session.run_async
+
+    assert wait_until { !session.app.winfo.ismapped?("#{session[:region].path}.vsb") },
+      "one small button shouldn't overflow the canvas's own default size"
+
+    session.app.destroy
   end
 
-  def test_the_frame_case_shows_its_scrollbar_once_content_overflows
-    assert_tk_app("ui.scrollable's canvas-driven scrollbar should appear once its content overflows") do
-      require 'teek/ui'
+  tk_test "ui.scrollable's canvas-driven scrollbar should appear once its content overflows" do
+    require 'teek/ui'
 
-      session = Teek::UI.app(title: 'Auto-Hide Test') do |ui|
-        ui.scrollable(:region) { |s| s.column(:rows) { |c| 40.times { |i| c.button(text: "Row #{i}") } } }
-      end
-      session.run_async
-
-      assert wait_until { session.app.winfo.ismapped?("#{session[:region].path}.vsb") }
-
-      session.app.destroy
+    session = Teek::UI.app(title: 'Auto-Hide Test') do |ui|
+      ui.scrollable(:region) { |s| s.column(:rows) { |c| 40.times { |i| c.button(text: "Row #{i}") } } }
     end
+    session.run_async
+
+    assert wait_until { session.app.winfo.ismapped?("#{session[:region].path}.vsb") }
+
+    session.app.destroy
   end
 end
