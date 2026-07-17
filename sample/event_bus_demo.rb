@@ -47,7 +47,9 @@ def log_line(ui, message)
   log.configure(state: :disabled)
 end
 
-Teek::UI.app(title: 'Event Bus Demo (teek-ui)') do |ui|
+# thread_timer_ms: 0 - no background Ruby threads here, so blocking mode
+# (idle until a real event, no periodic wakeups) is safe and cheaper.
+Teek::UI.app(title: 'Event Bus Demo (teek-ui)', thread_timer_ms: 0) do |ui|
   ui.column(gap: 12, pad: 12, align: :stretch) do |c|
     c.row(gap: 24) do |r|
       r.label(text: 'Cart:')

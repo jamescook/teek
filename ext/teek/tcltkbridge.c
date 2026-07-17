@@ -272,11 +272,7 @@ get_interp(VALUE self)
 }
 
 /* ---------------------------------------------------------
- * Interp#initialize(name=nil, opts={}) - Create Tcl interp and load Tk
- *
- * Arguments:
- *   name - Ignored (legacy compatibility)
- *   opts - Options hash
+ * Interp#initialize(opts={}) - Create Tcl interp and load Tk
  *
  * Options:
  *   :thread_timer_ms - Caps how long a single Tcl_DoOneEvent wait can block
@@ -315,13 +311,11 @@ interp_initialize(int argc, VALUE *argv, VALUE self)
     struct tcltk_interp *tip;
     const char *tcl_version;
     const char *tk_version;
-    VALUE name, opts, val;
+    VALUE opts, val;
 
     TypedData_Get_Struct(self, struct tcltk_interp, &interp_type, tip);
 
-    /* Parse legacy (name, opts) or new (opts) argument forms */
-    rb_scan_args(argc, argv, "02", &name, &opts);
-    /* name is ignored - kept for legacy compatibility */
+    rb_scan_args(argc, argv, "01", &opts);
 
     /* Check for options in opts hash */
     if (!NIL_P(opts) && TYPE(opts) == T_HASH) {

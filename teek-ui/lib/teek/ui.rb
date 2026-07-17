@@ -37,7 +37,8 @@ module Teek
     #   scrollable widgets auto-attach a scrollbar - between a widget's own
     #   `scroll:` (most specific) and {.auto_scroll}/{.auto_scroll_canvas}
     #   (global default). `nil` (the default) defers straight to the global.
-    # @param app_opts [Hash] forwarded to {Teek::App.new} at realize (e.g. +debug:+, +track_widgets:+)
+    # @param app_opts [Hash] forwarded to {Teek::App.new} at realize (e.g.
+    #   +debug:+, +track_widgets:+, +thread_timer_ms: 0+ for blocking mode)
     # @yieldparam ui [Session]
     # @return [Session]
     #

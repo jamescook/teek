@@ -96,8 +96,12 @@ module Teek
     attr_reader :interp, :widgets, :debugger, :callback_registry, :winfo, :wm, :clipboard
     attr_writer :_pending_exception # @api private
 
-    def initialize(title: nil, track_widgets: true, debug: false, &block)
-      @interp = Teek::Interp.new
+    # @param thread_timer_ms [Integer, nil] see {Interp#thread_timer_ms=}.
+    #   Set to 0 for blocking mode (zero idle wakeups) if the app has no
+    #   background Ruby threads that need scheduling during {#mainloop}.
+    #   nil keeps the default (16ms).
+    def initialize(title: nil, track_widgets: true, debug: false, thread_timer_ms: nil, &block)
+      @interp = thread_timer_ms.nil? ? Teek::Interp.new : Teek::Interp.new(thread_timer_ms: thread_timer_ms)
       @interp.tcl_eval('package require Tk')
       @winfo = Teek::Winfo.new(self)
       @wm = Teek::Wm.new(self)
