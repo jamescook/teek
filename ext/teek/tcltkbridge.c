@@ -279,16 +279,21 @@ get_interp(VALUE self)
  *   opts - Options hash
  *
  * Options:
- *   :thread_timer_ms - Timer interval for thread-aware mainloop (default: 5)
- *                      Controls how often Ruby threads get a chance to run
- *                      during Tk.mainloop.
+ *   :thread_timer_ms - Caps how long a single Tcl_DoOneEvent wait can block
+ *                      during Interp#mainloop, by scheduling a recurring
+ *                      Tcl timer that forces it to return (default: 16, see
+ *                      DEFAULT_TIMER_INTERVAL_MS). The GVL is released for
+ *                      the whole wait either way, so background Ruby
+ *                      threads are never starved - this only bounds how
+ *                      promptly they get scheduled relative to real Tk
+ *                      events.
  *
  *                      Tradeoffs:
- *                      - 1ms:  Very responsive threads, higher CPU when idle
- *                      - 5ms:  Good balance (default)
- *                      - 10ms: Lower CPU, slight thread latency
- *                      - 20ms: Minimal CPU, noticeable latency for threads
- *                      - 0:    Disable timer (threads won't run during mainloop)
+ *                      - 1ms:  Very tight thread scheduling, small wakeup overhead
+ *                      - 16ms: Good balance, ~60fps (default)
+ *                      - 50ms: Looser thread scheduling, less wakeup overhead
+ *                      - 0:    Blocking mode - no timer; DoOneEvent blocks
+ *                              until a real event. True idle = 0 CPU.
  *
  * Initialization order (verified empirically on Tcl/Tk 9.0.3):
  * 1. Tcl_FindExecutable - sets up internal paths (NOT stubbed)
@@ -426,11 +431,24 @@ callback_invoke(VALUE varg)
     return rb_proc_call(cargs->proc, cargs->args);
 }
 
-static int
-ruby_callback_proc(ClientData clientData, Tcl_Interp *interp,
-                   int objc, Tcl_Obj *const objv[])
+/* Args/result for ruby_callback_proc_body, run via rb_thread_call_with_gvl -
+ * see ruby_callback_proc for why. */
+struct ruby_callback_ctx {
+    ClientData clientData;
+    Tcl_Interp *interp;
+    int objc;
+    Tcl_Obj *const *objv;
+    int result;
+};
+
+static void *
+ruby_callback_proc_body(void *arg)
 {
-    struct tcltk_interp *tip = (struct tcltk_interp *)clientData;
+    struct ruby_callback_ctx *ctx = (struct ruby_callback_ctx *)arg;
+    struct tcltk_interp *tip = (struct tcltk_interp *)ctx->clientData;
+    Tcl_Interp *interp = ctx->interp;
+    int objc = ctx->objc;
+    Tcl_Obj *const *objv = ctx->objv;
     VALUE id_str, proc, args, result;
     struct callback_args cargs;
     int i, state;
@@ -438,7 +456,8 @@ ruby_callback_proc(ClientData clientData, Tcl_Interp *interp,
     if (objc < 2) {
         Tcl_SetResult(interp, "wrong # args: should be \"ruby_callback id ?args?\"",
                       TCL_STATIC);
-        return TCL_ERROR;
+        ctx->result = TCL_ERROR;
+        return NULL;
     }
 
     /* Look up proc by ID */
@@ -448,7 +467,8 @@ ruby_callback_proc(ClientData clientData, Tcl_Interp *interp,
     if (NIL_P(proc)) {
         Tcl_SetObjResult(interp, Tcl_ObjPrintf("unknown callback id: %s",
                          Tcl_GetString(objv[1])));
-        return TCL_ERROR;
+        ctx->result = TCL_ERROR;
+        return NULL;
     }
 
     /* Build args array */
@@ -479,15 +499,16 @@ ruby_callback_proc(ClientData clientData, Tcl_Interp *interp,
         /* Other exceptions: convert to Tcl error */
         VALUE msg = rb_funcall(errinfo, rb_intern("message"), 0);
         Tcl_SetResult(interp, StringValueCStr(msg), TCL_VOLATILE);
-        return TCL_ERROR;
+        ctx->result = TCL_ERROR;
+        return NULL;
     }
 
     /* Check return value for Tcl control flow signals.
      * Callbacks wrapped by Teek::App#register_callback use catch/throw
      * and return these symbols when the user throws :teek_break etc. */
-    if (result == ID2SYM(rb_intern("break"))) return TCL_BREAK;
-    if (result == ID2SYM(rb_intern("continue"))) return TCL_CONTINUE;
-    if (result == ID2SYM(rb_intern("return"))) return TCL_RETURN;
+    if (result == ID2SYM(rb_intern("break"))) { ctx->result = TCL_BREAK; return NULL; }
+    if (result == ID2SYM(rb_intern("continue"))) { ctx->result = TCL_CONTINUE; return NULL; }
+    if (result == ID2SYM(rb_intern("return"))) { ctx->result = TCL_RETURN; return NULL; }
 
     /* Return result to Tcl */
     if (!NIL_P(result)) {
@@ -495,7 +516,22 @@ ruby_callback_proc(ClientData clientData, Tcl_Interp *interp,
         Tcl_SetResult(interp, StringValueCStr(str), TCL_VOLATILE);
     }
 
-    return TCL_OK;
+    ctx->result = TCL_OK;
+    return NULL;
+}
+
+/* Tcl can dispatch this from inside a Tcl_DoOneEvent call running without
+ * the GVL (see interp_mainloop) - rb_thread_call_with_gvl reacquires it for
+ * the callback's duration. Safe either way: if the GVL is already held
+ * (the ordinary case - app.update, a synchronous tcl_eval, etc.) it just
+ * calls the body directly. */
+static int
+ruby_callback_proc(ClientData clientData, Tcl_Interp *interp,
+                   int objc, Tcl_Obj *const objv[])
+{
+    struct ruby_callback_ctx ctx = { clientData, interp, objc, objv, TCL_OK };
+    rb_thread_call_with_gvl(ruby_callback_proc_body, &ctx);
+    return ctx.result;
 }
 
 /* ---------------------------------------------------------
@@ -512,21 +548,30 @@ eval_ruby_string(VALUE arg)
     return rb_eval_string(StringValueCStr(arg));
 }
 
-static int
-ruby_eval_proc(ClientData clientData, Tcl_Interp *interp,
-               int objc, Tcl_Obj *const objv[])
+struct ruby_eval_ctx {
+    Tcl_Interp *interp;
+    int objc;
+    Tcl_Obj *const *objv;
+    int result;
+};
+
+static void *
+ruby_eval_proc_body(void *arg)
 {
+    struct ruby_eval_ctx *ctx = (struct ruby_eval_ctx *)arg;
+    Tcl_Interp *interp = ctx->interp;
     VALUE code_str, result;
     int state;
     const char *code;
 
-    if (objc != 2) {
+    if (ctx->objc != 2) {
         Tcl_SetResult(interp, (char *)"wrong # args: should be \"ruby code\"",
                       TCL_STATIC);
-        return TCL_ERROR;
+        ctx->result = TCL_ERROR;
+        return NULL;
     }
 
-    code = Tcl_GetString(objv[1]);
+    code = Tcl_GetString(ctx->objv[1]);
     code_str = rb_utf8_str_new_cstr(code);
 
     result = rb_protect(eval_ruby_string, code_str, &state);
@@ -543,7 +588,8 @@ ruby_eval_proc(ClientData clientData, Tcl_Interp *interp,
 
         VALUE msg = rb_funcall(errinfo, rb_intern("message"), 0);
         Tcl_SetResult(interp, StringValueCStr(msg), TCL_VOLATILE);
-        return TCL_ERROR;
+        ctx->result = TCL_ERROR;
+        return NULL;
     }
 
     if (!NIL_P(result)) {
@@ -551,7 +597,18 @@ ruby_eval_proc(ClientData clientData, Tcl_Interp *interp,
         Tcl_SetResult(interp, StringValueCStr(str), TCL_VOLATILE);
     }
 
-    return TCL_OK;
+    ctx->result = TCL_OK;
+    return NULL;
+}
+
+/* See ruby_callback_proc - same "may run without the GVL held" concern. */
+static int
+ruby_eval_proc(ClientData clientData, Tcl_Interp *interp,
+               int objc, Tcl_Obj *const objv[])
+{
+    struct ruby_eval_ctx ctx = { interp, objc, objv, TCL_OK };
+    rb_thread_call_with_gvl(ruby_eval_proc_body, &ctx);
+    return ctx.result;
 }
 
 /* ---------------------------------------------------------
@@ -724,17 +781,17 @@ execute_queued_proc(VALUE proc)
 }
 
 /* Tcl event callback - runs on main thread when event is processed */
-static int
-ruby_thread_event_handler(Tcl_Event *evPtr, int flags)
+static void *
+ruby_thread_event_handler_body(void *arg)
 {
-    struct ruby_thread_event *rte = (struct ruby_thread_event *)evPtr;
+    struct ruby_thread_event *rte = (struct ruby_thread_event *)arg;
     VALUE cmd, type, queue, result, exception;
     int state;
     VALUE exec_args[2];
 
     /* Pop the command from the GC-protected queue */
     cmd = rb_ary_shift(rte->tip->thread_queue);
-    if (NIL_P(cmd)) return 1;
+    if (NIL_P(cmd)) return NULL;
 
     type = rb_hash_aref(cmd, ID2SYM(sym_type));
     queue = rb_hash_aref(cmd, ID2SYM(sym_queue));
@@ -773,6 +830,16 @@ ruby_thread_event_handler(Tcl_Event *evPtr, int flags)
         rb_funcall(queue, rb_intern("push"), 1, response);
     }
 
+    return NULL;
+}
+
+/* See ruby_callback_proc - same "may run without the GVL held" concern
+ * (this handler is dispatched from Tcl_ServiceEvent, called from within
+ * Tcl_DoOneEvent). */
+static int
+ruby_thread_event_handler(Tcl_Event *evPtr, int flags)
+{
+    rb_thread_call_with_gvl(ruby_thread_event_handler_body, (void *)evPtr);
     return 1; /* Event handled, Tcl will free the event struct */
 }
 
@@ -1105,18 +1172,36 @@ interp_tk_version(VALUE self)
 /* ---------------------------------------------------------
  * Interp#mainloop - Run Tk event loop until no windows remain
  *
- * This is a thread-aware event loop that yields to other Ruby threads.
- * A recurring Tcl timer ensures DoOneEvent returns periodically.
- * The timer interval is controlled by the :thread_timer_ms option
- * passed to initialize (default: 5ms).
+ * The GVL is released for the full duration of each Tcl_DoOneEvent call
+ * (not just a no-op yield afterward), so background Ruby threads run
+ * freely the whole time Tk is blocked waiting for events instead of being
+ * starved or throttled to a fixed tick.
+ *
+ * (An earlier version of this added a non-blocking TCL_DONT_WAIT fast
+ * path to avoid a GVL round trip per event during bursts like mouse
+ * <Motion> streams. Dropped it: a busy background Ruby thread turns the
+ * release-then-immediately-reacquire cycle that fast path produced into
+ * a livelock under MRI's GVL scheduler - the main thread could get
+ * starved of its own reacquisition. Confirmed via Teek::BackgroundWork's
+ * :thread mode - sample/threading_demo.rb, sample/paint/paint_demo.rb.)
+ *
+ * The :thread_timer_ms option passed to initialize (default: 16ms) still
+ * controls an optional recurring Tcl timer that forces DoOneEvent to
+ * return on a schedule - useful for apps that need Ruby-thread wakeups
+ * tighter than "whenever a real Tk event happens" (e.g. frame pacing).
+ * Set it to 0 for true blocking mode: DoOneEvent blocks until a real
+ * event arrives, so an idle app truly idles (no periodic wakeups/CPU).
+ *
+ * Ctrl-C responsiveness in blocking mode: rb_thread_check_ints() only
+ * runs after DoOneEvent returns, so a naive blocking wait could leave
+ * Ctrl-C (or Thread#raise/#kill) pending indefinitely on an idle app.
+ * mainloop_ubf is the "unblocking function" Ruby calls (from another
+ * thread) when this thread has an interrupt to deliver; it pokes Tcl's
+ * notifier via Tcl_ThreadAlert so the blocked DoOneEvent wakes up and
+ * rb_thread_check_ints() gets a chance to run. Same mechanism
+ * queue_command_internal() already uses to wake the main thread from a
+ * background thread.
  * --------------------------------------------------------- */
-
-/* Quick no-op function for GVL release/reacquire */
-static void *
-thread_yield_func(void *arg)
-{
-    return NULL;
-}
 
 /* Timer handler - re-registers itself to keep event loop responsive */
 static void
@@ -1125,6 +1210,24 @@ keepalive_timer_proc(ClientData clientData)
     struct tcltk_interp *tip = (struct tcltk_interp *)clientData;
     if (tip && !tip->deleted && tip->timer_interval_ms > 0) {
         Tcl_CreateTimerHandler(tip->timer_interval_ms, keepalive_timer_proc, clientData);
+    }
+}
+
+/* Runs without the GVL held - must not touch Ruby state */
+static void *
+do_one_event_func(void *arg)
+{
+    Tcl_DoOneEvent(TCL_ALL_EVENTS);
+    return NULL;
+}
+
+/* Called from another OS thread to interrupt a blocked do_one_event_func */
+static void
+mainloop_ubf(void *arg)
+{
+    struct tcltk_interp *tip = (struct tcltk_interp *)arg;
+    if (tip && !tip->deleted) {
+        Tcl_ThreadAlert(tip->main_thread_id);
     }
 }
 
@@ -1139,13 +1242,8 @@ interp_mainloop(VALUE self)
     }
 
     while (Tk_GetNumMainWindows() > 0) {
-        /* Process one event (timer ensures this returns periodically) */
-        Tcl_DoOneEvent(TCL_ALL_EVENTS);
-
-        /* Yield to other Ruby threads by releasing and reacquiring GVL */
-        if (tip->timer_interval_ms > 0) {
-            rb_thread_call_without_gvl(thread_yield_func, NULL, RUBY_UBF_IO, NULL);
-        }
+        /* Process one event, GVL released for the full blocking wait */
+        rb_thread_call_without_gvl(do_one_event_func, NULL, mainloop_ubf, (void *)tip);
 
         /* Check for Ruby interrupts (Ctrl-C, etc) */
         rb_thread_check_ints();
@@ -1153,18 +1251,6 @@ interp_mainloop(VALUE self)
 
     return Qnil;
 }
-
-/* ---------------------------------------------------------
- * TclTkLib.mainloop - Global event loop (no interpreter required)
- *
- * Runs the Tk event loop until all windows are closed.
- * Uses the global g_thread_timer_ms setting for thread yielding.
- *
- * IMPORTANT: GVL is released during Tcl_DoOneEvent so background
- * Ruby threads can run while waiting for Tk events. Without this,
- * background threads would be starved (only running during brief
- * yields between events).
- * --------------------------------------------------------- */
 
 /* ---------------------------------------------------------
  * Interp#thread_timer_ms / #thread_timer_ms= - Get/set timer interval
